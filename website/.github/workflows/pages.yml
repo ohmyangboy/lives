@@ -3,9 +3,8 @@ name: Deploy Lives website to Pages
 on:
   push:
     branches: [main]
-    paths:
-      - "website/**"
-      - ".github/workflows/pages.yml"
+    paths-ignore:
+      - "README.md"
   workflow_dispatch:
 
 permissions:
@@ -33,7 +32,6 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Build website
-        working-directory: website
         env:
           LIVES_VERSION: ${{ vars.LIVES_VERSION || '0.1.0' }}
           LIVES_DOWNLOAD_URL: ${{ vars.LIVES_DOWNLOAD_URL || 'https://github.com/young-4ever/macToLive/releases/latest' }}
@@ -42,7 +40,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: website/dist
+          path: dist
 
   deploy:
     environment:
