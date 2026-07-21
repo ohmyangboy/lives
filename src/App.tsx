@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -46,7 +46,16 @@ const initialExport: ExportState = { visible: false, state: 'running', stage: 'i
 const defaultProjectId = 'direct-imports'
 const libraryStorageKey = 'lives.project-media.v2'
 const legacyLibraryStorageKey = 'lives.project-media.v1'
+const onboardingStorageKey = 'lives.onboarding.import-guide.v1'
 const createDefaultProject = (): MediaProject => ({ id: defaultProjectId, name: '已导入', kind: 'direct', clipIds: [] })
+
+const shouldShowFirstRunGuide = () => {
+  try {
+    return localStorage.getItem(onboardingStorageKey) !== 'completed'
+  } catch {
+    return true
+  }
+}
 
 const coverFrameCache = new Map<string, string>()
 const coverFrameJobs = new Map<string, { controller: AbortController; consumers: number; promise: Promise<string | undefined> }>()
@@ -251,7 +260,11 @@ export function App() {
   const [slotPlacements, setSlotPlacements] = useState<SlotPlacements>({})
   const [destinationPickerVisible, setDestinationPickerVisible] = useState(false)
   const [importProgress, setImportProgress] = useState<{ done: number; total: number }>()
+  const [startupPhase, setStartupPhase] = useState<'visible' | 'leaving' | 'hidden'>('visible')
+  const [firstRunGuideVisible, setFirstRunGuideVisible] = useState(shouldShowFirstRunGuide)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const firstRunDialogRef = useRef<HTMLDivElement>(null)
+  const firstRunPrimaryRef = useRef<HTMLButtonElement>(null)
   const internalDragRef = useRef(false)
   const sourcePointerDragRef = useRef<{ pointerId: number; materialId: string; startX: number; startY: number; active: boolean } | undefined>(undefined)
   const activeMediaProject = mediaProjects.find((project) => project.id === activeProjectId) ?? mediaProjects[0]
@@ -266,6 +279,21 @@ export function App() {
   const sourceQuality = analyzeSourceQuality(activeClips.length ? activeClips : clips)
   const cropUpscaleRisk = sourceQuality.effectiveShortEdge < Math.min(canvas.width, canvas.height)
   const canExport = desktopAvailable() && slotClips.length === currentTemplate.requiredClipCount && slotClips.every((clip): clip is SlotClip => clip !== undefined && clip.durationMs >= 3000)
+
+  useEffect(() => {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const leaveTimer = window.setTimeout(() => setStartupPhase('leaving'), reducedMotion ? 100 : 680)
+    const hideTimer = window.setTimeout(() => setStartupPhase('hidden'), reducedMotion ? 180 : 920)
+    return () => {
+      window.clearTimeout(leaveTimer)
+      window.clearTimeout(hideTimer)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (startupPhase !== 'hidden' || !firstRunGuideVisible) return
+    firstRunPrimaryRef.current?.focus()
+  }, [firstRunGuideVisible, startupPhase])
 
   const resolveMaterial = useCallback((materialId: string) => {
     const source = clips.find((clip) => clip.id === materialId)
@@ -388,6 +416,41 @@ export function App() {
       setImportProgress(undefined)
       setNotice(error instanceof Error ? error.message : '无法读取这个文件夹')
     }
+  }
+
+  const dismissFirstRunGuide = () => {
+    try { localStorage.setItem(onboardingStorageKey, 'completed') } catch { /* The guide still closes for this session. */ }
+    setFirstRunGuideVisible(false)
+  }
+
+  const handleFirstRunGuideKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      dismissFirstRunGuide()
+      return
+    }
+    if (event.key !== 'Tab') return
+    const focusable = Array.from(firstRunDialogRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
+    if (!focusable.length) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
+  const importVideosFromFirstRunGuide = () => {
+    dismissFirstRunGuide()
+    void chooseVideos()
+  }
+
+  const importFolderFromFirstRunGuide = () => {
+    dismissFirstRunGuide()
+    void chooseSourceFolder()
   }
 
   const chooseExportFolder = async () => {
@@ -621,39 +684,13 @@ export function App() {
       }}>
         <div className="brand"><span className="brand-mark"><LiveIcon /></span><div><strong>Lives</strong><small>实况拼贴</small></div></div>
         <div className="project-meta"><span className={clips.length ? 'status-dot active' : 'status-dot'} />{projectSummary}</div>
-        <div className={clips.length ? 'titlebar-actions' : 'titlebar-actions welcome-empty'}>
+        <div className="titlebar-actions">
           <button className="clear-project" disabled={!canClearCollage} onClick={clearCollage} title="保留素材，仅清除当前拼贴"><ClearIcon />清除拼贴</button>
           <button className="primary-button" disabled={!clips.length} onClick={requestExport}><ExportIcon />生成 Live Photo</button>
         </div>
       </header>
 
-      {!clips.length ? (
-        <section className="welcome">
-          <div className="welcome-copy">
-            <span className="eyebrow">Mac 上的 Live Photo 拼贴工具</span>
-            <h1>一张 <em>Live Photo</em>，<br />装下多个瞬间。</h1>
-            <p>从视频中截取 3 秒片段，自由组合画面。所有处理都在这台 Mac 上完成。</p>
-          </div>
-          <section className="welcome-import-hub" aria-labelledby="welcome-import-title">
-            <div className="welcome-live-visual" aria-hidden="true">
-              <div className="mock-frame frame-a"><span>01</span><i className="live-frame-sweep" /></div>
-              <div className="mock-frame frame-b"><span>02</span><i className="live-frame-sweep" /></div>
-              <div className="mock-frame frame-c"><span>03</span><i className="live-frame-sweep" /></div>
-              <span className="live-focus"><LiveIcon /></span>
-              <i className="orbit-line one" /><i className="orbit-line two" />
-            </div>
-            <div className="welcome-import-card">
-              <div className="welcome-import-heading"><strong id="welcome-import-title">导入素材</strong><small>选择视频或文件夹</small></div>
-              <div className="welcome-import-actions">
-                <button className="welcome-video-action" onClick={chooseVideos}><PlusIcon /><span><strong>添加视频</strong><small>选择多个视频，或直接拖入</small></span></button>
-                <button className="welcome-folder-action" onClick={() => void chooseSourceFolder()}><FolderIcon /><span><strong>导入文件夹</strong><small>按文件夹创建素材项目</small></span></button>
-              </div>
-              <p className="welcome-import-trust"><span>只引用原文件 · 不复制、不上传、不修改</span><span>支持 MOV、MP4、M4V</span></p>
-            </div>
-          </section>
-        </section>
-      ) : (
-        <div className="workspace has-timeline">
+      <div className="workspace has-timeline">
           <aside className="left-panel">
             <div className="panel-heading"><span className="eyebrow">01 / 素材</span><h2>视频素材库</h2></div>
             <div className="media-project-tabs" role="tablist" aria-label="素材项目">
@@ -704,8 +741,26 @@ export function App() {
           </aside>
 
           {selectedSlotClip ? <Timeline clip={selectedSlotClip} onChange={(startTimeMs) => updateSlotClip(selectedSlotClip.targetSlotId, (clip) => ({ ...clip, startTimeMs }))} /> : <TimelineEmpty />}
+      </div>
+
+      {startupPhase !== 'hidden' && <div className={startupPhase === 'leaving' ? 'startup-splash leaving' : 'startup-splash'} role="status" aria-label="Lives 正在启动">
+        <span className="startup-mark" aria-hidden="true"><LiveIcon /></span>
+      </div>}
+
+      {startupPhase === 'hidden' && firstRunGuideVisible && <div className="first-run-overlay" onKeyDown={handleFirstRunGuideKeyDown}>
+        <div ref={firstRunDialogRef} className="first-run-dialog" role="dialog" aria-modal="true" aria-labelledby="first-run-title" aria-describedby="first-run-description">
+          <button className="first-run-close" aria-label="关闭引导" onClick={dismissFirstRunGuide}><CloseIcon /></button>
+          <span className="first-run-mark" aria-hidden="true"><LiveIcon /></span>
+          <span className="eyebrow">欢迎使用 Lives</span>
+          <h2 id="first-run-title">导入素材，开始拼贴</h2>
+          <p id="first-run-description">添加视频，或按文件夹创建素材项目。所有处理都在这台 Mac 上完成。</p>
+          <div className="first-run-actions">
+            <button ref={firstRunPrimaryRef} className="first-run-primary" onClick={importVideosFromFirstRunGuide}><PlusIcon /><span><strong>添加视频</strong><small>选择一个或多个视频</small></span></button>
+            <button className="first-run-secondary" onClick={importFolderFromFirstRunGuide}><FolderIcon /><span><strong>导入文件夹</strong><small>按文件夹创建素材项目</small></span></button>
+          </div>
+          <small className="first-run-privacy">只引用原文件，不复制、不上传、不修改</small>
         </div>
-      )}
+      </div>}
 
       {notice && <div className="toast" role="status"><span>!</span>{notice}<button aria-label="关闭通知" onClick={() => setNotice(undefined)}><CloseIcon /></button></div>}
       {sourceDragFeedback && <div className={sourceDragFeedback.overSlotId ? 'source-drag-ghost over-target' : 'source-drag-ghost'} style={{ left: sourceDragFeedback.x, top: sourceDragFeedback.y }} aria-hidden="true">
