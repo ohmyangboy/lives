@@ -171,12 +171,11 @@ svg { width: 20px; height: 20px; }
 .keyframe-handle { position: absolute; z-index: 3; left: var(--keyframe-position); top: 15px; width: 0; height: 0; pointer-events: none; }
 .keyframe-handle::before { content: ''; position: absolute; left: 50%; top: -13px; width: 1px; height: 27px; transform: translateX(-50%); background: var(--amber); box-shadow: 0 0 10px rgba(244,185,66,.65); }
 .keyframe-handle::after { content: ''; position: absolute; left: 50%; top: -8px; width: 17px; height: 17px; transform: translate(-50%,-50%); border: 3px solid #1c170d; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px rgba(244,185,66,.28), 0 4px 12px rgba(0,0,0,.46); }
+.keyframe-handle-hit-target { position: absolute; left: 50%; top: -8px; width: 44px; height: 44px; transform: translate(-50%, -50%); cursor: ew-resize; pointer-events: auto; touch-action: none; }
 .keyframe-handle b { position: absolute; left: 50%; bottom: 15px; display: flex; align-items: center; min-height: 19px; padding: 0 8px; transform: translate(-50%, 3px) scale(.96); border: 1px solid rgba(244,185,66,.38); border-radius: 7px; color: #1c160a; background: var(--amber-soft); box-shadow: 0 5px 15px rgba(0,0,0,.28); font-family: 'SFMono-Regular', 'Menlo', monospace; font-size: 7px; font-weight: 700; letter-spacing: .03em; line-height: 1; white-space: nowrap; opacity: 0; transition: opacity .12s ease-out, transform .14s cubic-bezier(.2,.7,.2,1); }
 .keyframe-timeline.is-dragging .keyframe-handle b { transform: translate(-50%, 0) scale(1); opacity: 1; }
-.keyframe-timeline input { position: absolute; z-index: 4; inset: -9px 0; width: 100%; height: 40px; margin: 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: ew-resize; }
-.keyframe-timeline input::-webkit-slider-runnable-track { height: 3px; background: transparent; }
-.keyframe-timeline input::-webkit-slider-thumb { width: 29px; height: 29px; margin-top: -13px; appearance: none; -webkit-appearance: none; opacity: 0; }
-.keyframe-timeline input:focus-visible { outline: none; }
+.keyframe-range-input { position: absolute; z-index: 2; left: var(--keyframe-position); top: 14px; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.keyframe-timeline:focus-within .keyframe-handle::after { box-shadow: 0 0 0 2px rgba(244,185,66,.28), 0 0 0 5px rgba(244,185,66,.35), 0 4px 12px rgba(0,0,0,.46); }
 .preview-controls > span { color: #6f6c65; font-family: 'DM Mono'; font-size: 9px; }
 .canvas-hint { color: #65625b; margin: 8px 0 0; font-size: 9px; }
 

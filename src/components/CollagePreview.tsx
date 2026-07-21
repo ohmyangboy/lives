@@ -31,6 +31,8 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const frameRef = useRef(0)
   const startedAtRef = useRef(0)
   const dragRef = useRef<{ slotId: string; x: number; y: number; cropX: number; cropY: number } | undefined>(undefined)
+  const keyframeTimelineRef = useRef<HTMLDivElement>(null)
+  const coverFrameDragRef = useRef<{ pointerId: number; grabOffsetX: number; lastValue: number } | undefined>(undefined)
   const [playing, setPlaying] = useState(false)
   const [playhead, setPlayhead] = useState(0)
   const [settledOnCover, setSettledOnCover] = useState(true)
@@ -166,6 +168,46 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
     onCoverTimeChange(next)
   }
 
+  const setCoverFrameFromPointer = (clientX: number, grabOffsetX = 0) => {
+    const rect = keyframeTimelineRef.current?.getBoundingClientRect()
+    if (!rect || rect.width <= 0) return
+    const position = Math.max(0, Math.min(1, (clientX - grabOffsetX - rect.left) / rect.width))
+    const next = Math.max(0, Math.min(2900, Math.round((position * 2900) / 100) * 100))
+    if (coverFrameDragRef.current?.lastValue === next) return
+    if (coverFrameDragRef.current) coverFrameDragRef.current.lastValue = next
+    setCoverFrame(next)
+  }
+
+  const beginCoverFrameDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    if (!event.isPrimary || event.button !== 0) return
+    const rect = keyframeTimelineRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const handleX = rect.left + (coverTimeMs / 2900) * rect.width
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    coverFrameDragRef.current = {
+      pointerId: event.pointerId,
+      grabOffsetX: event.clientX - handleX,
+      lastValue: coverTimeMs,
+    }
+    setIsCoverFrameDragging(true)
+  }
+
+  const moveCoverFrameDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const drag = coverFrameDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    event.preventDefault()
+    setCoverFrameFromPointer(event.clientX, drag.grabOffsetX)
+  }
+
+  const endCoverFrameDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const drag = coverFrameDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    coverFrameDragRef.current = undefined
+    setIsCoverFrameDragging(false)
+  }
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code !== 'Space' || event.repeat || document.querySelector('[role="dialog"]')) return
@@ -290,27 +332,28 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
           {playing ? <PauseIcon /> : <PlayIcon />}
         </button>
         <div className="preview-scrubber">
-          <div className={`keyframe-timeline${isCoverFrameDragging ? ' is-dragging' : ''}`} style={{ '--keyframe-position': `${coverTimeMs / 30}%` } as CSSProperties}>
+          <div ref={keyframeTimelineRef} className={`keyframe-timeline${isCoverFrameDragging ? ' is-dragging' : ''}`} style={{ '--keyframe-position': `${coverTimeMs / 30}%` } as CSSProperties}>
             <span className="timeline-ruler" aria-hidden="true" />
             <i style={{ transform: `scaleX(${playhead})` }} />
-            <span className="keyframe-handle" aria-hidden="true"><b>关键帧 · {(coverTimeMs / 1000).toFixed(1)}s</b></span>
+            <span className="keyframe-handle" aria-hidden="true">
+              <span
+                className="keyframe-handle-hit-target"
+                onPointerDown={beginCoverFrameDrag}
+                onPointerMove={moveCoverFrameDrag}
+                onPointerUp={endCoverFrameDrag}
+                onPointerCancel={endCoverFrameDrag}
+                onLostPointerCapture={endCoverFrameDrag}
+              />
+              <b>关键帧 · {(coverTimeMs / 1000).toFixed(1)}s</b>
+            </span>
             <input
+              className="keyframe-range-input"
               type="range"
               min="0"
               max="2900"
               step="100"
               value={coverTimeMs}
               aria-label="Live Photo 关键帧"
-              onPointerDown={(event) => {
-                event.currentTarget.setPointerCapture(event.pointerId)
-                setIsCoverFrameDragging(true)
-              }}
-              onPointerUp={(event) => {
-                if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-                setIsCoverFrameDragging(false)
-              }}
-              onPointerCancel={() => setIsCoverFrameDragging(false)}
-              onBlur={() => setIsCoverFrameDragging(false)}
               onChange={(event) => setCoverFrame(Number(event.target.value))}
             />
           </div>
