@@ -176,9 +176,9 @@ latest.json
 - [x] 照片权限使用 add-only。
 - [x] 官网明确本机处理和原文件引用。
 - [x] 前端 15 项测试、Swift 13 项测试通过（1 项依赖外部 Live Photo fixture 的集成测试按设计跳过）。
-- [ ] DMG 在未挂载旧版应用的环境中成功生成。
+- [x] `Lives_0.1.0_aarch64.dmg` 已生成（约 4.1 MB），SHA-256 为 `ea6dba1f4e54c55949c5afe0d0c8d994efa6f9f8cb871bcfebf068741a357d2c`。
 - [x] 0.1.0 `.app` 已生成，主应用与照片 Helper 版本一致；`codesign --verify --deep --strict` 通过。
-- [ ] `hdiutil verify` 通过。
+- [x] `hdiutil verify` 通过。
 - [ ] 从浏览器下载后的 Gatekeeper 流程实测并截图归档。
 - [ ] Apple“照片”和 iPhone/iCloud 的真实 Live Photo 验收通过。
 - [ ] 官网、隐私页、安装帮助、版本与 SHA-256 已公开。
