@@ -1,19 +1,12 @@
 # Lives MVP
 
-Lives 是一个 macOS 本地工具：选择 1～3 段 MOV/MP4/M4V 视频，为每段选择连续 3 秒，以多种拼贴模板生成 Live Photo，并保存到 Apple“照片”或指定文件夹。
+Lives 是一个 macOS 本地工具：从多个 MOV/MP4/M4V 素材中截取不同的 3 秒瞬间，拼贴为一张 Live Photo，并保存到 Apple“照片”或指定文件夹。
 
-## 已实现
+当前版本为 `0.1.13`，处于内部测试阶段。完整的产品范围、实现状态、验收门槛和技术约束请从 [docs/项目文档](docs/项目文档/README.md) 开始阅读：
 
-- 视频选择与 Finder 拖放，格式、时长和数量校验；
-- 单画面、二拼和三拼模板；
-- 每个素材独立的 3 秒选段与 0.1 秒步进；
-- Canvas 循环预览、格子切换和裁剪中心拖动；
-- Swift/AVFoundation H.264 多轨合成；
-- JPEG 与 MOV 内容标识、still-image-time 元数据；
-- `PHLivePhoto.request` 保存前校验；
-- PhotoKit `.photo` + `.pairedVideo` 保存，以及 `.photoLive` 回查；
-- 权限拒绝、取消、错误反馈和任务临时目录清理；
-- 浏览器预览模式（不能写入“照片”）。
+- [PRD](docs/项目文档/PRD-MVP.md)
+- [开发计划与验收清单](docs/项目文档/开发计划与验收清单.md)
+- [技术现状与架构](docs/项目文档/技术现状与架构.md)
 
 ## 开发运行
 
@@ -38,8 +31,8 @@ swift test --package-path native/LivePhotoService
 npm run tauri:build
 ```
 
-## 真机验收
+## 真机验收与发布
 
-代码级自动测试不能替代平台链路验证。发布前至少完成：Mac“照片”显示一个 Live 资产并可播放；iCloud 同步到 iPhone 后保持 Live；在记录版本号的小红书 iOS App 中可选择、发布并回看。详见 [docs/真机验收记录.md](docs/真机验收记录.md)。
+代码级自动测试不能替代平台链路验证。当前的历史验收记录在 [docs/真机验收记录.md](docs/真机验收记录.md)，新的发布检查以 [开发计划与验收清单](docs/项目文档/开发计划与验收清单.md) 为准。
 
-当前构建使用 ad-hoc 签名，未配置 Developer ID、公证或 App Sandbox，仅适合本机开发与内部测试。发布前应改用 Developer ID 签名并完成公证；如计划进入 Mac App Store，需要把 Swift 媒体层改为带独立 entitlement 的 XPC helper 后再启用 App Sandbox。
+当前构建使用 ad-hoc 签名，未配置 Developer ID、公证或正式自动更新，仅适合本机开发与内部测试。官网分发和正式发布要求见 [PRD 的待决策项](docs/项目文档/PRD-MVP.md#6-待决策项)。
