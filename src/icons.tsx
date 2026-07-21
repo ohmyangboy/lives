@@ -15,5 +15,6 @@ export const FilmIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><re
 export const CloseIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="m7 7 10 10M17 7 7 17" /></Icon>
 export const ClearIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M4 7h16M10 11v5M14 11v5M9 7l1-3h4l1 3M6 7l1 13h10l1-13" /></Icon>
 export const FolderIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M3 7.5h7l2-2h9v13H3v-11Z" /></Icon>
+export const InfoIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5h.01" /></Icon>
 export const CheckIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="m5 12 4 4L19 6" /></Icon>
 export const PhotosIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><circle cx="12" cy="12" r="2" /><path d="M12 4c2-3 6 0 4 3 4-1 5 4 2 5 3 2 1 6-2 5 1 4-4 5-5 2-2 3-6 1-5-2-4 1-5-4-2-5-3-2-1-6 2-5 0-4 5-5 6-1Z" /></Icon>

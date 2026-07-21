@@ -7,7 +7,7 @@ import { Timeline, TimelineEmpty } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
 import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, createRenderProject, formatDuration, templates, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
-import { ClearIcon, CloseIcon, ExportIcon, FilmIcon, FolderIcon, LiveIcon, PlusIcon } from './icons'
+import { ClearIcon, CloseIcon, ExportIcon, FilmIcon, FolderIcon, InfoIcon, LiveIcon, PlusIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
 
 interface ExportState {
@@ -262,9 +262,12 @@ export function App() {
   const [importProgress, setImportProgress] = useState<{ done: number; total: number }>()
   const [startupPhase, setStartupPhase] = useState<'visible' | 'leaving' | 'hidden'>('visible')
   const [firstRunGuideVisible, setFirstRunGuideVisible] = useState(shouldShowFirstRunGuide)
+  const [openHelpPopover, setOpenHelpPopover] = useState<'library' | 'templates'>()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const firstRunDialogRef = useRef<HTMLDivElement>(null)
   const firstRunPrimaryRef = useRef<HTMLButtonElement>(null)
+  const libraryHelpRef = useRef<HTMLDivElement>(null)
+  const templateHelpRef = useRef<HTMLDivElement>(null)
   const internalDragRef = useRef(false)
   const sourcePointerDragRef = useRef<{ pointerId: number; materialId: string; startX: number; startY: number; active: boolean } | undefined>(undefined)
   const activeMediaProject = mediaProjects.find((project) => project.id === activeProjectId) ?? mediaProjects[0]
@@ -294,6 +297,23 @@ export function App() {
     if (startupPhase !== 'hidden' || !firstRunGuideVisible) return
     firstRunPrimaryRef.current?.focus()
   }, [firstRunGuideVisible, startupPhase])
+
+  useEffect(() => {
+    if (!openHelpPopover) return
+    const activeRef = openHelpPopover === 'library' ? libraryHelpRef : templateHelpRef
+    const dismissOnOutsidePress = (event: PointerEvent) => {
+      if (!activeRef.current?.contains(event.target as Node)) setOpenHelpPopover(undefined)
+    }
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenHelpPopover(undefined)
+    }
+    document.addEventListener('pointerdown', dismissOnOutsidePress)
+    window.addEventListener('keydown', dismissOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', dismissOnOutsidePress)
+      window.removeEventListener('keydown', dismissOnEscape)
+    }
+  }, [openHelpPopover])
 
   const resolveMaterial = useCallback((materialId: string) => {
     const source = clips.find((clip) => clip.id === materialId)
@@ -692,7 +712,13 @@ export function App() {
 
       <div className="workspace has-timeline">
           <aside className="left-panel">
-            <div className="panel-heading"><span className="eyebrow">01 / 素材</span><h2>视频素材库</h2></div>
+            <div className="panel-heading material-panel-heading"><span className="eyebrow">01 / 素材</span><div className="panel-title-row"><h2>视频素材库</h2><div ref={libraryHelpRef} className="context-help-anchor">
+              <button className="context-help-button" aria-label="查看素材库使用说明" aria-expanded={openHelpPopover === 'library'} aria-controls="library-help-popover" onClick={() => setOpenHelpPopover((current) => current === 'library' ? undefined : 'library')}><InfoIcon /></button>
+              {openHelpPopover === 'library' && <div id="library-help-popover" className="context-help-popover library-help-popover">
+                <div><FilmIcon /><p><strong>拖入画格</strong><span>同一素材可以重复使用，每个画格分别截取 3 秒片段。</span></p></div>
+                <div><FolderIcon /><p><strong>只引用原文件</strong><span>不会复制、上传或修改视频。</span></p></div>
+              </div>}
+            </div></div></div>
             <div className="media-project-tabs" role="tablist" aria-label="素材项目">
               {mediaProjects.map((project) => <div key={project.id} className={project.id === activeProjectId ? 'media-project-tab selected' : 'media-project-tab'} title={project.folderPath ?? project.name}>
                 <button role="tab" aria-selected={project.id === activeProjectId} className="media-project-select" onClick={() => { setActiveProjectId(project.id); setSelectedMaterialId(undefined) }}><span>{project.name}</span><b>{project.clipIds.length}</b></button>
@@ -713,8 +739,6 @@ export function App() {
               {!activeProjectClips.length && <div className="project-empty"><FilmIcon /><strong>这个项目还没有视频</strong><span>{activeMediaProject.kind === 'folder' ? '重新导入文件夹，或切换其他项目。' : '添加视频后会显示在这里。'}</span></div>}
             </div>
             <div className="material-import-actions"><button onClick={() => void chooseVideos()}><PlusIcon />添加视频</button><button onClick={() => void chooseSourceFolder()}><FolderIcon />导入文件夹</button></div>
-            <div className="selection-summary"><FilmIcon /><p><span>素材使用方式</span><strong>拖入画格；同一素材可以重复使用</strong></p><b>3.0s</b></div>
-            <div className="privacy-note"><FolderIcon /><p><strong>使用原文件</strong><span>不会复制或修改视频，只保存文件引用。</span></p></div>
           </aside>
 
           <section className="center-panel">
@@ -730,14 +754,16 @@ export function App() {
               <div className="setting-row"><span><strong>场景比例</strong><small>同步调整预览与导出</small></span><div className="segmented compact" role="group" aria-label="场景比例">{visibleAspectRatios.map((option) => <button key={option.id} aria-pressed={aspectRatio === option.id} className={aspectRatio === option.id ? 'selected' : ''} onClick={() => setAspectRatio(option.id)}>{option.label}</button>)}</div></div>
             </div>
             <div className="template-list config-templates">
-              <span className="eyebrow">拼贴模板</span>
+              <div className="section-label-with-help"><span className="eyebrow">拼贴模板</span><div ref={templateHelpRef} className="context-help-anchor">
+                <button className="context-help-button compact" aria-label="查看拼贴模板使用说明" aria-expanded={openHelpPopover === 'templates'} aria-controls="template-help-popover" onClick={() => setOpenHelpPopover((current) => current === 'templates' ? undefined : 'templates')}><InfoIcon /></button>
+                {openHelpPopover === 'templates' && <div id="template-help-popover" className="context-help-popover template-help-popover"><div><FilmIcon /><p><strong>自由安排素材</strong><span>从左侧拖入任意画格；同一视频可多次使用并截取不同瞬间。</span></p></div></div>}
+              </div></div>
               {templates.map((template) => <button key={template.id} aria-pressed={template.id === templateId} className={template.id === templateId ? 'template-card selected' : 'template-card'} onClick={() => { setTemplateId(template.id); setSelectedSlotId(undefined) }}>
                 <span className="template-mini">{template.slots.map((slot) => <i key={slot.id} style={{ left: `${slot.x * 100}%`, top: `${slot.y * 100}%`, width: `${slot.width * 100}%`, height: `${slot.height * 100}%` }} />)}</span>
                 <span><strong>{template.name}</strong><small>{template.description}</small></span>
                 <b>{template.requiredClipCount}</b>
               </button>)}
             </div>
-            <div className="drag-assignment-note"><FilmIcon /><p><strong>拖入画面格</strong><span>从左侧拖入素材；也可点选素材后点击空格。同一视频可多次使用，并分别截取不同瞬间。</span></p></div>
           </aside>
 
           {selectedSlotClip ? <Timeline clip={selectedSlotClip} onChange={(startTimeMs) => updateSlotClip(selectedSlotClip.targetSlotId, (clip) => ({ ...clip, startTimeMs }))} /> : <TimelineEmpty />}
