@@ -212,7 +212,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code !== 'Space' || event.repeat || document.querySelector('[role="dialog"]')) return
       const target = event.target as HTMLElement | null
-      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (target?.closest('button, a, input, textarea, select, [role="button"], [role="radio"], [contenteditable="true"]')) return
       event.preventDefault()
       togglePlayback()
     }
@@ -304,7 +304,39 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
               borderBottomRightRadius: touchesRightEdge && touchesBottomEdge ? edgeRadius : 0,
               borderBottomLeftRadius: slot.x <= .001 && touchesBottomEdge ? edgeRadius : 0,
             }
-            return <div key={slot.id} data-collage-slot-id={slot.id} className={slotClassName} style={slotStyle} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDropTargetSlotId(slot.id) }} onDragLeave={() => setDropTargetSlotId((current) => current === slot.id ? undefined : current)} onDrop={(event) => { event.preventDefault(); const sourceClipId = event.dataTransfer.getData('application/x-livecollage-source'); setDropTargetSlotId(undefined); if (sourceClipId) onDropSource(slot.id, sourceClipId) }}>
+            return <div
+              key={slot.id}
+              role="button"
+              tabIndex={0}
+              aria-pressed={slot.id === selectedSlotId}
+              aria-label={`${slotLabel(slot.id)}，${clip ? `已放入 ${clip.name}` : '空画格'}`}
+              data-collage-slot-id={slot.id}
+              className={slotClassName}
+              style={slotStyle}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  if (clip) onSelectSlot(slot.id)
+                  else if (selectedSourceId) onDropSource(slot.id, selectedSourceId)
+                  return
+                }
+                if ((event.key === 'Delete' || event.key === 'Backspace') && clip) {
+                  event.preventDefault()
+                  onClearSlot(slot.id)
+                  return
+                }
+                if (!clip || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
+                event.preventDefault()
+                const step = event.shiftKey ? .05 : .015
+                const nextX = event.key === 'ArrowLeft' ? clip.crop.normalizedCenterX - step : event.key === 'ArrowRight' ? clip.crop.normalizedCenterX + step : clip.crop.normalizedCenterX
+                const nextY = event.key === 'ArrowUp' ? clip.crop.normalizedCenterY - step : event.key === 'ArrowDown' ? clip.crop.normalizedCenterY + step : clip.crop.normalizedCenterY
+                onCropChange(slot.id, Math.max(0, Math.min(1, nextX)), Math.max(0, Math.min(1, nextY)))
+              }}
+              onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDropTargetSlotId(slot.id) }}
+              onDragLeave={() => setDropTargetSlotId((current) => current === slot.id ? undefined : current)}
+              onDrop={(event) => { event.preventDefault(); const sourceClipId = event.dataTransfer.getData('application/x-livecollage-source'); setDropTargetSlotId(undefined); if (sourceClipId) onDropSource(slot.id, sourceClipId) }}
+            >
               {!clip ? <div className="slot-drop-copy"><PlusIcon /><strong>{isPointerTarget ? '松开放入' : '拖入视频'}</strong><small>{isPointerTarget ? '将素材放进这个格子' : template.slots.length === 1 ? '开始构图' : '可重复使用素材'}</small></div> : <>
               <video
                 ref={(element) => { if (element) videosRef.current.set(clip.id, element); else videosRef.current.delete(clip.id) }}

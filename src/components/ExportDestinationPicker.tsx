@@ -1,5 +1,6 @@
 import { CloseIcon, FolderIcon, PhotosIcon } from '../icons'
 import { canvasDimensions, type AspectRatioId, type ExportQuality, type SourceQualityAnalysis } from '../domain'
+import { useModalFocus } from './useModalFocus'
 
 export type ExportDestinationChoice = 'photos' | 'folder'
 
@@ -23,12 +24,13 @@ const exportLabels: Record<ExportDestinationChoice, string> = {
 export function ExportDestinationPicker({ aspectRatio, quality, sourceQuality, cropUpscaleRisk, destination, onQualityChange, onDestinationChange, onExport, onClose }: Props) {
   const high = canvasDimensions({ aspectRatio, quality: '1080p' })
   const compact = canvasDimensions({ aspectRatio, quality: '720p' })
+  const modalRef = useModalFocus(onClose)
 
-  return <div className="overlay destination-overlay" role="dialog" aria-modal="true" aria-label="选择导出画质与位置">
+  return <div ref={modalRef} className="overlay destination-overlay" role="dialog" aria-modal="true" aria-labelledby="export-destination-title">
     <div className="destination-card">
       <button className="overlay-close" onClick={onClose} aria-label="关闭"><CloseIcon /></button>
       <span className="eyebrow">生成前确认</span>
-      <h2>导出 Live Photo</h2>
+      <h2 id="export-destination-title">导出 Live Photo</h2>
       <p>确认画质并选择保存位置后才会开始生成。</p>
       <section className="export-quality-picker" aria-label="导出质量">
         <header><div><strong>导出质量</strong><small>默认采用当前素材可用的最高画质</small></div><span>{sourceQuality.sourceLabel}</span></header>

@@ -450,7 +450,7 @@ export function App() {
   const moveSourcePointerDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     const drag = sourcePointerDragRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
-    if (!drag.active && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 5) return
+    if (!drag.active && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 9) return
     drag.active = true
     const material = resolveMaterial(drag.materialId)
     if (!material) return
@@ -481,6 +481,16 @@ export function App() {
     setSourceDragFeedback(undefined)
     internalDragRef.current = false
   }
+
+  useEffect(() => {
+    const cancelDragOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !sourcePointerDragRef.current) return
+      event.preventDefault()
+      cancelSourcePointerDrag()
+    }
+    window.addEventListener('keydown', cancelDragOnEscape)
+    return () => window.removeEventListener('keydown', cancelDragOnEscape)
+  }, [])
 
   const updateSlotClip = (slotId: string, update: (clip: SlotClip) => SlotClip) => setSlotPlacements((current) => current[slotId] ? { ...current, [slotId]: update(current[slotId]!) } : current)
 
@@ -621,7 +631,7 @@ export function App() {
         <div className="brand"><span className="brand-mark"><LiveIcon /></span><div><strong>Lives</strong><small>实况拼贴</small></div></div>
         <div className="project-meta"><span className={clips.length ? 'status-dot active' : 'status-dot'} />{projectSummary}</div>
         <div className="titlebar-actions">
-          <button className="clear-project" disabled={!canClearCollage} onClick={clearCollage}><ClearIcon />清除拼贴</button>
+          <button className="clear-project" disabled={!canClearCollage} onClick={clearCollage} title="保留素材，仅清除当前拼贴"><ClearIcon />清除拼贴</button>
           <button className="primary-button" disabled={!clips.length} onClick={requestExport}><ExportIcon />生成 Live Photo</button>
         </div>
       </header>
@@ -643,20 +653,20 @@ export function App() {
           </button>
         </section>
       ) : (
-        <div className="workspace">
+        <div className={selectedSlotClip ? 'workspace has-timeline' : 'workspace'}>
           <aside className="left-panel">
             <div className="panel-heading"><span className="eyebrow">01 / 素材</span><h2>视频素材库</h2></div>
-            <div className="media-project-tabs" aria-label="素材项目">
+            <div className="media-project-tabs" role="tablist" aria-label="素材项目">
               {mediaProjects.map((project) => <div key={project.id} className={project.id === activeProjectId ? 'media-project-tab selected' : 'media-project-tab'} title={project.folderPath ?? project.name}>
-                <button className="media-project-select" onClick={() => { setActiveProjectId(project.id); setSelectedMaterialId(undefined) }}><span>{project.name}</span><b>{project.clipIds.length}</b></button>
+                <button role="tab" aria-selected={project.id === activeProjectId} className="media-project-select" onClick={() => { setActiveProjectId(project.id); setSelectedMaterialId(undefined) }}><span>{project.name}</span><b>{project.clipIds.length}</b></button>
                 {project.clipIds.length > 0 && <button className="media-project-close" aria-label={`关闭项目 ${project.name}`} onClick={() => closeMediaProject(project.id)}><CloseIcon /></button>}
               </div>)}
             </div>
-            {importProgress && <div className="material-import-status"><i style={{ width: `${importProgress.total ? importProgress.done / importProgress.total * 100 : 0}%` }} /><span>正在导入 {importProgress.done} / {importProgress.total}</span></div>}
+            {importProgress && <div className="material-import-status" role="progressbar" aria-label="导入视频" aria-valuemin={0} aria-valuemax={importProgress.total} aria-valuenow={importProgress.done}><i style={{ width: `${importProgress.total ? importProgress.done / importProgress.total * 100 : 0}%` }} /><span>正在导入 {importProgress.done} / {importProgress.total}</span></div>}
             <div className="clip-list material-library">
               {activeProjectClips.map((clip, index) => {
                 const materialId = clip.id
-                return <div key={materialId} className={['clip-card', materialId === selectedMaterialId && 'selected', materialId === sourceDragFeedback?.materialId && 'dragging'].filter(Boolean).join(' ')} onPointerDown={(event) => beginSourcePointerDrag(event, materialId)} onPointerMove={moveSourcePointerDrag} onPointerUp={finishSourcePointerDrag} onPointerCancel={cancelSourcePointerDrag}>
+                return <div key={materialId} role="button" tabIndex={0} aria-pressed={materialId === selectedMaterialId} aria-label={`${clip.name}，${formatDuration(clip.durationMs)}`} className={['clip-card', materialId === selectedMaterialId && 'selected', materialId === sourceDragFeedback?.materialId && 'dragging'].filter(Boolean).join(' ')} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && !(event.target as HTMLElement).closest('button')) { event.preventDefault(); setSelectedMaterialId(materialId) } }} onPointerDown={(event) => beginSourcePointerDrag(event, materialId)} onPointerMove={moveSourcePointerDrag} onPointerUp={finishSourcePointerDrag} onPointerCancel={cancelSourcePointerDrag}>
                   <span className="clip-index">{String(index + 1).padStart(2, '0')}</span>
                   <VideoCover src={clip.previewUrl} />
                   <span className="clip-copy"><strong>{clip.name}</strong><small>{formatDuration(clip.durationMs)} · {clip.width}×{clip.height}</small><em>拖入画面格</em></span>
@@ -679,12 +689,12 @@ export function App() {
             <div className="panel-heading"><span className="eyebrow">03 / 配置</span><h2>拼贴与声音</h2></div>
             <div className="video-settings aspect-settings">
               <span className="eyebrow">画面比例</span>
-              <div className="setting-row"><span><strong>画布方向</strong><small>横竖屏即时切换</small></span><div className="segmented compact"><button className={canvasOrientation === 'portrait' ? 'selected' : ''} onClick={() => changeCanvasOrientation('portrait')}>竖屏</button><button className={canvasOrientation === 'landscape' ? 'selected' : ''} onClick={() => changeCanvasOrientation('landscape')}>横屏</button></div></div>
-              <div className="setting-row"><span><strong>场景比例</strong><small>同步调整预览与导出</small></span><div className="segmented compact">{visibleAspectRatios.map((option) => <button key={option.id} className={aspectRatio === option.id ? 'selected' : ''} onClick={() => setAspectRatio(option.id)}>{option.label}</button>)}</div></div>
+              <div className="setting-row"><span><strong>画布方向</strong><small>横竖屏即时切换</small></span><div className="segmented compact" role="group" aria-label="画布方向"><button aria-pressed={canvasOrientation === 'portrait'} className={canvasOrientation === 'portrait' ? 'selected' : ''} onClick={() => changeCanvasOrientation('portrait')}>竖屏</button><button aria-pressed={canvasOrientation === 'landscape'} className={canvasOrientation === 'landscape' ? 'selected' : ''} onClick={() => changeCanvasOrientation('landscape')}>横屏</button></div></div>
+              <div className="setting-row"><span><strong>场景比例</strong><small>同步调整预览与导出</small></span><div className="segmented compact" role="group" aria-label="场景比例">{visibleAspectRatios.map((option) => <button key={option.id} aria-pressed={aspectRatio === option.id} className={aspectRatio === option.id ? 'selected' : ''} onClick={() => setAspectRatio(option.id)}>{option.label}</button>)}</div></div>
             </div>
             <div className="template-list config-templates">
               <span className="eyebrow">拼贴模板</span>
-              {templates.map((template) => <button key={template.id} className={template.id === templateId ? 'template-card selected' : 'template-card'} onClick={() => { setTemplateId(template.id); setSelectedSlotId(undefined) }}>
+              {templates.map((template) => <button key={template.id} aria-pressed={template.id === templateId} className={template.id === templateId ? 'template-card selected' : 'template-card'} onClick={() => { setTemplateId(template.id); setSelectedSlotId(undefined) }}>
                 <span className="template-mini">{template.slots.map((slot) => <i key={slot.id} style={{ left: `${slot.x * 100}%`, top: `${slot.y * 100}%`, width: `${slot.width * 100}%`, height: `${slot.height * 100}%` }} />)}</span>
                 <span><strong>{template.name}</strong><small>{template.description}</small></span>
                 <b>{template.requiredClipCount}</b>
@@ -693,14 +703,14 @@ export function App() {
             <div className="drag-assignment-note"><FilmIcon /><p><strong>拖入画面格</strong><span>从左侧拖入素材；也可点选素材后点击空格。同一视频可多次使用，并分别截取不同瞬间。</span></p></div>
             <div className="audio-settings">
                 <span className="eyebrow">预览声音</span>
-                <div className="audio-switch" aria-label="声音设置">
-                  <button className={audioMode === 'mute' ? 'selected' : ''} onClick={() => setAudioMode('mute')}>静音</button>
-                  <button className={audioMode === 'selected' ? 'selected' : ''} onClick={() => setAudioMode('selected')}><SoundIcon />指定原声</button>
-                  <button className={audioMode === 'mix' ? 'selected' : ''} onClick={() => setAudioMode('mix')}>混合</button>
+                <div className="audio-switch" role="radiogroup" aria-label="声音设置">
+                  <button role="radio" aria-checked={audioMode === 'mute'} className={audioMode === 'mute' ? 'selected' : ''} onClick={() => setAudioMode('mute')}>静音</button>
+                  <button role="radio" aria-checked={audioMode === 'selected'} className={audioMode === 'selected' ? 'selected' : ''} onClick={() => setAudioMode('selected')}><SoundIcon />指定原声</button>
+                  <button role="radio" aria-checked={audioMode === 'mix'} className={audioMode === 'mix' ? 'selected' : ''} onClick={() => setAudioMode('mix')}>混合</button>
                 </div>
                 {audioMode === 'selected' && <div className="audio-source-picker" aria-label="原声来源">
                   <span>原声来源</span>
-                  <div>{activeClips.map((clip, index) => <button key={clip.id} className={clip.id === audioSourceClip?.id ? 'selected' : ''} onClick={() => setAudioSourceClipId(clip.id)}><b>{String(index + 1).padStart(2, '0')}</b><strong>{clip.name}</strong><small>{placementLabel(clip)}</small></button>)}</div>
+                  <div role="radiogroup">{activeClips.map((clip, index) => <button role="radio" aria-checked={clip.id === audioSourceClip?.id} key={clip.id} className={clip.id === audioSourceClip?.id ? 'selected' : ''} onClick={() => setAudioSourceClipId(clip.id)}><b>{String(index + 1).padStart(2, '0')}</b><strong>{clip.name}</strong><small>{placementLabel(clip)}</small></button>)}</div>
                 </div>}
                 <small className="audio-note">{audioMode === 'mute' ? '导出的 Live Photo 不包含声音。' : audioMode === 'selected' ? `使用「${audioSourceClip?.name ?? '—'}」的原声；调整画面选段不会改变它。` : '当前模板内所有原声同步混合，并自动降低音量。'}</small>
             </div>
@@ -710,7 +720,7 @@ export function App() {
         </div>
       )}
 
-      {notice && <div className="toast" role="status"><span>!</span>{notice}<button onClick={() => setNotice(undefined)}><CloseIcon /></button></div>}
+      {notice && <div className="toast" role="status"><span>!</span>{notice}<button aria-label="关闭通知" onClick={() => setNotice(undefined)}><CloseIcon /></button></div>}
       {sourceDragFeedback && <div className={sourceDragFeedback.overSlotId ? 'source-drag-ghost over-target' : 'source-drag-ghost'} style={{ left: sourceDragFeedback.x, top: sourceDragFeedback.y }} aria-hidden="true">
         <video src={sourceDragFeedback.previewUrl} muted preload="metadata" />
         <span><strong>{sourceDragFeedback.name}</strong><small>{sourceDragFeedback.overSlotId ? '松开，放入此画面格' : '拖到中间的画面格'}</small></span>

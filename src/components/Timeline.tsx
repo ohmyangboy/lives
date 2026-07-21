@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type WheelEvent } from 'react'
+import { useEffect, useRef, useState, type WheelEvent } from 'react'
 import type { SlotClip, VideoClip } from '../domain'
 import { formatDuration } from '../domain'
 
@@ -9,22 +9,43 @@ interface Props {
 
 const MIN_ZOOM = 1
 const MAX_ZOOM = 6
+const FRAME_COUNT = 24
+const timelineFrameCache = new Map<string, string[]>()
+const MAX_CACHED_TIMELINES = 8
+
+const cacheTimelineFrames = (key: string, frames: string[]) => {
+  timelineFrameCache.delete(key)
+  timelineFrameCache.set(key, frames)
+  if (timelineFrameCache.size > MAX_CACHED_TIMELINES) {
+    const oldest = timelineFrameCache.keys().next().value
+    if (oldest) timelineFrameCache.delete(oldest)
+  }
+}
 
 export function Timeline({ clip, onChange }: Props) {
   const [frames, setFrames] = useState<string[]>([])
   const [zoom, setZoom] = useState(1)
   const zoomRef = useRef(zoom)
   const viewportRef = useRef<HTMLDivElement>(null)
-  const frameCount = useMemo(() => Math.min(48, Math.round(10 * zoom)), [zoom])
+  const frameCount = FRAME_COUNT
 
   useEffect(() => { zoomRef.current = zoom }, [zoom])
 
   useEffect(() => {
     let disposed = false
+    const cacheKey = `${clip.previewUrl}:${clip.durationMs}:${FRAME_COUNT}`
+    const cached = timelineFrameCache.get(cacheKey)
+    if (cached) {
+      timelineFrameCache.delete(cacheKey)
+      timelineFrameCache.set(cacheKey, cached)
+      setFrames(cached)
+      return
+    }
+    setFrames([])
     const video = document.createElement('video')
     video.src = clip.previewUrl
     video.muted = true
-    video.preload = 'metadata'
+    video.preload = 'auto'
     const waitForSeek = () => new Promise<void>((resolve) => video.addEventListener('seeked', () => resolve(), { once: true }))
     const capture = async () => {
       const results: string[] = []
@@ -33,17 +54,21 @@ export function Timeline({ clip, onChange }: Props) {
       const context = canvas.getContext('2d')
       if (!context) return
       for (let index = 0; index < frameCount; index++) {
+        if (disposed) return
         const moment = Math.max(.01, (clip.durationMs / 1000) * (index / Math.max(1, frameCount - 1)))
         video.currentTime = moment
         await waitForSeek()
         context.drawImage(video, 0, 0, canvas.width, canvas.height)
         results.push(canvas.toDataURL('image/jpeg', 0.55))
       }
-      if (!disposed) setFrames(results)
+      if (!disposed) {
+        cacheTimelineFrames(cacheKey, results)
+        setFrames(results)
+      }
     }
-    video.addEventListener('loadedmetadata', () => { void capture() }, { once: true })
+    video.addEventListener('loadeddata', () => { void capture() }, { once: true })
     return () => { disposed = true; video.src = '' }
-  }, [clip.id, clip.durationMs, clip.previewUrl, frameCount])
+  }, [clip.id, clip.durationMs, clip.previewUrl])
 
   const maxStart = Math.max(0, clip.durationMs - 3000)
   const left = clip.durationMs ? (clip.startTimeMs / clip.durationMs) * 100 : 0
@@ -74,7 +99,7 @@ export function Timeline({ clip, onChange }: Props) {
           <div className="filmstrip" style={{ width: `${zoom * 100}%`, gridTemplateColumns: `repeat(${frameCount}, minmax(86px, 1fr))` }}>
             {frames.length ? frames.map((frame, index) => <img src={frame} alt="" key={index} />) : Array.from({ length: frameCount }, (_, index) => <i key={index} />)}
             <div className="selection-window" style={{ left: `${left}%`, width: `${width}%` }}><b>3.0 秒</b></div>
-            <input aria-label="片段起点" type="range" min={0} max={maxStart} step={100} value={Math.min(clip.startTimeMs, maxStart)} onChange={(event) => onChange(Number(event.target.value))} />
+            <input aria-label="片段起点" aria-valuetext={`${formatDuration(clip.startTimeMs)} 到 ${formatDuration(clip.startTimeMs + 3000)}`} type="range" min={0} max={maxStart} step={100} value={Math.min(clip.startTimeMs, maxStart)} onChange={(event) => onChange(Number(event.target.value))} />
           </div>
         </div>
       </div>
