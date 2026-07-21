@@ -33,6 +33,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const dragRef = useRef<{ slotId: string; x: number; y: number; cropX: number; cropY: number } | undefined>(undefined)
   const [playing, setPlaying] = useState(false)
   const [playhead, setPlayhead] = useState(0)
+  const [settledOnCover, setSettledOnCover] = useState(true)
   const [maximumCanvasHeight, setMaximumCanvasHeight] = useState(360)
   const [dropTargetSlotId, setDropTargetSlotId] = useState<string>()
   const clipsKey = useMemo(() => clips.filter((clip): clip is SlotClip => Boolean(clip)).map((clip) => `${clip.id}:${clip.previewUrl}:${clip.startTimeMs}`).join('|'), [clips])
@@ -91,6 +92,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
 
   useEffect(() => {
     setPlaying(false)
+    setSettledOnCover(true)
     setPlayhead(coverTimeMs / 3000)
     seekToOffset(coverTimeMs / 1000)
   }, [selectedSlotId, clipsKey, coverTimeMs])
@@ -122,27 +124,26 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
     }
     const tick = (now: number) => {
       const elapsed = (now - startedAtRef.current) / 1000
-      const position = elapsed % 3
+      const position = Math.min(elapsed, 3)
       setPlayhead(position / 3)
       if (elapsed >= 3) {
-        startedAtRef.current = now
-        clips.forEach((clip) => {
-          if (!clip) return
-          const video = videosRef.current.get(clip.id)
-          if (!video) return
-          seekClipStart(video, clip)
-          void video.play()
-        })
+        // A Live Photo plays its three-second motion once, then settles on
+        // the chosen key frame instead of looping back to the first frame.
+        setPlaying(false)
+        setSettledOnCover(true)
+        setPlayhead(coverTimeMs / 3000)
+        seekToOffset(coverTimeMs / 1000)
+        return
       }
       frameRef.current = requestAnimationFrame(tick)
     }
     frameRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frameRef.current)
-  }, [playing, clips])
+  }, [playing, clips, coverTimeMs])
 
   const togglePlayback = () => {
     if (!clips.some(Boolean)) return
-    if (playing) { setPlaying(false); return }
+    if (playing) { setPlaying(false); setSettledOnCover(false); return }
     clips.forEach((clip) => {
       if (!clip) return
       const video = videosRef.current.get(clip.id)
@@ -151,12 +152,14 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
       void video.play()
     })
     startedAtRef.current = performance.now()
+    setSettledOnCover(false)
     setPlaying(true)
   }
 
   const setCoverFrame = (milliseconds: number) => {
     const next = Math.max(0, Math.min(2900, Math.round(milliseconds / 100) * 100))
     setPlaying(false)
+    setSettledOnCover(true)
     setPlayhead(next / 3000)
     seekToOffset(next / 1000)
     onCoverTimeChange(next)
@@ -279,19 +282,20 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
           })}
         </div>
         <div className="live-badge"><LiveIcon /> LIVE</div>
-        <div className="cover-mark"><span /> {playing ? '同步播放' : `Live 关键帧 ${(coverTimeMs / 1000).toFixed(1)}s`}</div>
+        <div className="cover-mark"><span /> {playing ? '同步播放' : settledOnCover ? `Live 关键帧 ${(coverTimeMs / 1000).toFixed(1)}s` : '预览已暂停'}</div>
       </div>
       <div className="preview-controls">
         <button className="round-button" onClick={togglePlayback} aria-label={playing ? '暂停预览' : '播放预览'}>
           {playing ? <PauseIcon /> : <PlayIcon />}
         </button>
         <div className="preview-scrubber">
-          <div className="playback-track">
+          <div className="keyframe-timeline" style={{ '--keyframe-position': `${coverTimeMs / 30}%` } as CSSProperties}>
+            <span className="timeline-ruler" aria-hidden="true" />
             <i style={{ transform: `scaleX(${playhead})` }} />
-            <span className="keyframe-line" style={{ left: `${coverTimeMs / 30}%` }} aria-hidden="true" />
+            <span className="keyframe-handle" aria-hidden="true"><b>关键帧</b><em>{(coverTimeMs / 1000).toFixed(1)}s</em></span>
             <input type="range" min="0" max="2900" step="100" value={coverTimeMs} aria-label="Live Photo 关键帧" onChange={(event) => setCoverFrame(Number(event.target.value))} />
           </div>
-          <small>关键帧 {(coverTimeMs / 1000).toFixed(1)}s</small>
+          <small>播放结束后停留在关键帧</small>
         </div>
         <span>{(playhead * 3).toFixed(1)} / 3.0s</span>
       </div>

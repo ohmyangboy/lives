@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { CollagePreview } from './components/CollagePreview'
 import { Timeline } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
@@ -436,6 +437,10 @@ export function App() {
     })
   }
 
+  const toggleWindowZoom = () => {
+    if (desktopAvailable()) void getCurrentWindow().toggleMaximize()
+  }
+
   const exportFromPicker = async () => {
     if (pickerDestination === 'folder') {
       const folder = await chooseExportFolder()
@@ -458,7 +463,9 @@ export function App() {
 
   return (
     <main className={['app', isDragging && 'is-dragging', sourceDragFeedback && 'source-dragging'].filter(Boolean).join(' ')}>
-      <header className="titlebar">
+      <header className="titlebar" data-tauri-drag-region onDoubleClick={(event) => {
+        if (!(event.target as HTMLElement).closest('button')) toggleWindowZoom()
+      }}>
         <div className="brand"><span className="brand-mark"><LiveIcon /></span><div><strong>Lives</strong><small>实况拼贴</small></div></div>
         <div className="project-meta"><span className={clips.length ? 'status-dot active' : 'status-dot'} />{projectSummary}</div>
         <div className="titlebar-actions">
