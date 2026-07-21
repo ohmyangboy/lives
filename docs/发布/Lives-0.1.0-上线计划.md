@@ -21,6 +21,24 @@ Lives 已具备小规模种子测试的产品基础，但当前安装包只有 a
 | Intel Mac | 暂不支持 | 官网不可模糊表述 |
 | 软件著作权 | 尚未登记 | 非上线前置，可并行办理 |
 
+## 当前发布状态（2026-07-21）
+
+- 官网源码、GitHub Pages 工作流、隐私说明、使用条款和安装帮助均已完成，并已从应用源码中拆分为独立的 `public-site-main` 分支。
+- `Lives_0.1.0_aarch64.dmg`、SHA-256 和发布说明均已生成；本地测试、代码签名完整性检查与 DMG 校验已通过。
+- 目标仓库 `young-4ever/macToLive` 当前是空的公开仓库。Codex GitHub 应用与本机 SSH 均以 `ohmyangboy` 登录，对该仓库只有读取权限，因此尚不能推送官网、创建 Release 或上传 DMG。
+- 为避免误公开应用源码，恢复权限后只推送站点专用分支，不推送本地应用源码分支。
+
+唯一需要仓库所有者完成的操作：把 `ohmyangboy` 添加为 `young-4ever/macToLive` 的 Write Collaborator，或者提供一个可写的空仓库。随后执行以下发布链路：
+
+```mermaid
+flowchart LR
+  A[授予仓库 Write 权限] --> B[推送站点专用 main]
+  B --> C[Pages 选择 GitHub Actions]
+  C --> D[创建 v0.1.0 Release]
+  D --> E[上传 DMG / SHA-256 / Release Notes]
+  E --> F[浏览器下载与 Gatekeeper 实测]
+```
+
 ## 分发架构
 
 ```mermaid
