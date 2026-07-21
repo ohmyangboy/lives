@@ -523,26 +523,18 @@ export function App() {
     }
   }
 
-  const clearProject = () => {
-    clips.forEach((clip) => { if (!clip.sourcePath) URL.revokeObjectURL(clip.previewUrl) })
-    setClips([])
-    setTemplateId('single')
-    setAspectRatio('9:16')
-    setCanvasOrientation('portrait')
-    setExportQuality('1080p')
+  const clearCollage = () => {
+    // Start a new collage while keeping the user's imported media and canvas preferences.
+    // Slot placements contain the per-slot trim and crop state, so clearing them also
+    // resets every assigned video's composition adjustments.
     setCoverTimeMs(1500)
     setSelectedSlotId(undefined)
     setSelectedMaterialId(undefined)
-    setMediaProjects([createDefaultProject()])
-    setActiveProjectId(defaultProjectId)
-    setExportDestination('photos')
-    setPickerDestination('photos')
-    setExportFolder(undefined)
+    setSourceDragFeedback(undefined)
     setAudioMode('mute')
     setAudioSourceClipId(undefined)
     setSlotPlacements({})
     setDestinationPickerVisible(false)
-    setExportState(initialExport)
     setNotice(undefined)
   }
 
@@ -615,6 +607,7 @@ export function App() {
   }
 
   const projectSummary = useMemo(() => clips.length ? `${clips.length} 段素材 · 3.0 秒 · ${canvas.width} × ${canvas.height}` : '本地处理，不上传视频', [clips.length, canvas.width, canvas.height])
+  const canClearCollage = Boolean(Object.keys(slotPlacements).length || selectedSlotId || selectedMaterialId || coverTimeMs !== 1500 || audioMode !== 'mute' || audioSourceClipId)
 
   useEffect(() => {
     if (audioSourceClip && audioSourceClip.id !== audioSourceClipId) setAudioSourceClipId(audioSourceClip.id)
@@ -628,7 +621,7 @@ export function App() {
         <div className="brand"><span className="brand-mark"><LiveIcon /></span><div><strong>Lives</strong><small>实况拼贴</small></div></div>
         <div className="project-meta"><span className={clips.length ? 'status-dot active' : 'status-dot'} />{projectSummary}</div>
         <div className="titlebar-actions">
-          <button className="clear-project" disabled={!clips.length} onClick={clearProject}><ClearIcon />清除</button>
+          <button className="clear-project" disabled={!canClearCollage} onClick={clearCollage}><ClearIcon />清除拼贴</button>
           <button className="primary-button" disabled={!clips.length} onClick={requestExport}><ExportIcon />生成 Live Photo</button>
         </div>
       </header>
