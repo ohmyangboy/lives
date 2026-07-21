@@ -1,0 +1,20 @@
+[package]
+name = "live-collage"
+version = "0.1.8"
+description = "Turn one to three videos into a collage Live Photo"
+authors = ["Lives"]
+edition = "2021"
+
+[lib]
+name = "live_collage_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

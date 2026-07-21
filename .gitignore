@@ -1,0 +1,62 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editors and local workspace settings
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.p12
+*.cer
+*.mobileprovision
+*.provisionprofile
+AuthKey_*.p8
+
+# Node / Vite / TypeScript
+node_modules/
+dist/
+coverage/
+.vite/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Rust / Tauri
+.cargo/config.toml
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Generated native sidecar and helper bundle.
+# `npm run build:sidecar` recreates both before dev/build.
+src-tauri/binaries/live-photo-service-*
+src-tauri/resources/LiveCollagePhotosHelper.app/
+
+# Swift Package Manager / Xcode
+native/LivePhotoService/.build/
+native/LivePhotoService/.swiftpm/
+DerivedData/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# Build, test, and packaging artifacts
+*.dmg
+*.app.zip
+*.xcarchive
+*.profraw
+*.profdata
+*.log
+.tooling/

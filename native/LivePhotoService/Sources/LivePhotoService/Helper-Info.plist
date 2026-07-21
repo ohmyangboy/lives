@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDisplayName</key>
+  <string>Lives</string>
+  <key>CFBundleIconFile</key>
+  <string>icon.icns</string>
+  <key>CFBundleExecutable</key>
+  <string>live-photo-service</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.yangbukun.lives.photos-helper</string>
+  <key>CFBundleName</key>
+  <string>Lives</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+	<string>0.1.8</string>
+  <key>CFBundleVersion</key>
+	<string>0.1.8</string>
+  <key>LSUIElement</key>
+  <true/>
+  <key>NSPrincipalClass</key>
+  <string>NSApplication</string>
+  <key>NSPhotoLibraryAddUsageDescription</key>
+  <string>仅用于将生成的 Live Photo 添加到“照片”。Lives 不会读取、浏览或上传现有照片；授权持续有效，直到你在“系统设置”中更改。</string>
+</dict>
+</plist>
