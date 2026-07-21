@@ -153,6 +153,12 @@ gantt
 
 `Lives` 属于常见英文词，显著性偏弱。建议优先检索并评估第 9 类（可下载软件）、第 42 类（软件服务）以及图形标识；同时保留 `.com`、`.cn`、官方邮件域名和社交账号。`Live Photos` 是 Apple 商标，网站应声明：`Live Photos is a trademark of Apple Inc. Lives is an independent application and is not affiliated with or endorsed by Apple Inc.`
 
+### 第三方依赖
+
+- 发布仓库和官网保留开源软件声明，列出 React、Tauri、Tauri Plugins、Serde 等主要运行时依赖及许可。
+- 依赖版本由 lockfile 固定；每次升级依赖都要同步更新声明并检查新增许可义务。
+- 0.1.0 已生成根目录 `THIRD_PARTY_NOTICES.md` 和官网“开源声明”页面。正式收费或大规模公开推广前，应再使用自动化工具生成完整的传递依赖许可清单并经人工复核。
+
 ## 隐私基线
 
 官网隐私页至少明确：
