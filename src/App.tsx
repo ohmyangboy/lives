@@ -48,6 +48,130 @@ const libraryStorageKey = 'lives.project-media.v2'
 const legacyLibraryStorageKey = 'lives.project-media.v1'
 const createDefaultProject = (): MediaProject => ({ id: defaultProjectId, name: '已导入', kind: 'direct', clipIds: [] })
 
+const coverFrameCache = new Map<string, string>()
+const coverFrameJobs = new Map<string, { controller: AbortController; consumers: number; promise: Promise<string | undefined> }>()
+const coverFrameQueue: Array<() => void> = []
+const maximumCoverFrameCacheSize = 96
+const maximumConcurrentCoverFrames = 2
+let activeCoverFrameJobs = 0
+
+const rememberCoverFrame = (src: string, frame: string) => {
+  coverFrameCache.delete(src)
+  coverFrameCache.set(src, frame)
+  if (coverFrameCache.size > maximumCoverFrameCacheSize) {
+    const oldestSource = coverFrameCache.keys().next().value
+    if (oldestSource) coverFrameCache.delete(oldestSource)
+  }
+}
+
+const scheduleCoverFrame = (task: () => Promise<string | undefined>) => new Promise<string | undefined>((resolve) => {
+  const run = () => {
+    activeCoverFrameJobs += 1
+    void task().then(resolve).finally(() => {
+      activeCoverFrameJobs -= 1
+      coverFrameQueue.shift()?.()
+    })
+  }
+  if (activeCoverFrameJobs < maximumConcurrentCoverFrames) run()
+  else coverFrameQueue.push(run)
+})
+
+const renderCoverFrame = (src: string, signal: AbortSignal) => new Promise<string | undefined>((resolve) => {
+  const video = document.createElement('video')
+  let settled = false
+  let seekingPreview = false
+  const timeout = window.setTimeout(() => finish(), 8000)
+
+  const finish = (frame?: string) => {
+    if (settled) return
+    settled = true
+    window.clearTimeout(timeout)
+    signal.removeEventListener('abort', abort)
+    video.removeEventListener('loadeddata', handleLoadedData)
+    video.removeEventListener('seeked', capture)
+    video.removeEventListener('error', fail)
+    video.pause()
+    video.removeAttribute('src')
+    video.load()
+    resolve(frame)
+  }
+
+  const abort = () => finish()
+  const fail = () => finish()
+
+  const capture = () => {
+    if (signal.aborted || !video.videoWidth || !video.videoHeight) { finish(); return }
+    const canvas = document.createElement('canvas')
+    canvas.width = 124
+    canvas.height = 98
+    const context = canvas.getContext('2d')
+    if (!context) { finish(); return }
+    const sourceAspect = video.videoWidth / video.videoHeight
+    const targetAspect = canvas.width / canvas.height
+    const sourceWidth = sourceAspect > targetAspect ? video.videoHeight * targetAspect : video.videoWidth
+    const sourceHeight = sourceAspect > targetAspect ? video.videoHeight : video.videoWidth / targetAspect
+    try {
+      context.drawImage(video, (video.videoWidth - sourceWidth) / 2, (video.videoHeight - sourceHeight) / 2, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height)
+      finish(canvas.toDataURL('image/jpeg', .76))
+    } catch {
+      finish()
+    }
+  }
+
+  const handleLoadedData = () => {
+    if (signal.aborted) { finish(); return }
+    const previewTime = Math.min(.35, Math.max(.04, (Number.isFinite(video.duration) ? video.duration : .04) - .04))
+    if (!seekingPreview && previewTime > .04 && Math.abs(video.currentTime - previewTime) > .01) {
+      seekingPreview = true
+      try { video.currentTime = previewTime; return } catch { /* Use the decoded first frame below. */ }
+    }
+    capture()
+  }
+
+  video.muted = true
+  video.defaultMuted = true
+  video.playsInline = true
+  video.preload = 'auto'
+  video.addEventListener('loadeddata', handleLoadedData, { once: true })
+  video.addEventListener('seeked', capture, { once: true })
+  video.addEventListener('error', fail, { once: true })
+  signal.addEventListener('abort', abort, { once: true })
+  if (signal.aborted) { finish(); return }
+  video.src = src
+  video.load()
+})
+
+const acquireCoverFrame = (src: string) => {
+  const cached = coverFrameCache.get(src)
+  if (cached) {
+    rememberCoverFrame(src, cached)
+    return { promise: Promise.resolve(cached), release: () => undefined }
+  }
+  let job = coverFrameJobs.get(src)
+  if (!job) {
+    const controller = new AbortController()
+    const promise = scheduleCoverFrame(() => renderCoverFrame(src, controller.signal))
+      .then((frame) => {
+        if (frame) rememberCoverFrame(src, frame)
+        return frame
+      })
+      .finally(() => coverFrameJobs.delete(src))
+    job = { controller, consumers: 0, promise }
+    coverFrameJobs.set(src, job)
+  }
+  job.consumers += 1
+  let released = false
+  return {
+    promise: job.promise,
+    release: () => {
+      if (released) return
+      released = true
+      job!.consumers -= 1
+      if (job!.consumers === 0) job!.controller.abort()
+    },
+  }
+}
+
 function VideoCover({ src }: { src: string }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [shouldLoad, setShouldLoad] = useState(false)
@@ -70,33 +194,11 @@ function VideoCover({ src }: { src: string }) {
   useEffect(() => {
     if (!shouldLoad) return
     let disposed = false
-    const video = document.createElement('video')
-    video.muted = true
-    video.playsInline = true
-    video.preload = 'metadata'
-    const canvas = document.createElement('canvas')
-    canvas.width = 160
-    canvas.height = 126
-    const capture = () => {
-      if (disposed || !video.videoWidth || !video.videoHeight) return
-      const context = canvas.getContext('2d')
-      if (!context) return
-      const sourceAspect = video.videoWidth / video.videoHeight
-      const targetAspect = canvas.width / canvas.height
-      const sourceWidth = sourceAspect > targetAspect ? video.videoHeight * targetAspect : video.videoWidth
-      const sourceHeight = sourceAspect > targetAspect ? video.videoHeight : video.videoWidth / targetAspect
-      context.drawImage(video, (video.videoWidth - sourceWidth) / 2, (video.videoHeight - sourceHeight) / 2, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height)
-      setFrame(canvas.toDataURL('image/jpeg', .78))
-    }
-    const seekPreviewFrame = () => {
-      const previewTime = Math.min(.35, Math.max(.04, video.duration - .04))
-      if (Math.abs(video.currentTime - previewTime) < .01) capture()
-      else video.currentTime = previewTime
-    }
-    video.addEventListener('loadedmetadata', seekPreviewFrame, { once: true })
-    video.addEventListener('seeked', capture, { once: true })
-    video.src = src
-    return () => { disposed = true; video.src = '' }
+    const request = acquireCoverFrame(src)
+    void request.promise.then((nextFrame) => {
+      if (!disposed && nextFrame) setFrame(nextFrame)
+    })
+    return () => { disposed = true; request.release() }
   }, [shouldLoad, src])
 
   return <div ref={hostRef} className={`video-cover ${frame ? 'ready' : ''}`} aria-hidden="true">

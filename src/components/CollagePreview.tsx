@@ -34,6 +34,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const [playing, setPlaying] = useState(false)
   const [playhead, setPlayhead] = useState(0)
   const [settledOnCover, setSettledOnCover] = useState(true)
+  const [isCoverFrameDragging, setIsCoverFrameDragging] = useState(false)
   const [maximumCanvasHeight, setMaximumCanvasHeight] = useState(360)
   const [dropTargetSlotId, setDropTargetSlotId] = useState<string>()
   const clipsKey = useMemo(() => clips.filter((clip): clip is SlotClip => Boolean(clip)).map((clip) => `${clip.id}:${clip.previewUrl}:${clip.startTimeMs}`).join('|'), [clips])
@@ -289,11 +290,29 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
           {playing ? <PauseIcon /> : <PlayIcon />}
         </button>
         <div className="preview-scrubber">
-          <div className="keyframe-timeline" style={{ '--keyframe-position': `${coverTimeMs / 30}%` } as CSSProperties}>
+          <div className={`keyframe-timeline${isCoverFrameDragging ? ' is-dragging' : ''}`} style={{ '--keyframe-position': `${coverTimeMs / 30}%` } as CSSProperties}>
             <span className="timeline-ruler" aria-hidden="true" />
             <i style={{ transform: `scaleX(${playhead})` }} />
             <span className="keyframe-handle" aria-hidden="true"><b>关键帧 · {(coverTimeMs / 1000).toFixed(1)}s</b></span>
-            <input type="range" min="0" max="2900" step="100" value={coverTimeMs} aria-label="Live Photo 关键帧" onChange={(event) => setCoverFrame(Number(event.target.value))} />
+            <input
+              type="range"
+              min="0"
+              max="2900"
+              step="100"
+              value={coverTimeMs}
+              aria-label="Live Photo 关键帧"
+              onPointerDown={(event) => {
+                event.currentTarget.setPointerCapture(event.pointerId)
+                setIsCoverFrameDragging(true)
+              }}
+              onPointerUp={(event) => {
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+                setIsCoverFrameDragging(false)
+              }}
+              onPointerCancel={() => setIsCoverFrameDragging(false)}
+              onBlur={() => setIsCoverFrameDragging(false)}
+              onChange={(event) => setCoverFrame(Number(event.target.value))}
+            />
           </div>
           <small>播放结束后停留在关键帧</small>
         </div>
