@@ -621,7 +621,7 @@ export function App() {
       }}>
         <div className="brand"><span className="brand-mark"><LiveIcon /></span><div><strong>Lives</strong><small>实况拼贴</small></div></div>
         <div className="project-meta"><span className={clips.length ? 'status-dot active' : 'status-dot'} />{projectSummary}</div>
-        <div className="titlebar-actions">
+        <div className={clips.length ? 'titlebar-actions' : 'titlebar-actions welcome-empty'}>
           <button className="clear-project" disabled={!canClearCollage} onClick={clearCollage} title="保留素材，仅清除当前拼贴"><ClearIcon />清除拼贴</button>
           <button className="primary-button" disabled={!clips.length} onClick={requestExport}><ExportIcon />生成 Live Photo</button>
         </div>
@@ -630,9 +630,9 @@ export function App() {
       {!clips.length ? (
         <section className="welcome">
           <div className="welcome-copy">
-            <span className="eyebrow">MAC 上的本地 Live Photo 工作室</span>
-            <h1>把多个瞬间，<br />拼成一张会动的 <em>Live Photo</em>。</h1>
-            <p>从视频里挑选不同的 3 秒片段，自由拼贴成一张会动的 Live Photo。全程在这台 Mac 上完成。</p>
+            <span className="eyebrow">Mac 上的 Live Photo 拼贴工具</span>
+            <h1>一张 <em>Live Photo</em>，<br />装下多个瞬间。</h1>
+            <p>从视频中截取 3 秒片段，自由组合画面。所有处理都在这台 Mac 上完成。</p>
           </div>
           <section className="welcome-import-hub" aria-labelledby="welcome-import-title">
             <div className="welcome-live-visual" aria-hidden="true">
@@ -643,13 +643,12 @@ export function App() {
               <i className="orbit-line one" /><i className="orbit-line two" />
             </div>
             <div className="welcome-import-card">
-              <div className="welcome-import-heading"><span className="eyebrow">导入素材</span><strong id="welcome-import-title">从视频开始制作</strong></div>
+              <div className="welcome-import-heading"><strong id="welcome-import-title">导入素材</strong><small>选择视频或文件夹</small></div>
               <div className="welcome-import-actions">
-                <button className="welcome-video-action" onClick={chooseVideos}><PlusIcon /><span><strong>添加 / 拖入视频</strong><small>加入「已导入」</small></span></button>
-                <button className="welcome-folder-action" onClick={() => void chooseSourceFolder()}><FolderIcon /><span><strong>导入文件夹</strong><small>按文件夹名建立项目</small></span></button>
+                <button className="welcome-video-action" onClick={chooseVideos}><PlusIcon /><span><strong>添加视频</strong><small>选择多个视频，或直接拖入</small></span></button>
+                <button className="welcome-folder-action" onClick={() => void chooseSourceFolder()}><FolderIcon /><span><strong>导入文件夹</strong><small>按文件夹创建素材项目</small></span></button>
               </div>
-              <p className="welcome-drop-hint">也可以直接从 Finder 拖入多个视频</p>
-              <p className="welcome-import-trust">使用原文件 · 不复制、不上传、不修改 · 支持 MOV / MP4 / M4V</p>
+              <p className="welcome-import-trust"><span>只引用原文件 · 不复制、不上传、不修改</span><span>支持 MOV、MP4、M4V</span></p>
             </div>
           </section>
         </section>
