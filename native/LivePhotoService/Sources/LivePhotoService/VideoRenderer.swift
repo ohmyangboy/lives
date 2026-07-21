@@ -57,8 +57,7 @@ enum VideoRenderer {
             layer.setCropRectangle(sourceCrop, at: .zero)
             layerInstructions.append(layer)
 
-            let shouldIncludeAudio = project.audioMode == "mix" || (project.audioMode == "selected" && clip.id == project.audioSourceClipId)
-            if shouldIncludeAudio,
+            if clip.audioEnabled,
                let sourceAudioTrack = try await asset.loadTracks(withMediaType: .audio).first,
                let compositionAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) {
                 try compositionAudioTrack.insertTimeRange(CMTimeRange(start: start, duration: duration), of: sourceAudioTrack, at: .zero)
@@ -97,7 +96,9 @@ enum VideoRenderer {
         } else {
             let reader = try AVAssetReader(asset: composition)
             let audioMix = AVMutableAudioMix()
-            let volume: Float = project.audioMode == "mix" && compositionAudioTracks.count > 1 ? 0.58 : 1
+            // Several independently enabled cells are mixed at a lower level
+            // so a collage stays comfortable instead of clipping.
+            let volume: Float = compositionAudioTracks.count > 1 ? 0.58 : 1
             audioMix.inputParameters = compositionAudioTracks.map { track in
                 let parameters = AVMutableAudioMixInputParameters(track: track)
                 parameters.setVolume(volume, at: .zero)

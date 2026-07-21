@@ -72,14 +72,13 @@ struct RenderProject: Codable {
         let startTimeMs: Int
         let crop: Crop
         let targetSlotId: String
+        let audioEnabled: Bool
     }
     let id: String
     let templateId: String
     let canvas: Canvas
     let clips: [Clip]
     let coverTimeMs: Int
-    let audioMode: String
-    let audioSourceClipId: String?
 }
 
 struct RenderEnvelope: Codable { let project: RenderProject }

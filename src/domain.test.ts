@@ -16,11 +16,10 @@ const clip = (index: number): VideoClip => ({
 
 describe('render project', () => {
   it('clamps each three-second selection to the source duration', () => {
-    const project = createRenderProject([clip(1), clip(2), clip(3)], 'stack-3', 'selected', 'clip-2')
+    const project = createRenderProject([clip(1), clip(2), clip(3)], 'stack-3')
     expect(project.clips.map((item) => item.startTimeMs)).toEqual([2000, 2000, 2000])
     expect(project.clips.map((item) => item.targetSlotId)).toEqual(['top', 'middle', 'bottom'])
-    expect(project.audioMode).toBe('selected')
-    expect(project.audioSourceClipId).toBe('clip-2')
+    expect(project.clips.map((item) => item.audioEnabled)).toEqual([false, false, false])
   })
 
   it('uses the first slots of the freely selected template', () => {
@@ -30,21 +29,22 @@ describe('render project', () => {
   })
 
   it('keeps an explicit material assignment for each template slot', () => {
-    const project = createRenderProject([clip(1), clip(2), clip(3)], 'stack-2', 'mute', undefined, [clip(3), clip(1)])
+    const project = createRenderProject([clip(1), clip(2), clip(3)], 'stack-2', [clip(3), clip(1)])
     expect(project.clips.map((item) => item.id)).toEqual(['clip-3', 'clip-1'])
     expect(project.clips.map((item) => item.targetSlotId)).toEqual(['top', 'bottom'])
   })
 
   it('does not let a large source library change explicitly chosen collage material', () => {
     const library = Array.from({ length: 60 }, (_, index) => clip(index + 1))
-    const top: SlotClip = { ...clip(42), id: 'chosen-top', sourceClipId: 'clip-42', targetSlotId: 'top', startTimeMs: 600 }
-    const bottom: SlotClip = { ...clip(7), id: 'chosen-bottom', sourceClipId: 'clip-7', targetSlotId: 'bottom', startTimeMs: 1800 }
+    const top: SlotClip = { ...clip(42), id: 'chosen-top', sourceClipId: 'clip-42', targetSlotId: 'top', startTimeMs: 600, audioEnabled: true }
+    const bottom: SlotClip = { ...clip(7), id: 'chosen-bottom', sourceClipId: 'clip-7', targetSlotId: 'bottom', startTimeMs: 1800, audioEnabled: false }
 
-    const project = createRenderProject(library, 'stack-2', 'mute', undefined, [top, bottom])
+    const project = createRenderProject(library, 'stack-2', [top, bottom])
 
     expect(project.clips.map((item) => item.id)).toEqual(['chosen-top', 'chosen-bottom'])
     expect(project.clips.map((item) => item.sourcePath)).toEqual(['/tmp/clip-42.mov', '/tmp/clip-7.mov'])
     expect(project.clips.map((item) => item.startTimeMs)).toEqual([600, 1800])
+    expect(project.clips.map((item) => item.audioEnabled)).toEqual([true, false])
   })
 
   it('maps asymmetric collage templates to their native slot identifiers', () => {
@@ -58,34 +58,34 @@ describe('render project', () => {
   })
 
   it('allows one source to be placed in multiple slots with independent edits', () => {
-    const top: SlotClip = { ...clip(1), id: 'placed-top', sourceClipId: 'clip-1', targetSlotId: 'top', startTimeMs: 400, crop: { normalizedCenterX: .25, normalizedCenterY: .5, scale: 1 } }
-    const bottom: SlotClip = { ...clip(1), id: 'placed-bottom', sourceClipId: 'clip-1', targetSlotId: 'bottom', startTimeMs: 1700, crop: { normalizedCenterX: .75, normalizedCenterY: .5, scale: 1 } }
-    const project = createRenderProject([clip(1)], 'stack-2', 'selected', 'placed-bottom', [top, bottom])
+    const top: SlotClip = { ...clip(1), id: 'placed-top', sourceClipId: 'clip-1', targetSlotId: 'top', startTimeMs: 400, crop: { normalizedCenterX: .25, normalizedCenterY: .5, scale: 1 }, audioEnabled: true }
+    const bottom: SlotClip = { ...clip(1), id: 'placed-bottom', sourceClipId: 'clip-1', targetSlotId: 'bottom', startTimeMs: 1700, crop: { normalizedCenterX: .75, normalizedCenterY: .5, scale: 1 }, audioEnabled: true }
+    const project = createRenderProject([clip(1)], 'stack-2', [top, bottom])
 
     expect(project.clips.map((item) => item.id)).toEqual(['placed-top', 'placed-bottom'])
     expect(project.clips.map((item) => item.sourcePath)).toEqual(['/tmp/clip-1.mov', '/tmp/clip-1.mov'])
     expect(project.clips.map((item) => item.startTimeMs)).toEqual([400, 1700])
     expect(project.clips.map((item) => item.crop.normalizedCenterX)).toEqual([.25, .75])
-    expect(project.audioSourceClipId).toBe('placed-bottom')
+    expect(project.clips.map((item) => item.audioEnabled)).toEqual([true, true])
   })
 
   it('applies the selected aspect ratio and export quality to the render canvas', () => {
-    const project = createRenderProject([clip(1)], 'single', 'mute', undefined, undefined, { aspectRatio: '3:4', quality: '720p' })
+    const project = createRenderProject([clip(1)], 'single', undefined, { aspectRatio: '3:4', quality: '720p' })
     expect(project.canvas).toEqual({ width: 720, height: 960, fps: 30, durationMs: 3000 })
   })
 
   it('uses the short edge as the quality tier when exporting landscape', () => {
-    const project = createRenderProject([clip(1)], 'single', 'mute', undefined, undefined, { aspectRatio: '16:9', quality: '1080p' })
+    const project = createRenderProject([clip(1)], 'single', undefined, { aspectRatio: '16:9', quality: '1080p' })
     expect(project.canvas).toEqual({ width: 1920, height: 1080, fps: 30, durationMs: 3000 })
   })
 
   it('uses the chosen Live Photo key frame time', () => {
-    const project = createRenderProject([clip(1)], 'single', 'mute', undefined, undefined, { aspectRatio: '9:16', quality: '1080p' }, 2200)
+    const project = createRenderProject([clip(1)], 'single', undefined, { aspectRatio: '9:16', quality: '1080p' }, 2200)
     expect(project.coverTimeMs).toBe(2200)
   })
 
   it('keeps the Live Photo key frame inside the three-second clip', () => {
-    const project = createRenderProject([clip(1)], 'single', 'mute', undefined, undefined, { aspectRatio: '9:16', quality: '1080p' }, 4000)
+    const project = createRenderProject([clip(1)], 'single', undefined, { aspectRatio: '9:16', quality: '1080p' }, 4000)
     expect(project.coverTimeMs).toBe(2900)
   })
 

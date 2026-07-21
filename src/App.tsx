@@ -5,9 +5,9 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { CollagePreview } from './components/CollagePreview'
 import { Timeline } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
-import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, createRenderProject, formatDuration, templates, type AspectRatioId, type AudioMode, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
+import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, createRenderProject, formatDuration, templates, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
-import { ClearIcon, CloseIcon, ExportIcon, FilmIcon, FolderIcon, LiveIcon, PlusIcon, SoundIcon } from './icons'
+import { ClearIcon, CloseIcon, ExportIcon, FilmIcon, FolderIcon, LiveIcon, PlusIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
 
 interface ExportState {
@@ -248,8 +248,6 @@ export function App() {
   const [exportDestination, setExportDestination] = useState<ExportDestination>('photos')
   const [pickerDestination, setPickerDestination] = useState<ExportDestination>('photos')
   const [exportFolder, setExportFolder] = useState<string>()
-  const [audioMode, setAudioMode] = useState<AudioMode>('mute')
-  const [audioSourceClipId, setAudioSourceClipId] = useState<string>()
   const [slotPlacements, setSlotPlacements] = useState<SlotPlacements>({})
   const [destinationPickerVisible, setDestinationPickerVisible] = useState(false)
   const [importProgress, setImportProgress] = useState<{ done: number; total: number }>()
@@ -267,9 +265,7 @@ export function App() {
   const activeClips = slotClips.filter((clip): clip is SlotClip => Boolean(clip))
   const sourceQuality = analyzeSourceQuality(activeClips.length ? activeClips : clips)
   const cropUpscaleRisk = sourceQuality.effectiveShortEdge < Math.min(canvas.width, canvas.height)
-  const audioSourceClip = activeClips.find((clip) => clip.id === audioSourceClipId) ?? activeClips[0]
   const canExport = desktopAvailable() && slotClips.length === currentTemplate.requiredClipCount && slotClips.every((clip): clip is SlotClip => clip !== undefined && clip.durationMs >= 3000)
-  const placementLabel = (clip: SlotClip) => currentTemplate.slots.find((slot) => slot.id === clip.targetSlotId)?.label ?? '画面格'
 
   const resolveMaterial = useCallback((materialId: string) => {
     const source = clips.find((clip) => clip.id === materialId)
@@ -432,6 +428,7 @@ export function App() {
       targetSlotId: slotId,
       startTimeMs,
       crop: { ...source.crop },
+      audioEnabled: false,
     }
     setSlotPlacements((current) => ({ ...current, [slotId]: placed }))
     setSelectedSlotId(slotId)
@@ -541,8 +538,6 @@ export function App() {
     setSelectedSlotId(undefined)
     setSelectedMaterialId(undefined)
     setSourceDragFeedback(undefined)
-    setAudioMode('mute')
-    setAudioSourceClipId(undefined)
     setSlotPlacements({})
     setDestinationPickerVisible(false)
     setNotice(undefined)
@@ -555,7 +550,7 @@ export function App() {
       destinationFolder = await chooseExportFolder()
       if (!destinationFolder) return
     }
-    const project = createRenderProject(clips, templateId, audioMode, audioSourceClip?.id, slotClips, { aspectRatio, quality: exportQuality }, coverTimeMs)
+    const project = createRenderProject(clips, templateId, slotClips, { aspectRatio, quality: exportQuality }, coverTimeMs)
     setExportState({ visible: true, state: 'running', stage: 'inspecting', progress: 0, jobId: project.id })
     try {
       const onProgress = (stage: NativeStage, progress: number) => setExportState((current) => ({ ...current, stage, progress }))
@@ -617,11 +612,7 @@ export function App() {
   }
 
   const projectSummary = useMemo(() => clips.length ? `${clips.length} 段素材 · 3.0 秒 · ${canvas.width} × ${canvas.height}` : '本地处理，不上传视频', [clips.length, canvas.width, canvas.height])
-  const canClearCollage = Boolean(Object.keys(slotPlacements).length || selectedSlotId || selectedMaterialId || coverTimeMs !== 1500 || audioMode !== 'mute' || audioSourceClipId)
-
-  useEffect(() => {
-    if (audioSourceClip && audioSourceClip.id !== audioSourceClipId) setAudioSourceClipId(audioSourceClip.id)
-  }, [audioSourceClip, audioSourceClipId])
+  const canClearCollage = Boolean(Object.keys(slotPlacements).length || selectedSlotId || selectedMaterialId || coverTimeMs !== 1500)
 
   return (
     <main className={['app', isDragging && 'is-dragging', sourceDragFeedback && 'source-dragging'].filter(Boolean).join(' ')}>
@@ -682,11 +673,11 @@ export function App() {
 
           <section className="center-panel">
             <div className="stage-heading"><div><span className="eyebrow">02 / 构图</span><h2>画布预览</h2></div></div>
-            <CollagePreview clips={slotClips} template={currentTemplate} canvasWidth={canvas.width} canvasHeight={canvas.height} selectedSlotId={selectedSlotId} selectedSourceId={selectedMaterialId} pointerDropTargetSlotId={sourceDragFeedback?.overSlotId} isSourceDragging={Boolean(sourceDragFeedback)} audioMode={audioMode} audioSourceClipId={audioSourceClip?.id} coverTimeMs={coverTimeMs} onCoverTimeChange={setCoverTimeMs} onSelectSlot={setSelectedSlotId} onDropSource={placeMaterialInSlot} onClearSlot={clearSlot} onScaleChange={(slotId, scale) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, scale } }))} onCropChange={(slotId, x, y) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, normalizedCenterX: x, normalizedCenterY: y } }))} />
+            <CollagePreview clips={slotClips} template={currentTemplate} canvasWidth={canvas.width} canvasHeight={canvas.height} selectedSlotId={selectedSlotId} selectedSourceId={selectedMaterialId} pointerDropTargetSlotId={sourceDragFeedback?.overSlotId} isSourceDragging={Boolean(sourceDragFeedback)} coverTimeMs={coverTimeMs} onCoverTimeChange={setCoverTimeMs} onSelectSlot={setSelectedSlotId} onDropSource={placeMaterialInSlot} onClearSlot={clearSlot} onAudioEnabledChange={(slotId, audioEnabled) => updateSlotClip(slotId, (clip) => ({ ...clip, audioEnabled }))} onScaleChange={(slotId, scale) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, scale } }))} onCropChange={(slotId, x, y) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, normalizedCenterX: x, normalizedCenterY: y } }))} />
           </section>
 
           <aside className="right-panel">
-            <div className="panel-heading"><span className="eyebrow">03 / 配置</span><h2>拼贴与声音</h2></div>
+            <div className="panel-heading"><span className="eyebrow">03 / 配置</span><h2>拼贴设置</h2></div>
             <div className="video-settings aspect-settings">
               <span className="eyebrow">画面比例</span>
               <div className="setting-row"><span><strong>画布方向</strong><small>横竖屏即时切换</small></span><div className="segmented compact" role="group" aria-label="画布方向"><button aria-pressed={canvasOrientation === 'portrait'} className={canvasOrientation === 'portrait' ? 'selected' : ''} onClick={() => changeCanvasOrientation('portrait')}>竖屏</button><button aria-pressed={canvasOrientation === 'landscape'} className={canvasOrientation === 'landscape' ? 'selected' : ''} onClick={() => changeCanvasOrientation('landscape')}>横屏</button></div></div>
@@ -701,19 +692,6 @@ export function App() {
               </button>)}
             </div>
             <div className="drag-assignment-note"><FilmIcon /><p><strong>拖入画面格</strong><span>从左侧拖入素材；也可点选素材后点击空格。同一视频可多次使用，并分别截取不同瞬间。</span></p></div>
-            <div className="audio-settings">
-                <span className="eyebrow">预览声音</span>
-                <div className="audio-switch" role="radiogroup" aria-label="声音设置">
-                  <button role="radio" aria-checked={audioMode === 'mute'} className={audioMode === 'mute' ? 'selected' : ''} onClick={() => setAudioMode('mute')}>静音</button>
-                  <button role="radio" aria-checked={audioMode === 'selected'} className={audioMode === 'selected' ? 'selected' : ''} onClick={() => setAudioMode('selected')}><SoundIcon />指定原声</button>
-                  <button role="radio" aria-checked={audioMode === 'mix'} className={audioMode === 'mix' ? 'selected' : ''} onClick={() => setAudioMode('mix')}>混合</button>
-                </div>
-                {audioMode === 'selected' && <div className="audio-source-picker" aria-label="原声来源">
-                  <span>原声来源</span>
-                  <div role="radiogroup">{activeClips.map((clip, index) => <button role="radio" aria-checked={clip.id === audioSourceClip?.id} key={clip.id} className={clip.id === audioSourceClip?.id ? 'selected' : ''} onClick={() => setAudioSourceClipId(clip.id)}><b>{String(index + 1).padStart(2, '0')}</b><strong>{clip.name}</strong><small>{placementLabel(clip)}</small></button>)}</div>
-                </div>}
-                <small className="audio-note">{audioMode === 'mute' ? '导出的 Live Photo 不包含声音。' : audioMode === 'selected' ? `使用「${audioSourceClip?.name ?? '—'}」的原声；调整画面选段不会改变它。` : '当前模板内所有原声同步混合，并自动降低音量。'}</small>
-            </div>
           </aside>
 
           {selectedSlotClip && <Timeline clip={selectedSlotClip} onChange={(startTimeMs) => updateSlotClip(selectedSlotClip.targetSlotId, (clip) => ({ ...clip, startTimeMs }))} />}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
-import type { AudioMode, CollageTemplate, SlotClip } from '../domain'
-import { CloseIcon, LiveIcon, PauseIcon, PlayIcon, PlusIcon } from '../icons'
+import type { CollageTemplate, SlotClip } from '../domain'
+import { CloseIcon, LiveIcon, PauseIcon, PlayIcon, PlusIcon, SoundIcon } from '../icons'
 
 interface Props {
   clips: Array<SlotClip | undefined>
@@ -11,13 +11,12 @@ interface Props {
   selectedSourceId?: string
   pointerDropTargetSlotId?: string
   isSourceDragging?: boolean
-  audioMode: AudioMode
-  audioSourceClipId?: string
   coverTimeMs: number
   onSelectSlot: (slotId: string | undefined) => void
   onCropChange: (slotId: string, x: number, y: number) => void
   onScaleChange: (slotId: string, scale: number) => void
   onClearSlot: (slotId: string) => void
+  onAudioEnabledChange: (slotId: string, audioEnabled: boolean) => void
   onDropSource: (slotId: string, sourceClipId: string) => void
   onCoverTimeChange: (milliseconds: number) => void
 }
@@ -25,7 +24,7 @@ interface Props {
 const MIN_SCALE = 1
 const MAX_SCALE = 3
 
-export function CollagePreview({ clips, template, canvasWidth, canvasHeight, selectedSlotId, selectedSourceId, pointerDropTargetSlotId, isSourceDragging, audioMode, audioSourceClipId, coverTimeMs, onSelectSlot, onCropChange, onScaleChange, onClearSlot, onDropSource, onCoverTimeChange }: Props) {
+export function CollagePreview({ clips, template, canvasWidth, canvasHeight, selectedSlotId, selectedSourceId, pointerDropTargetSlotId, isSourceDragging, coverTimeMs, onSelectSlot, onCropChange, onScaleChange, onClearSlot, onAudioEnabledChange, onDropSource, onCoverTimeChange }: Props) {
   const videosRef = useRef<Map<string, HTMLVideoElement>>(new Map())
   const stageRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef(0)
@@ -41,6 +40,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const [dropTargetSlotId, setDropTargetSlotId] = useState<string>()
   const clipsKey = useMemo(() => clips.filter((clip): clip is SlotClip => Boolean(clip)).map((clip) => `${clip.id}:${clip.previewUrl}:${clip.startTimeMs}`).join('|'), [clips])
   const selectedClip = clips.find((clip) => clip?.targetSlotId === selectedSlotId)
+  const enabledAudioCount = clips.filter((clip) => clip?.audioEnabled).length
   const slotLabel = (slotId: string) => {
     if (template.slots.length === 1) return '主画面'
     const index = template.slots.findIndex((slot) => slot.id === slotId)
@@ -105,10 +105,10 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
       if (!clip) return
       const video = videosRef.current.get(clip.id)
       if (!video) return
-      video.muted = audioMode === 'mute' || (audioMode === 'selected' && clip.id !== audioSourceClipId)
-      video.volume = audioMode === 'mix' ? 0.35 : 1
+      video.muted = !clip.audioEnabled
+      video.volume = enabledAudioCount > 1 ? 0.58 : 1
     })
-  }, [audioMode, clips, audioSourceClipId])
+  }, [clips, enabledAudioCount])
 
   useEffect(() => {
     const stage = stageRef.current
@@ -350,7 +350,10 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
                 style={videoStyle(clip, index)}
               />
               <span className="slot-replace-copy">拖入替换</span>
-              {slot.id === selectedSlotId && <button className="slot-clear-button" aria-label={`清空${slotLabel(slot.id)}`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onClearSlot(slot.id) }}><CloseIcon /></button>}
+              {slot.id === selectedSlotId && <div className="slot-context-actions">
+                <button className={clip.audioEnabled ? 'slot-audio-button enabled' : 'slot-audio-button'} aria-label={`${clip.audioEnabled ? '关闭' : '开启'}${slotLabel(slot.id)}原声`} aria-pressed={clip.audioEnabled === true} title={clip.audioEnabled ? '关闭原声' : '开启原声'} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onAudioEnabledChange(slot.id, !clip.audioEnabled) }}><SoundIcon /></button>
+                <button className="slot-clear-button" aria-label={`清空${slotLabel(slot.id)}`} title="清空画面" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onClearSlot(slot.id) }}><CloseIcon /></button>
+              </div>}
               </>}
               {isPointerTarget && <span className="slot-drop-target-copy">松开 · {clip ? '替换画面' : '放入画面'}</span>}
             </div>

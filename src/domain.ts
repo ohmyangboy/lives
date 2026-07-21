@@ -89,6 +89,9 @@ export interface VideoClip {
 export interface SlotClip extends VideoClip {
   sourceClipId: string
   targetSlotId: string
+  /** Sound is controlled by the placed cell, so one source can be silent in
+   * one slot and audible in another. */
+  audioEnabled?: boolean
 }
 
 export interface Slot {
@@ -108,8 +111,6 @@ export interface CollageTemplate {
   slots: Slot[]
 }
 
-export type AudioMode = 'mute' | 'selected' | 'mix'
-
 export interface RenderProject {
   id: string
   templateId: TemplateId
@@ -121,10 +122,9 @@ export interface RenderProject {
     startTimeMs: number
     crop: CropPosition
     targetSlotId: string
+    audioEnabled: boolean
   }>
   coverTimeMs: number
-  audioMode: AudioMode
-  audioSourceClipId?: string
 }
 
 export const templates: CollageTemplate[] = [
@@ -191,8 +191,6 @@ export const templates: CollageTemplate[] = [
 export function createRenderProject(
   clips: VideoClip[],
   templateId: TemplateId,
-  audioMode: AudioMode = 'mute',
-  audioSourceClipId?: string,
   slotClips?: Array<SlotClip | VideoClip | undefined>,
   canvasSettings: CanvasSettings = { aspectRatio: '9:16', quality: '1080p' },
   coverTimeMs = 1500,
@@ -201,7 +199,6 @@ export function createRenderProject(
   const renderedClips = slotClips ?? clips.slice(0, template.requiredClipCount)
   if (renderedClips.length !== template.requiredClipCount || renderedClips.some((clip) => !clip)) throw new Error('素材数量不足，无法填满当前模板')
   const filledClips = renderedClips as Array<SlotClip | VideoClip>
-  const selectedAudioSource = filledClips.some((clip) => clip.id === audioSourceClipId) ? audioSourceClipId : filledClips[0]?.id
   const dimensions = canvasDimensions(canvasSettings)
   return {
     id: crypto.randomUUID(),
@@ -214,10 +211,9 @@ export function createRenderProject(
       startTimeMs: Math.min(clip.startTimeMs, Math.max(0, clip.durationMs - 3000)),
       crop: clip.crop,
       targetSlotId: template.slots[index].id,
+      audioEnabled: 'audioEnabled' in clip && clip.audioEnabled === true,
     })),
     coverTimeMs: Math.max(0, Math.min(2900, Math.round(coverTimeMs / 100) * 100)),
-    audioMode,
-    audioSourceClipId: audioMode === 'selected' ? selectedAudioSource : undefined,
   }
 }
 
