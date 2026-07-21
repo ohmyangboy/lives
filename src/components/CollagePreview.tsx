@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import type { CollageTemplate, SlotClip } from '../domain'
-import { CloseIcon, LiveIcon, PauseIcon, PlayIcon, PlusIcon, SoundIcon } from '../icons'
+import { CloseIcon, CollapseIcon, ExpandIcon, LiveIcon, PauseIcon, PlayIcon, PlusIcon, SoundIcon } from '../icons'
 
 interface Props {
   clips: Array<SlotClip | undefined>
@@ -38,6 +38,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const [isCoverFrameDragging, setIsCoverFrameDragging] = useState(false)
   const [maximumCanvasHeight, setMaximumCanvasHeight] = useState(360)
   const [dropTargetSlotId, setDropTargetSlotId] = useState<string>()
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const clipsKey = useMemo(() => clips.filter((clip): clip is SlotClip => Boolean(clip)).map((clip) => `${clip.id}:${clip.previewUrl}:${clip.startTimeMs}`).join('|'), [clips])
   const selectedClip = clips.find((clip) => clip?.targetSlotId === selectedSlotId)
   const enabledAudioCount = clips.filter((clip) => clip?.audioEnabled).length
@@ -210,7 +211,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== 'Space' || event.repeat || document.querySelector('[role="dialog"]')) return
+      if (event.code !== 'Space' || event.repeat || document.querySelector('[role="dialog"]:not(.preview-stage)')) return
       const target = event.target as HTMLElement | null
       if (target?.closest('button, a, input, textarea, select, [role="button"], [role="radio"], [contenteditable="true"]')) return
       event.preventDefault()
@@ -219,6 +220,17 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [playing, clipsKey])
+
+  useEffect(() => {
+    if (!isFullscreen) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setIsFullscreen(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isFullscreen])
 
   const locate = (event: ReactPointerEvent<HTMLDivElement> | ReactWheelEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect()
@@ -275,17 +287,20 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   }
 
   return (
-    <div ref={stageRef} className="preview-stage" onPointerDown={(event) => { if (event.target === event.currentTarget) onSelectSlot(undefined) }}>
+    <div ref={stageRef} className={isFullscreen ? 'preview-stage is-fullscreen' : 'preview-stage'} role={isFullscreen ? 'dialog' : undefined} aria-modal={isFullscreen || undefined} aria-label={isFullscreen ? '全屏拼贴预览' : undefined} onPointerDown={(event) => { if (event.target === event.currentTarget) onSelectSlot(undefined) }}>
       <div className="source-monitor-bar">
         <div className="source-monitor-label"><span /> 拼贴预览 · {selectedClip ? `正在调整${slotLabel(selectedClip.targetSlotId)}` : clips.some(Boolean) ? '点击画格继续调整' : '把素材拖入画面格'}</div>
-        {selectedClip && <div className="composition-toolbar" aria-label="当前画面构图工具">
-          <button onClick={() => changeSelectedScale(-.1)} disabled={selectedClip.crop.scale <= MIN_SCALE} aria-label="缩小画面">−</button>
-          <output>{Math.round(selectedClip.crop.scale * 100)}%</output>
-          <button onClick={() => changeSelectedScale(.1)} disabled={selectedClip.crop.scale >= MAX_SCALE} aria-label="放大画面">＋</button>
-          <button className="reset-crop" onClick={() => { onCropChange(selectedClip.targetSlotId, .5, .5); onScaleChange(selectedClip.targetSlotId, 1) }}>居中</button>
-        </div>}
+        <div className="source-monitor-actions">
+          {selectedClip && <div className="composition-toolbar" aria-label="当前画面构图工具">
+            <button onClick={() => changeSelectedScale(-.1)} disabled={selectedClip.crop.scale <= MIN_SCALE} aria-label="缩小画面">−</button>
+            <output>{Math.round(selectedClip.crop.scale * 100)}%</output>
+            <button onClick={() => changeSelectedScale(.1)} disabled={selectedClip.crop.scale >= MAX_SCALE} aria-label="放大画面">＋</button>
+            <button className="reset-crop" onClick={() => { onCropChange(selectedClip.targetSlotId, .5, .5); onScaleChange(selectedClip.targetSlotId, 1) }}>居中</button>
+          </div>}
+          <button className="preview-fullscreen-button" aria-label={isFullscreen ? '退出全屏预览' : '全屏预览'} aria-pressed={isFullscreen} title={isFullscreen ? '退出全屏预览（Esc）' : '全屏预览'} onClick={() => setIsFullscreen((current) => !current)}>{isFullscreen ? <CollapseIcon /> : <ExpandIcon />}</button>
+        </div>
       </div>
-      <div className="canvas-shell" style={{ aspectRatio: `${canvasWidth} / ${canvasHeight}`, width: `min(88%, 500px, ${(maximumCanvasHeight * canvasWidth / canvasHeight).toFixed(1)}px)` }}>
+      <div className="canvas-shell" style={{ aspectRatio: `${canvasWidth} / ${canvasHeight}`, width: `min(88%, ${isFullscreen ? 1100 : 500}px, ${(maximumCanvasHeight * canvasWidth / canvasHeight).toFixed(1)}px)` }}>
         <div className="collage-canvas" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={() => { dragRef.current = undefined }} onPointerCancel={() => { dragRef.current = undefined }} onWheel={handleWheel}>
           {template.slots.map((slot, index) => {
             const clip = clips[index]

@@ -6,6 +6,8 @@ const Icon = ({ children, ...props }: SVGProps<SVGSVGElement>) => (
 export const PlusIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M12 5v14M5 12h14" /></Icon>
 export const PlayIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="m9 7 8 5-8 5V7Z" /></Icon>
 export const PauseIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M9 7v10M15 7v10" /></Icon>
+export const ExpandIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5" /></Icon>
+export const CollapseIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="m8 3-5 5M16 3l5 5M21 16l-5 5M3 16l5 5" /></Icon>
 export const SoundIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M5 10v4h4l5 4V6l-5 4H5Z" /><path d="M17 9.5a3.5 3.5 0 0 1 0 5M19.5 7a7 7 0 0 1 0 10" /></Icon>
 export const LiveIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><circle cx="12" cy="12" r="3" /><path d="M5.6 8.4a7.5 7.5 0 0 0 0 7.2M18.4 8.4a7.5 7.5 0 0 1 0 7.2M3 5.6a11 11 0 0 0 0 12.8M21 5.6a11 11 0 0 1 0 12.8" /></Icon>
 export const ExportIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M12 3v12M8 7l4-4 4 4" /><path d="M5 13v6h14v-6" /></Icon>

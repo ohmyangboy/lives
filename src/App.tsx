@@ -3,7 +3,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { CollagePreview } from './components/CollagePreview'
-import { Timeline } from './components/Timeline'
+import { Timeline, TimelineEmpty } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
 import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, createRenderProject, formatDuration, templates, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
@@ -644,7 +644,7 @@ export function App() {
           </button>
         </section>
       ) : (
-        <div className={selectedSlotClip ? 'workspace has-timeline' : 'workspace'}>
+        <div className="workspace has-timeline">
           <aside className="left-panel">
             <div className="panel-heading"><span className="eyebrow">01 / 素材</span><h2>视频素材库</h2></div>
             <div className="media-project-tabs" role="tablist" aria-label="素材项目">
@@ -694,7 +694,7 @@ export function App() {
             <div className="drag-assignment-note"><FilmIcon /><p><strong>拖入画面格</strong><span>从左侧拖入素材；也可点选素材后点击空格。同一视频可多次使用，并分别截取不同瞬间。</span></p></div>
           </aside>
 
-          {selectedSlotClip && <Timeline clip={selectedSlotClip} onChange={(startTimeMs) => updateSlotClip(selectedSlotClip.targetSlotId, (clip) => ({ ...clip, startTimeMs }))} />}
+          {selectedSlotClip ? <Timeline clip={selectedSlotClip} onChange={(startTimeMs) => updateSlotClip(selectedSlotClip.targetSlotId, (clip) => ({ ...clip, startTimeMs }))} /> : <TimelineEmpty />}
         </div>
       )}
 

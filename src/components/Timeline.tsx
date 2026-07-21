@@ -1,10 +1,36 @@
 import { useEffect, useRef, useState, type WheelEvent } from 'react'
 import type { SlotClip, VideoClip } from '../domain'
 import { formatDuration } from '../domain'
+import { FilmIcon } from '../icons'
 
 interface Props {
   clip: VideoClip | SlotClip
   onChange: (startTimeMs: number) => void
+}
+
+export function TimelineEmpty() {
+  return (
+    <section className="timeline-panel timeline-empty" aria-label="空时间线">
+      <div className="timeline-heading">
+        <div><span className="eyebrow">时间线</span><strong>未选中画面</strong></div>
+        <span>选择画格后编辑其 3 秒片段</span>
+      </div>
+      <div className="timeline-workbench">
+        <div className="timeline-toolbar">
+          <span>时间线缩放</span>
+          <button aria-label="缩小时间线" disabled>−</button>
+          <output>100%</output>
+          <button aria-label="放大时间线" disabled>＋</button>
+          <small>⌘ / Ctrl + 滚轮</small>
+        </div>
+        <div className="timeline-viewport timeline-empty-viewport" aria-hidden="true">
+          <div className="timeline-empty-grid" />
+          <div className="timeline-empty-guide"><FilmIcon /><span>点击预览中的任一画格，在这里截取 3 秒片段</span></div>
+        </div>
+      </div>
+      <div className="timeline-scale"><span>0:00</span><span>—</span><span>—</span></div>
+    </section>
+  )
 }
 
 const MIN_ZOOM = 1

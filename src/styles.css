@@ -130,6 +130,7 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .source-monitor-bar { width: min(510px, 88%); min-height: 31px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
 .source-monitor-label { min-width: 0; display: flex; align-items: center; gap: 7px; color: #a39d92; font-family: 'SFMono-Regular', 'Menlo', monospace; font-size: 9px; letter-spacing: .06em; white-space: nowrap; }
 .source-monitor-label span { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 4px rgba(244,185,66,.1); }
+.source-monitor-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 .composition-toolbar { flex: none; min-height: 32px; display: flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid rgba(255,255,255,.1); border-radius: 9px; background: rgba(29,28,24,.88); box-shadow: 0 8px 24px rgba(0,0,0,.2); backdrop-filter: blur(14px); }
 .composition-toolbar button { height: 25px; min-width: 26px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 7px; border: 0; border-radius: 6px; color: #bcb6ab; background: transparent; cursor: pointer; font-size: 10px; transition: .15s ease; }
 .composition-toolbar button:hover:not(:disabled) { color: var(--paper); background: rgba(255,255,255,.07); }.composition-toolbar button:disabled { opacity: .3; cursor: not-allowed; }
@@ -137,6 +138,8 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .composition-toolbar > i { width: 1px; height: 14px; margin: 0 2px; background: var(--line); }
 .composition-toolbar .clear-slot { color: #c98470; }.composition-toolbar .clear-slot:hover { color: #ffd2c5; background: rgba(211,101,73,.12); }
 .composition-toolbar .clear-slot svg { width: 11px; }.composition-toolbar .reset-crop { color: #858077; }
+.preview-fullscreen-button { width: 32px; height: 32px; display: grid; place-items: center; flex: none; padding: 0; border: 1px solid rgba(255,255,255,.1); border-radius: 9px; color: #bcb6ab; background: rgba(29,28,24,.88); box-shadow: 0 8px 24px rgba(0,0,0,.2); backdrop-filter: blur(14px); cursor: pointer; transition: .15s ease; }
+.preview-fullscreen-button:hover, .preview-fullscreen-button[aria-pressed="true"] { color: #1c160a; border-color: var(--amber); background: var(--amber); }.preview-fullscreen-button svg { width: 14px; height: 14px; }
 .canvas-shell { position: relative; flex: none; border-radius: 11px; overflow: hidden; box-shadow: 0 32px 72px rgba(0,0,0,.48), 0 0 0 1px rgba(255,255,255,.12); transition: width .28s cubic-bezier(.2,.75,.2,1), aspect-ratio .28s ease; }
 .canvas-shell.source-monitor { box-shadow: 0 32px 72px rgba(0,0,0,.48), 0 0 0 1px rgba(244,185,66,.25); }
 .collage-canvas { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; background: #171511; touch-action: none; cursor: grab; }
@@ -191,6 +194,9 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .keyframe-timeline:focus-within .keyframe-handle::after { box-shadow: 0 0 0 2px rgba(244,185,66,.28), 0 0 0 5px rgba(244,185,66,.35), 0 4px 12px rgba(0,0,0,.46); }
 .preview-controls > span { color: #6f6c65; font-family: 'DM Mono'; font-size: 9px; }
 .canvas-hint { color: #8f8a81; margin: 8px 0 0; font-size: 10px; }
+.preview-stage.is-fullscreen { position: fixed; z-index: 180; inset: 0; min-height: 0; padding: 26px 50px 30px; background: radial-gradient(circle at 50% 40%, #28261f, #0f0f0d 70%); overflow: auto; }
+.preview-stage.is-fullscreen .source-monitor-bar, .preview-stage.is-fullscreen .preview-controls { width: min(1100px, 92vw); }
+.preview-stage.is-fullscreen .canvas-hint { margin-bottom: 10px; }
 
 .clip-list { display: grid; gap: 8px; margin-top: 23px; }
 .clip-card { position: relative; width: 100%; min-height: 68px; display: grid; grid-template-columns: 19px 62px 1fr 20px; align-items: center; gap: 9px; padding: 8px; border: 1px solid transparent; border-radius: 11px; background: #211f1b; text-align: left; cursor: grab; overflow: hidden; transition: border-color .16s ease, background .16s ease, transform .1s ease-out; }
@@ -295,6 +301,12 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .filmstrip input { position: absolute; z-index: 4; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: ew-resize; }
 .timeline-viewport:focus-within { box-shadow: 0 0 0 2px rgba(255,215,127,.75); }
 .timeline-scale { grid-column: 2; display: flex; justify-content: space-between; color: #8d887f; font-family: 'SFMono-Regular', 'Menlo', monospace; font-size: 8px; padding-top: 8px; }
+.timeline-empty .timeline-heading { opacity: .78; }
+.timeline-empty-viewport { position: relative; display: grid; place-items: center; overflow: hidden; background: #1b1a17; }
+.timeline-empty-grid { position: absolute; inset: 0; opacity: .52; background: repeating-linear-gradient(90deg, transparent 0 calc(12.5% - 1px), rgba(255,255,255,.08) calc(12.5% - 1px) 12.5%), linear-gradient(90deg, rgba(244,185,66,.32) 0 2px, transparent 2px); }
+.timeline-empty-grid::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(255,255,255,.06); }
+.timeline-empty-guide { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; color: #938d81; background: rgba(24,23,20,.86); box-shadow: 0 8px 24px rgba(0,0,0,.2); font-size: 9px; }
+.timeline-empty-guide svg { width: 14px; color: #bd9745; }
 
 .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 50; min-width: 320px; display: grid; grid-template-columns: 24px 1fr 24px; align-items: center; gap: 10px; padding: 11px 13px; border: 1px solid rgba(244,185,66,.25); border-radius: 10px; background: #29251c; box-shadow: 0 15px 45px rgba(0,0,0,.4); font-size: 11px; }
 .toast > span { width: 22px; height: 22px; display: grid; place-items: center; color: #171108; background: var(--amber); border-radius: 50%; font-weight: 700; }
