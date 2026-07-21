@@ -7,7 +7,7 @@
 | 发布物 | 位置 / 值 |
 | --- | --- |
 | 官网专用分支 | `public-site-main` |
-| DMG | `src-tauri/target/release/bundle/dmg/Lives_0.1.0_aarch64.dmg` |
+| DMG | `release/v0.1.0/Lives_0.1.0_aarch64.dmg` |
 | SHA-256 文件 | `release/v0.1.0/Lives_0.1.0_aarch64.dmg.sha256` |
 | Release Notes | `release/v0.1.0/release-notes.md` |
 | DMG SHA-256 | `ea6dba1f4e54c55949c5afe0d0c8d994efa6f9f8cb871bcfebf068741a357d2c` |
