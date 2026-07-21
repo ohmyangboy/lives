@@ -5,7 +5,6 @@
 ## 本地构建
 
 ```bash
-cd website
 npm run build
 python3 -m http.server 4173 --directory dist
 ```
@@ -17,7 +16,7 @@ python3 -m http.server 4173 --directory dist
 
 ## GitHub Pages
 
-`.github/workflows/pages.yml` 会在 `main` 分支的 `website/**` 变更后构建并部署。首次使用需在 GitHub 仓库的 **Settings → Pages → Build and deployment** 中将 Source 设为 **GitHub Actions**。
+此目录会作为独立的公开网站仓库发布；`.github/workflows/pages.yml` 会在网站仓库 `main` 分支变更后构建并部署。首次使用需在 GitHub 仓库的 **Settings → Pages → Build and deployment** 中将 Source 设为 **GitHub Actions**。
 
 推荐在仓库 **Settings → Secrets and variables → Actions → Variables** 添加：
 
