@@ -292,7 +292,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
           <div className="keyframe-timeline" style={{ '--keyframe-position': `${coverTimeMs / 30}%` } as CSSProperties}>
             <span className="timeline-ruler" aria-hidden="true" />
             <i style={{ transform: `scaleX(${playhead})` }} />
-            <span className="keyframe-handle" aria-hidden="true"><b>关键帧</b><em>{(coverTimeMs / 1000).toFixed(1)}s</em></span>
+            <span className="keyframe-handle" aria-hidden="true"><b>关键帧 · {(coverTimeMs / 1000).toFixed(1)}s</b></span>
             <input type="range" min="0" max="2900" step="100" value={coverTimeMs} aria-label="Live Photo 关键帧" onChange={(event) => setCoverFrame(Number(event.target.value))} />
           </div>
           <small>播放结束后停留在关键帧</small>

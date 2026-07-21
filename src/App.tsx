@@ -48,6 +48,63 @@ const libraryStorageKey = 'lives.project-media.v2'
 const legacyLibraryStorageKey = 'lives.project-media.v1'
 const createDefaultProject = (): MediaProject => ({ id: defaultProjectId, name: '已导入', kind: 'direct', clipIds: [] })
 
+function VideoCover({ src }: { src: string }) {
+  const hostRef = useRef<HTMLDivElement>(null)
+  const [shouldLoad, setShouldLoad] = useState(false)
+  const [frame, setFrame] = useState<string>()
+
+  useEffect(() => {
+    setShouldLoad(false)
+    setFrame(undefined)
+    const host = hostRef.current
+    if (!host || !('IntersectionObserver' in window)) { setShouldLoad(true); return }
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return
+      setShouldLoad(true)
+      observer.disconnect()
+    }, { rootMargin: '180px 0px' })
+    observer.observe(host)
+    return () => observer.disconnect()
+  }, [src])
+
+  useEffect(() => {
+    if (!shouldLoad) return
+    let disposed = false
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'metadata'
+    const canvas = document.createElement('canvas')
+    canvas.width = 160
+    canvas.height = 126
+    const capture = () => {
+      if (disposed || !video.videoWidth || !video.videoHeight) return
+      const context = canvas.getContext('2d')
+      if (!context) return
+      const sourceAspect = video.videoWidth / video.videoHeight
+      const targetAspect = canvas.width / canvas.height
+      const sourceWidth = sourceAspect > targetAspect ? video.videoHeight * targetAspect : video.videoWidth
+      const sourceHeight = sourceAspect > targetAspect ? video.videoHeight : video.videoWidth / targetAspect
+      context.drawImage(video, (video.videoWidth - sourceWidth) / 2, (video.videoHeight - sourceHeight) / 2, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height)
+      setFrame(canvas.toDataURL('image/jpeg', .78))
+    }
+    const seekPreviewFrame = () => {
+      const previewTime = Math.min(.35, Math.max(.04, video.duration - .04))
+      if (Math.abs(video.currentTime - previewTime) < .01) capture()
+      else video.currentTime = previewTime
+    }
+    video.addEventListener('loadedmetadata', seekPreviewFrame, { once: true })
+    video.addEventListener('seeked', capture, { once: true })
+    video.src = src
+    return () => { disposed = true; video.src = '' }
+  }, [shouldLoad, src])
+
+  return <div ref={hostRef} className={`video-cover ${frame ? 'ready' : ''}`} aria-hidden="true">
+    {frame && <img src={frame} alt="" />}
+    <i />
+  </div>
+}
+
 const restoreMediaLibrary = (): { clips: VideoClip[]; projects: MediaProject[]; activeProjectId: string } => {
   if (!desktopAvailable()) return { clips: [], projects: [createDefaultProject()], activeProjectId: defaultProjectId }
   try {
@@ -506,7 +563,7 @@ export function App() {
                 const materialId = clip.id
                 return <div key={materialId} className={['clip-card', materialId === selectedMaterialId && 'selected', materialId === sourceDragFeedback?.materialId && 'dragging'].filter(Boolean).join(' ')} onPointerDown={(event) => beginSourcePointerDrag(event, materialId)} onPointerMove={moveSourcePointerDrag} onPointerUp={finishSourcePointerDrag} onPointerCancel={cancelSourcePointerDrag}>
                   <span className="clip-index">{String(index + 1).padStart(2, '0')}</span>
-                  <video src={clip.previewUrl} muted preload="metadata" />
+                  <VideoCover src={clip.previewUrl} />
                   <span className="clip-copy"><strong>{clip.name}</strong><small>{formatDuration(clip.durationMs)} · {clip.width}×{clip.height}</small><em>拖入画面格</em></span>
                   <button className="remove-clip" aria-label={`移除 ${clip.name}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => removeClip(clip.id)}><CloseIcon /></button>
                 </div>
