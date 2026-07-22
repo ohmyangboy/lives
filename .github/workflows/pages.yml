@@ -34,7 +34,7 @@ jobs:
       - name: Build website
         env:
           LIVES_VERSION: ${{ vars.LIVES_VERSION || '0.1.0' }}
-          LIVES_DOWNLOAD_URL: ${{ vars.LIVES_DOWNLOAD_URL || 'https://github.com/young-4ever/macToLive/releases/latest' }}
+          LIVES_DOWNLOAD_URL: ${{ vars.LIVES_DOWNLOAD_URL || 'https://github.com/ohmyangboy/macToLive/releases/latest' }}
         run: npm run build
 
       - name: Upload Pages artifact
