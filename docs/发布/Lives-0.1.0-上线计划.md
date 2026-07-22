@@ -30,7 +30,8 @@ Lives 已具备小规模种子测试的产品基础，但当前安装包只有 a
 - 目标仓库统一为 `ohmyangboy/lives`，作为官网、Issue 模板与 Release 的公开分发仓库。
 - 为避免误公开应用源码，只通过 `publish` 专用远端推送站点分支 `public-site-main:main`，不推送本地应用源码分支。
 - GitHub Pages 已发布至 `https://ohmyangboy.github.io/lives/`；`v0.1.0` Release 已发布至 `https://github.com/ohmyangboy/lives/releases/tag/v0.1.0`。
-- 线上 DMG 已重新下载，SHA-256、文件大小、磁盘映像校验和逐字节比对均通过。剩余门禁是真机 Gatekeeper、照片导出和 iPhone Live 属性验收。
+- 线上 DMG 已重新下载，SHA-256、文件大小、磁盘映像校验和逐字节比对均通过。
+- GitHub Actions `macos-15` M1/arm64 runner 已对线上 DMG 完成三路带音频拼贴、Live Photo 配对验证与 JPG/MOV 文件夹导出；[运行 29884820230](https://github.com/ohmyangboy/lives/actions/runs/29884820230) 成功。剩余门禁缩小为浏览器 quarantine/Gatekeeper、“保存到照片”和 iPhone 展示。
 
 发布链路如下：
 

@@ -87,8 +87,10 @@ Apple 明确说明，即使是已识别开发者，从网络下载的软件第�
 ### 2.3 阶段 A 剩余人工验收
 
 1. 在一台运行正式版 macOS 的 Apple Silicon Mac 上，从线上 Release 下载 DMG，拖入“应用程序”，按 Apple 官方路径完成 Gatekeeper 首次打开实测。
-2. 在该稳定系统上使用非敏感视频分别验证“保存到照片”和“导出到文件夹”。当前 macOS 27 开发测试版 `26A5388g` 的系统 VideoToolbox 未提供 H.264/HEVC 编码器，不能作为 0.1.0 导出验收环境。
-3. 如启用 iCloud 照片，在 iPhone 上确认 Live 属性、关键帧与声音。
+2. [已完成] GitHub Actions `macos-15` M1/arm64 runner（macOS 15.7.7，24G720）已重新下载线上 DMG，并通过 SHA-256、DMG、代码签名、三路音频拼贴、Live Photo 元数据、`PHLivePhoto` 配对验证和 JPG/MOV 文件夹导出。[成功运行](https://github.com/ohmyangboy/lives/actions/runs/29884820230)
+3. 在正式版 macOS 真机上验证“保存到照片”的授权与照片 App 展示；如启用 iCloud 照片，再到 iPhone 确认 Live 属性、关键帧与声音。
+
+当前 macOS 27 开发测试版 `26A5388g` 的系统 VideoToolbox 未提供 H.264/HEVC 编码器，不能作为 0.1.0 导出验收环境。
 
 ## 3. 决策冻结
 

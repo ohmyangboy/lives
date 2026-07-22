@@ -1,5 +1,7 @@
 # Lives 产品网站
 
+[![Release smoke](https://github.com/ohmyangboy/lives/actions/workflows/release-smoke.yml/badge.svg)](https://github.com/ohmyangboy/lives/actions/workflows/release-smoke.yml)
+
 纯静态、无第三方运行时依赖的产品介绍站。构建脚本会把 `src/` 复制到 `dist/`，并注入版本号和下载链接。
 
 ## 本地构建
