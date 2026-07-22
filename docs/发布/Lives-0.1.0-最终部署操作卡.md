@@ -60,9 +60,11 @@ shasum -a 256 ~/Downloads/Lives_0.1.0_aarch64.dmg
 ```
 
 - [x] 输出与本卡顶部 SHA-256 完全一致，且线上文件与本地冻结发布物逐字节相同。
-- [ ] 打开线上下载的 DMG，把 Lives 拖入“应用程序”。首次启动按 Apple 官方的“隐私与安全性 → 仍要打开”流程完成 Gatekeeper 实测。
-- [ ] 导入视频，生成一张 Live Photo，分别验证保存到“照片”和导出到文件夹。
+- [ ] 在运行正式版 macOS 的 Apple Silicon Mac 上打开线上下载的 DMG，把 Lives 拖入“应用程序”。首次启动按 Apple 官方的“隐私与安全性 → 仍要打开”流程完成 Gatekeeper 实测。
+- [ ] 在该稳定系统上导入视频，生成一张 Live Photo，分别验证保存到“照片”和导出到文件夹。
 - [ ] 若启用 iCloud 照片，再到 iPhone 验证 Live 属性、关键帧和声音。
+
+当前开发机运行 macOS 27 开发测试版 `26A5388g`。系统 `VTCopyVideoEncoderList` 未返回 H.264/HEVC 编码器，FFmpeg VideoToolbox 与 Lives 发布版均无法建立编码会话，因此该系统不能作为 0.1.0 导出验收环境；这不应通过修改或绕过 Gatekeeper 解决。
 
 ## 6. 对外发布顺序
 

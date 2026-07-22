@@ -15,7 +15,7 @@ Lives 采用以下路线：
 > **当前选择（2026-07-22）：暂不购买 Apple Developer Program，不进行 Developer ID 签名和 Apple 公证。现阶段只执行阶段 A“零成本邀请制预览”；阶段 B～D 全部延期，直到预算允许。**
 
 1. **核心源码保持私有**；公开仓库只放官网、法律文本、公开文档和 Release 资产。
-2. 当前 `0.1.0` 可以作为 **Apple Silicon、macOS 13+、未公证、无自动更新** 的邀请制预览版，最多先给 10～30 名知情用户。
+2. 当前 `0.1.0` 可以作为 **Apple Silicon、macOS 13+ 正式版本、未公证、无自动更新** 的邀请制预览版，最多先给 10～30 名知情用户；macOS Beta 或开发者预览版不在支持范围内。
 3. 如果目标是通过官网面向普通用户公开推广，建议直接加入每年 99 美元的 Apple Developer Program，完成 **Developer ID Application 签名 + Hardened Runtime + Apple 公证 + staple**，不要把 ad-hoc 版本当作长期公开方案。
 4. **自动更新不是 0.1.0 首发项。** 先让签名、公证、手动 DMG 升级连续稳定两个版本，再接入 Tauri Updater。
 5. 不提供 `sudo xattr`、关闭 Gatekeeper 或其他解除系统保护的命令；未公证版只引用 Apple 官方“系统设置 → 隐私与安全性 → 仍要打开”流程。
@@ -70,7 +70,7 @@ Apple 明确说明，即使是已识别开发者，从网络下载的软件第�
 - 已产出 `Lives_0.1.0_aarch64.dmg`，大小约 4.1 MB。
 - 当前 DMG SHA-256：`ea6dba1f4e54c55949c5afe0d0c8d994efa6f9f8cb871bcfebf068741a357d2c`。
 - 官网已具备首页、隐私说明、使用条款、第三方软件声明和 GitHub Pages 官方 Actions 工作流。
-- 目标平台已经明确为 Apple Silicon、macOS 13 Ventura 或更高版本。
+- 目标平台已经明确为 Apple Silicon、macOS 13 Ventura 或更高的正式版本；macOS Beta 或开发者预览版不在 0.1.0 支持范围内。
 - App 使用本地处理模式；照片权限为 add-only；无账号、行为分析和自动崩溃上报。
 - Git 分支已有 `public-site-main`，可只推官网历史，避免公开应用源码。
 - 公开分发仓库已固定为 `ohmyangboy/lives`，产品官网已发布至 `https://ohmyangboy.github.io/lives/`。
@@ -86,8 +86,8 @@ Apple 明确说明，即使是已识别开发者，从网络下载的软件第�
 
 ### 2.3 阶段 A 剩余人工验收
 
-1. 从线上 Release 下载 DMG，拖入“应用程序”，按 Apple 官方路径完成 Gatekeeper 首次打开实测。
-2. 使用非敏感视频分别验证“保存到照片”和“导出到文件夹”。
+1. 在一台运行正式版 macOS 的 Apple Silicon Mac 上，从线上 Release 下载 DMG，拖入“应用程序”，按 Apple 官方路径完成 Gatekeeper 首次打开实测。
+2. 在该稳定系统上使用非敏感视频分别验证“保存到照片”和“导出到文件夹”。当前 macOS 27 开发测试版 `26A5388g` 的系统 VideoToolbox 未提供 H.264/HEVC 编码器，不能作为 0.1.0 导出验收环境。
 3. 如启用 iCloud 照片，在 iPhone 上确认 Live 属性、关键帧与声音。
 
 ## 3. 决策冻结
@@ -96,7 +96,7 @@ Apple 明确说明，即使是已识别开发者，从网络下载的软件第�
 | --- | --- | --- |
 | 源码策略 | 核心源码私有，官网/公开文档公开 | 明确决定建设开发者社区时再评估 Apache-2.0。 |
 | 首发架构 | 仅 Apple Silicon | 用户反馈证明 Intel 需求足够，且 sidecar/Helper 可正确构建并真机测试时。 |
-| 最低系统 | macOS 13+ | 通过完整回归后才能调整。 |
+| 最低系统 | macOS 13+ 正式版本 | Beta/开发者预览版不支持；通过完整回归后才能调整。 |
 | 分发入口 | 自有域名/GitHub Pages → GitHub Release | 大陆下载数据证明需要受控镜像时。 |
 | 0.1.0 更新 | 手动下载 DMG | 不变。不要给已发布预览版中途强塞 updater。 |
 | 正式更新 | 当前不接；未来再使用 Tauri Updater | 有会员预算，并且 Developer ID、公证、更新密钥灾备、两个稳定版本均完成。 |

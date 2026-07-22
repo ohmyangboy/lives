@@ -1,6 +1,6 @@
 # Lives 支持与反馈
 
-Lives 目前是 Apple Silicon、macOS 13 或更高版本的独立分发预览版。
+Lives 目前是 Apple Silicon、macOS 13 或更高正式版本的独立分发预览版，暂不支持 macOS Beta 或开发者预览版。
 
 ## 提交问题
 

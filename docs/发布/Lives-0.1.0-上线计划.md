@@ -16,7 +16,7 @@ Lives 已具备小规模种子测试的产品基础，但当前安装包只有 a
 | --- | --- | --- |
 | 核心功能 | 本地选段、拼贴、关键帧、声音与 Live Photo 导出已实现 | 可灰度 |
 | 隐私 | 本机处理；照片权限为 add-only；无账号、广告或分析 | 良好 |
-| 系统支持 | Apple Silicon、macOS 13 Ventura 或更高版本 | 官网必须明示 |
+| 系统支持 | Apple Silicon、macOS 13 Ventura 或更高正式版本 | 官网必须明示；不支持 Beta/开发者预览版 |
 | 代码签名 | ad-hoc | 仅适合预览版 |
 | Apple 公证 | 未配置 | 普通用户安装阻力高 |
 | 自动更新 | 未配置 | 0.1.0 采用手动下载安装 |
@@ -68,7 +68,8 @@ flowchart LR
 
 下载按钮旁必须同时出现：
 
-> Apple 芯片 Mac · macOS 13 Ventura 或更高版本  
+> Apple 芯片 Mac · macOS 13 Ventura 或更高正式版本 · 暂不支持 macOS Beta
+>
 > Lives 0.1.0 独立分发预览版 · 尚未经过 Apple 公证
 
 风险说明建议使用：

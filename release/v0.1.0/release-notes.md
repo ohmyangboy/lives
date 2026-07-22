@@ -1,6 +1,6 @@
 # Lives 0.1.0
 
-首个独立分发预览版。适用于 Apple Silicon Mac，要求 macOS 13 Ventura 或更高版本。
+首个独立分发预览版。适用于 Apple Silicon Mac，要求 macOS 13 Ventura 或更高的正式版本；暂不支持 macOS Beta 或开发者预览版。
 
 ## 主要功能
 
@@ -18,6 +18,8 @@
 ## 安装前请了解
 
 此版本使用 ad-hoc 签名，尚未经过 Apple Developer ID 签名或 Apple 公证，也没有应用内自动更新。macOS 首次打开时可能提示无法验证开发者。请只从官方 Release 下载并核对 SHA-256；如系统拦截，请按照 [Apple 官方说明](https://support.apple.com/zh-cn/102445)决定是否打开，不要关闭 Gatekeeper。
+
+macOS Beta 或开发者预览版可能缺少或暂时禁用系统视频编码器，导致无法生成 Live Photo，因此不属于 0.1.0 的支持范围。
 
 ## 文件校验
 
