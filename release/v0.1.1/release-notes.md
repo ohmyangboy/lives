@@ -19,6 +19,12 @@
 
 macOS Beta 或开发者预览版可能缺少或暂时禁用系统视频编码器，导致无法生成 Live Photo，因此不属于 0.1.1 的支持范围。
 
+## 发布验证
+
+线上 DMG 已由 GitHub Actions 的 Apple Silicon macOS runner 重新下载，并通过 SHA-256、磁盘映像、代码签名、三路带音频拼贴渲染、Live Photo 元数据与 JPG/MOV 配对验证。[查看成功运行](https://github.com/ohmyangboy/lives/actions/runs/29900779244)
+
+自动化验证不覆盖浏览器 quarantine、Gatekeeper 首次打开提示和真实照片图库权限；这些环节仍需在正式版 macOS 真机上验收。
+
 ## 文件校验
 
 ```text
