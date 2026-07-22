@@ -1,7 +1,9 @@
 # Lives 0.1.0 独立分发上线计划
 
-> 报告日期：2026-07-21  
-> 发布定位：Apple Silicon Mac 的独立分发预览版  
+> 报告日期：2026-07-22
+>
+> 发布定位：Apple Silicon Mac 的独立分发预览版
+>
 > 适用范围：官网分发，不上 Mac App Store，当前尚无 Apple Developer Program
 
 ## 一页结论
@@ -21,18 +23,20 @@ Lives 已具备小规模种子测试的产品基础，但当前安装包只有 a
 | Intel Mac | 暂不支持 | 官网不可模糊表述 |
 | 软件著作权 | 尚未登记 | 非上线前置，可并行办理 |
 
-## 当前发布状态（2026-07-21）
+## 当前发布状态（2026-07-22）
 
 - 官网源码、GitHub Pages 工作流、隐私说明、使用条款和安装帮助均已完成，并已从应用源码中拆分为独立的 `public-site-main` 分支。
 - `Lives_0.1.0_aarch64.dmg`、SHA-256 和发布说明均已生成；本地测试、代码签名完整性检查与 DMG 校验已通过。
-- 目标仓库 `young-4ever/macToLive` 当前是空的公开仓库。Codex GitHub 应用与本机 SSH 均以 `ohmyangboy` 登录，对该仓库只有读取权限，因此尚不能推送官网、创建 Release 或上传 DMG。
-- 为避免误公开应用源码，恢复权限后只推送站点专用分支，不推送本地应用源码分支。
+- 目标仓库统一为 `ohmyangboy/lives`，作为官网、Issue 模板与 Release 的公开分发仓库。
+- 为避免误公开应用源码，只通过 `publish` 专用远端推送站点分支 `public-site-main:main`，不推送本地应用源码分支。
+- GitHub Pages 已发布至 `https://ohmyangboy.github.io/lives/`；`v0.1.0` Release 已发布至 `https://github.com/ohmyangboy/lives/releases/tag/v0.1.0`。
+- 线上 DMG 已重新下载，SHA-256、文件大小、磁盘映像校验和逐字节比对均通过。剩余门禁是真机 Gatekeeper、照片导出和 iPhone Live 属性验收。
 
-唯一需要仓库所有者完成的操作：把 `ohmyangboy` 添加为 `young-4ever/macToLive` 的 Write Collaborator，或者提供一个可写的空仓库。随后执行以下发布链路：
+发布链路如下：
 
 ```mermaid
 flowchart LR
-  A[授予仓库 Write 权限] --> B[推送站点专用 main]
+  A[创建空的公开分发仓库] --> B[推送站点专用 main]
   B --> C[Pages 选择 GitHub Actions]
   C --> D[创建 v0.1.0 Release]
   D --> E[上传 DMG / SHA-256 / Release Notes]
@@ -128,7 +132,7 @@ gantt
 - 保存 Git 历史、PRD、设计稿、构建日志、发布包哈希和首发网页快照。
 - 准备登记申请表、身份证明、程序鉴别材料和一种文档。
 - 常规鉴别材料为源程序和文档前后各连续 30 页；不足 60 页提交全部，机密部分按登记办法处理。
-- 发布版本加版权声明：`Copyright © 2026 杨不困. All rights reserved.`
+- 发布版本加版权声明：`Copyright © 2026 ohmyangboy. All rights reserved.`
 
 建议登记名称统一为 `Lives 实况拼贴软件 V0.1.0`，确保申请表、源代码页眉、说明书、截图和安装包完全一致。法定审查时限为受理后 60 日；补正与受理前等待不计入。计算机软件著作权登记行政事业性收费已停征，代理、材料整理或加急属于市场服务费，不是官方登记费。
 

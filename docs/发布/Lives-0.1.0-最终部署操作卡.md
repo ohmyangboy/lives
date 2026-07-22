@@ -1,6 +1,6 @@
 # Lives 0.1.0 最终部署操作卡
 
-> 这张卡只包含必须由仓库所有者或具有 Write/Admin 权限的账号完成的操作。应用源码不会上传到公开仓库。
+> 执行状态（2026-07-22）：仓库、Pages、Release、反馈入口和线上下载校验均已完成。应用源码未上传到公开仓库；第 5 节中的真机安装与导出仍需人工验收。
 
 ## 0. 发布物
 
@@ -11,31 +11,34 @@
 | SHA-256 文件 | `release/v0.1.0/Lives_0.1.0_aarch64.dmg.sha256` |
 | Release Notes | `release/v0.1.0/release-notes.md` |
 | DMG SHA-256 | `ea6dba1f4e54c55949c5afe0d0c8d994efa6f9f8cb871bcfebf068741a357d2c` |
+| 公开仓库 | `https://github.com/ohmyangboy/lives` |
+| 产品官网 | `https://ohmyangboy.github.io/lives/` |
+| v0.1.0 Release | `https://github.com/ohmyangboy/lives/releases/tag/v0.1.0` |
 
-## 1. 恢复发布权限
+## 1. 分发仓库
 
-目标仓库：`young-4ever/macToLive`
+目标仓库：`ohmyangboy/lives`
 
-在 GitHub 仓库进入 **Settings → Collaborators → Add people**，添加 `ohmyangboy`，权限选择 **Write**。如果不希望授权该仓库，也可以新建一个只用于官网和 Release 的空公开仓库，并把仓库地址交给 Codex。
+该仓库是空的公开分发仓库，只用于官网、Issue 模板与 Release；本地应用源码仓库继续保持独立。发布时使用名为 `publish` 的专用远端，不修改现有 `origin`。
 
-## 2. 推送官网（不会推送应用源码）
+## 2. 推送官网（已完成，不会推送应用源码）
 
 确认当前目录为本项目后执行：
 
 ```bash
-git push origin public-site-main:main
+git push publish public-site-main:main
 ```
 
-这条命令只推送从 `website/` 拆分出的站点历史。不要执行 `git push origin main`，因为本地 `main` 包含应用源码。
+这条命令只推送从 `website/` 拆分出的站点历史。不要执行 `git push publish main`，因为本地 `main` 包含应用源码。
 
-## 3. 打开 GitHub Pages
+## 3. 打开 GitHub Pages（已完成）
 
 1. 打开仓库 **Settings → Pages**。
 2. 在 **Build and deployment** 将 Source 设为 **GitHub Actions**。
 3. 进入 **Actions**，确认 `Deploy Lives website to Pages` 成功。
 4. 打开 Actions 给出的 Pages URL，检查首页、隐私说明、使用条款、开源声明和安装帮助。
 
-## 4. 创建不可变 Release
+## 4. 创建版本冻结 Release（已完成）
 
 1. 进入仓库 **Releases → Draft a new release**。
 2. 新建 tag：`v0.1.0`，标题：`Lives 0.1.0 — 独立分发预览版`。
@@ -44,22 +47,22 @@ git push origin public-site-main:main
    - `Lives_0.1.0_aarch64.dmg`
    - `Lives_0.1.0_aarch64.dmg.sha256`
 5. 勾选 **Set as the latest release**，发布 Release。
-6. 不要在修复后覆盖同名资产；任何修复都使用 `0.1.1` 或更高版本。
+6. GitHub 当前显示该 Release 的 `isImmutable=false`，因此“不可变”由发布纪律保证：不要覆盖同名资产；任何修复都使用 `0.1.1` 或更高版本。
 
 ## 5. 发布后验收
 
-- 从 Pages 官网点击下载按钮，能进入最新 Release。
-- 用浏览器重新下载 DMG，不使用本机构建目录中的文件。
+- [x] 从 Pages 官网点击下载按钮，能进入最新 Release。
+- [x] 从线上 Release 重新下载 DMG，不使用本机构建目录中的文件。
 - 在终端核对：
 
 ```bash
 shasum -a 256 ~/Downloads/Lives_0.1.0_aarch64.dmg
 ```
 
-- 输出必须与本卡顶部 SHA-256 完全一致。
-- 打开 DMG，把 Lives 拖入“应用程序”。首次启动按 Apple 官方的“隐私与安全性 → 仍要打开”流程完成 Gatekeeper 实测。
-- 导入视频，生成一张 Live Photo，分别验证保存到“照片”和导出到文件夹。
-- 若启用 iCloud 照片，再到 iPhone 验证 Live 属性、关键帧和声音。
+- [x] 输出与本卡顶部 SHA-256 完全一致，且线上文件与本地冻结发布物逐字节相同。
+- [ ] 打开线上下载的 DMG，把 Lives 拖入“应用程序”。首次启动按 Apple 官方的“隐私与安全性 → 仍要打开”流程完成 Gatekeeper 实测。
+- [ ] 导入视频，生成一张 Live Photo，分别验证保存到“照片”和导出到文件夹。
+- [ ] 若启用 iCloud 照片，再到 iPhone 验证 Live 属性、关键帧和声音。
 
 ## 6. 对外发布顺序
 
