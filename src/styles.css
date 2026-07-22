@@ -123,7 +123,7 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .resolution-pill { color: #77736b; font-family: 'DM Mono'; font-size: 9px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 20px; }
 .preview-stage { min-height: 0; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 10px; }
 .source-monitor-bar { width: min(510px, 88%); min-height: 31px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
-.source-monitor-label { min-width: 0; display: flex; align-items: center; gap: 7px; color: #a39d92; font-family: 'SFMono-Regular', 'Menlo', monospace; font-size: 9px; letter-spacing: .06em; white-space: nowrap; }
+.source-monitor-label { min-width: 0; display: flex; align-items: center; gap: 7px; overflow: hidden; color: #a39d92; font-family: 'SFMono-Regular', 'Menlo', monospace; font-size: 9px; letter-spacing: .06em; white-space: nowrap; text-overflow: ellipsis; }
 .source-monitor-label span { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 4px rgba(244,185,66,.1); }
 .source-monitor-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 .composition-toolbar { flex: none; min-height: 32px; display: flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid rgba(255,255,255,.1); border-radius: 9px; background: rgba(29,28,24,.88); box-shadow: 0 8px 24px rgba(0,0,0,.2); backdrop-filter: blur(14px); }
@@ -146,6 +146,9 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .collage-slot.drop-target { z-index: 7; background: rgba(244,185,66,.18); transform: scale(.985); box-shadow: 0 0 34px rgba(244,185,66,.28); }
 .collage-slot.drop-target::before { content: ''; position: absolute; z-index: 8; inset: 0; border: 4px solid var(--amber); background: linear-gradient(135deg, rgba(244,185,66,.13), transparent 52%); box-shadow: inset 0 0 24px rgba(244,185,66,.2); pointer-events: none; animation: dropPulse .8s ease-in-out infinite alternate; }
 .collage-slot video { position: absolute; display: block; max-width: none; object-fit: fill; background: #11110f; will-change: left, top, width, height; }
+.motion-preview-video { z-index: 1; }
+.cover-frame-video { z-index: 2; opacity: 0; pointer-events: none; transition: opacity 380ms cubic-bezier(.2,.65,.2,1); will-change: opacity; }
+.collage-slot.settling-to-cover .cover-frame-video { opacity: 1; }
 .collage-slot.selected { z-index: 1; }
 .collage-slot.selected::after { content: '当前编辑'; position: absolute; z-index: 5; left: 7px; bottom: 7px; padding: 3px 5px; border-radius: 4px; color: #1b150a; background: var(--amber); box-shadow: inset 0 0 0 3px rgba(244,185,66,.98), 0 0 0 2px rgba(244,185,66,.3); font-family: 'SFMono-Regular', 'Menlo', monospace; font-size: 7px; font-weight: 700; pointer-events: none; }
 .collage-slot.selected::before { content: ''; position: absolute; z-index: 4; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 3px rgba(244,185,66,.98); pointer-events: none; }
@@ -189,8 +192,9 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .keyframe-timeline:focus-within .keyframe-handle::after { box-shadow: 0 0 0 2px rgba(244,185,66,.28), 0 0 0 5px rgba(244,185,66,.35), 0 4px 12px rgba(0,0,0,.46); }
 .preview-controls > span { color: #6f6c65; font-family: 'DM Mono'; font-size: 9px; }
 .canvas-hint { color: #8f8a81; margin: 8px 0 0; font-size: 10px; }
-.preview-stage.is-fullscreen { position: fixed; z-index: 180; inset: 0; min-height: 0; padding: 26px 50px 30px; background: radial-gradient(circle at 50% 40%, #28261f, #0f0f0d 70%); overflow: auto; }
+.preview-stage.is-fullscreen { position: fixed; z-index: 180; inset: 0; min-height: 0; justify-content: flex-start; padding: calc(72px + env(safe-area-inset-top, 0px)) max(32px, env(safe-area-inset-right, 0px)) calc(30px + env(safe-area-inset-bottom, 0px)) max(32px, env(safe-area-inset-left, 0px)); background: radial-gradient(circle at 50% 40%, #28261f, #0f0f0d 70%); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
 .preview-stage.is-fullscreen .source-monitor-bar, .preview-stage.is-fullscreen .preview-controls { width: min(1100px, 92vw); }
+.preview-stage.is-fullscreen .source-monitor-bar { z-index: 20; flex: none; }
 .preview-stage.is-fullscreen .canvas-hint { margin-bottom: 10px; }
 
 .clip-list { display: grid; gap: 8px; margin-top: 23px; }

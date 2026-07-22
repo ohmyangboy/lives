@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type WheelEvent } from 'react'
 import type { SlotClip, VideoClip } from '../domain'
 import { formatDuration } from '../domain'
 import { FilmIcon } from '../icons'
+import { aspectFillSourceRect } from '../mediaGeometry'
 
 interface Props {
   clip: VideoClip | SlotClip
@@ -59,7 +60,7 @@ export function Timeline({ clip, onChange }: Props) {
 
   useEffect(() => {
     let disposed = false
-    const cacheKey = `${clip.previewUrl}:${clip.durationMs}:${FRAME_COUNT}`
+    const cacheKey = `${clip.previewUrl}:${clip.durationMs}:${FRAME_COUNT}:aspect-fill-v2`
     const cached = timelineFrameCache.get(cacheKey)
     if (cached) {
       timelineFrameCache.delete(cacheKey)
@@ -84,7 +85,9 @@ export function Timeline({ clip, onChange }: Props) {
         const moment = Math.max(.01, (clip.durationMs / 1000) * (index / Math.max(1, frameCount - 1)))
         video.currentTime = moment
         await waitForSeek()
-        context.drawImage(video, 0, 0, canvas.width, canvas.height)
+        const source = aspectFillSourceRect(video.videoWidth, video.videoHeight, canvas.width, canvas.height)
+        context.clearRect(0, 0, canvas.width, canvas.height)
+        context.drawImage(video, source.x, source.y, source.width, source.height, 0, 0, canvas.width, canvas.height)
         results.push(canvas.toDataURL('image/jpeg', 0.55))
       }
       if (!disposed) {

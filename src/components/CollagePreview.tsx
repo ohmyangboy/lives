@@ -23,11 +23,19 @@ interface Props {
 
 const MIN_SCALE = 1
 const MAX_SCALE = 3
+const COVER_SETTLE_DURATION_MS = 380
 
 export function CollagePreview({ clips, template, canvasWidth, canvasHeight, selectedSlotId, selectedSourceId, pointerDropTargetSlotId, isSourceDragging, coverTimeMs, onSelectSlot, onCropChange, onScaleChange, onClearSlot, onAudioEnabledChange, onDropSource, onCoverTimeChange }: Props) {
   const videosRef = useRef<Map<string, HTMLVideoElement>>(new Map())
+  const coverVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map())
   const stageRef = useRef<HTMLDivElement>(null)
+  const sourceMonitorRef = useRef<HTMLDivElement>(null)
+  const previewControlsRef = useRef<HTMLDivElement>(null)
+  const canvasHintRef = useRef<HTMLParagraphElement>(null)
   const frameRef = useRef(0)
+  const settleFrameRef = useRef(0)
+  const settleTimerRef = useRef<number | undefined>(undefined)
+  const settleSequenceRef = useRef(0)
   const startedAtRef = useRef(0)
   const dragRef = useRef<{ slotId: string; x: number; y: number; cropX: number; cropY: number } | undefined>(undefined)
   const keyframeTimelineRef = useRef<HTMLDivElement>(null)
@@ -35,6 +43,8 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const [playing, setPlaying] = useState(false)
   const [playhead, setPlayhead] = useState(0)
   const [settledOnCover, setSettledOnCover] = useState(true)
+  const [settlingOnCover, setSettlingOnCover] = useState(false)
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
   const [isCoverFrameDragging, setIsCoverFrameDragging] = useState(false)
   const [maximumCanvasHeight, setMaximumCanvasHeight] = useState(360)
   const [dropTargetSlotId, setDropTargetSlotId] = useState<string>()
@@ -94,12 +104,42 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
     })
   }
 
+  const seekCoverVideosToOffset = (offsetSeconds: number) => {
+    clips.forEach((clip) => {
+      if (!clip) return
+      const video = coverVideosRef.current.get(clip.id)
+      if (!video || video.readyState < 1) return
+      video.pause()
+      video.currentTime = Math.min(clip.startTimeMs / 1000 + offsetSeconds, Math.max(0, video.duration - .04))
+    })
+  }
+
+  const cancelCoverSettle = () => {
+    settleSequenceRef.current += 1
+    if (settleTimerRef.current !== undefined) {
+      window.clearTimeout(settleTimerRef.current)
+      settleTimerRef.current = undefined
+    }
+    cancelAnimationFrame(settleFrameRef.current)
+    setSettlingOnCover(false)
+  }
+
   useEffect(() => {
+    cancelCoverSettle()
     setPlaying(false)
     setSettledOnCover(true)
     setPlayhead(coverTimeMs / 3000)
     seekToOffset(coverTimeMs / 1000)
+    seekCoverVideosToOffset(coverTimeMs / 1000)
   }, [selectedSlotId, clipsKey, coverTimeMs])
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setPrefersReducedMotion(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
 
   useEffect(() => {
     clips.forEach((clip) => {
@@ -114,11 +154,36 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   useEffect(() => {
     const stage = stageRef.current
     if (!stage) return
-    const update = () => setMaximumCanvasHeight(Math.max(180, stage.clientHeight - 122))
+    const outerHeight = (element: HTMLElement | null) => {
+      if (!element) return 0
+      const style = window.getComputedStyle(element)
+      const marginTop = Number.parseFloat(style.marginTop) || 0
+      const marginBottom = Number.parseFloat(style.marginBottom) || 0
+      return element.getBoundingClientRect().height + marginTop + marginBottom
+    }
+    const update = () => {
+      const style = window.getComputedStyle(stage)
+      const paddingTop = Number.parseFloat(style.paddingTop) || 0
+      const paddingBottom = Number.parseFloat(style.paddingBottom) || 0
+      const reservedHeight = paddingTop + paddingBottom
+        + outerHeight(sourceMonitorRef.current)
+        + outerHeight(previewControlsRef.current)
+        + outerHeight(canvasHintRef.current)
+      setMaximumCanvasHeight(Math.max(180, Math.floor(stage.clientHeight - reservedHeight)))
+    }
     update()
     const observer = new ResizeObserver(update)
     observer.observe(stage)
+    if (sourceMonitorRef.current) observer.observe(sourceMonitorRef.current)
+    if (previewControlsRef.current) observer.observe(previewControlsRef.current)
+    if (canvasHintRef.current) observer.observe(canvasHintRef.current)
     return () => observer.disconnect()
+  }, [isFullscreen])
+
+  useEffect(() => () => {
+    settleSequenceRef.current += 1
+    if (settleTimerRef.current !== undefined) window.clearTimeout(settleTimerRef.current)
+    cancelAnimationFrame(settleFrameRef.current)
   }, [])
 
   useEffect(() => {
@@ -131,22 +196,43 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
       const position = Math.min(elapsed, 3)
       setPlayhead(position / 3)
       if (elapsed >= 3) {
-        // A Live Photo plays its three-second motion once, then settles on
-        // the chosen key frame instead of looping back to the first frame.
         setPlaying(false)
-        setSettledOnCover(true)
-        setPlayhead(coverTimeMs / 3000)
-        seekToOffset(coverTimeMs / 1000)
+        setSettledOnCover(false)
+        setSettlingOnCover(true)
+        seekCoverVideosToOffset(coverTimeMs / 1000)
+
+        const sequence = ++settleSequenceRef.current
+        const duration = prefersReducedMotion ? 0 : COVER_SETTLE_DURATION_MS
+        const from = 1
+        const to = coverTimeMs / 3000
+        const started = performance.now()
+        const animatePlayhead = (timestamp: number) => {
+          if (sequence !== settleSequenceRef.current) return
+          const progress = duration ? Math.min(1, (timestamp - started) / duration) : 1
+          const eased = 1 - Math.pow(1 - progress, 3)
+          setPlayhead(from + (to - from) * eased)
+          if (progress < 1) settleFrameRef.current = requestAnimationFrame(animatePlayhead)
+        }
+        settleFrameRef.current = requestAnimationFrame(animatePlayhead)
+        settleTimerRef.current = window.setTimeout(() => {
+          if (sequence !== settleSequenceRef.current) return
+          settleTimerRef.current = undefined
+          seekToOffset(coverTimeMs / 1000)
+          setPlayhead(to)
+          setSettlingOnCover(false)
+          setSettledOnCover(true)
+        }, duration)
         return
       }
       frameRef.current = requestAnimationFrame(tick)
     }
     frameRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frameRef.current)
-  }, [playing, clips, coverTimeMs])
+  }, [playing, clips, coverTimeMs, prefersReducedMotion])
 
   const togglePlayback = () => {
     if (!clips.some(Boolean)) return
+    cancelCoverSettle()
     if (playing) { setPlaying(false); setSettledOnCover(false); return }
     clips.forEach((clip) => {
       if (!clip) return
@@ -162,10 +248,12 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
 
   const setCoverFrame = (milliseconds: number) => {
     const next = Math.max(0, Math.min(2900, Math.round(milliseconds / 100) * 100))
+    cancelCoverSettle()
     setPlaying(false)
     setSettledOnCover(true)
     setPlayhead(next / 3000)
     seekToOffset(next / 1000)
+    seekCoverVideosToOffset(next / 1000)
     onCoverTimeChange(next)
   }
 
@@ -288,7 +376,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
 
   return (
     <div ref={stageRef} className={isFullscreen ? 'preview-stage is-fullscreen' : 'preview-stage'} role={isFullscreen ? 'dialog' : undefined} aria-modal={isFullscreen || undefined} aria-label={isFullscreen ? '全屏拼贴预览' : undefined} onPointerDown={(event) => { if (event.target === event.currentTarget) onSelectSlot(undefined) }}>
-      <div className="source-monitor-bar">
+      <div ref={sourceMonitorRef} className="source-monitor-bar">
         <div className="source-monitor-label"><span /> 拼贴预览 · {selectedClip ? `正在调整${slotLabel(selectedClip.targetSlotId)}` : clips.some(Boolean) ? '点击画格继续调整' : '把素材拖入画面格'}</div>
         <div className="source-monitor-actions">
           {selectedClip && <div className="composition-toolbar" aria-label="当前画面构图工具">
@@ -305,7 +393,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
           {template.slots.map((slot, index) => {
             const clip = clips[index]
             const isPointerTarget = slot.id === pointerDropTargetSlotId
-            const slotClassName = ['collage-slot', !clip && 'empty', slot.id === selectedSlotId && clip && 'selected', isSourceDragging && 'drop-ready', (slot.id === dropTargetSlotId || isPointerTarget) && 'drop-target'].filter(Boolean).join(' ')
+            const slotClassName = ['collage-slot', !clip && 'empty', slot.id === selectedSlotId && clip && 'selected', settlingOnCover && clip && 'settling-to-cover', isSourceDragging && 'drop-ready', (slot.id === dropTargetSlotId || isPointerTarget) && 'drop-target'].filter(Boolean).join(' ')
             const touchesRightEdge = slot.x + slot.width >= .999
             const touchesBottomEdge = slot.y + slot.height >= .999
             const edgeRadius = '11px'
@@ -354,10 +442,26 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
             >
               {!clip ? <div className="slot-drop-copy"><PlusIcon /><strong>{isPointerTarget ? '松开放入' : '拖入视频'}</strong><small>{isPointerTarget ? '将素材放进这个格子' : template.slots.length === 1 ? '开始构图' : '可重复使用素材'}</small></div> : <>
               <video
+                className="motion-preview-video"
                 ref={(element) => { if (element) videosRef.current.set(clip.id, element); else videosRef.current.delete(clip.id) }}
                 src={clip.previewUrl}
                 playsInline
                 preload="auto"
+                onLoadedMetadata={(event) => {
+                  event.currentTarget.pause()
+                  event.currentTarget.currentTime = Math.min(clip.startTimeMs / 1000 + coverTimeMs / 1000, Math.max(0, event.currentTarget.duration - .04))
+                }}
+                style={videoStyle(clip, index)}
+              />
+              <video
+                className="cover-frame-video"
+                ref={(element) => { if (element) coverVideosRef.current.set(clip.id, element); else coverVideosRef.current.delete(clip.id) }}
+                src={clip.previewUrl}
+                muted
+                playsInline
+                preload="auto"
+                aria-hidden="true"
+                tabIndex={-1}
                 onLoadedMetadata={(event) => {
                   event.currentTarget.pause()
                   event.currentTarget.currentTime = Math.min(clip.startTimeMs / 1000 + coverTimeMs / 1000, Math.max(0, event.currentTarget.duration - .04))
@@ -375,9 +479,9 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
           })}
         </div>
         <div className="live-badge"><LiveIcon /> LIVE</div>
-        <div className="cover-mark"><span /> {playing ? '同步播放' : settledOnCover ? `Live 关键帧 ${(coverTimeMs / 1000).toFixed(1)}s` : '预览已暂停'}</div>
+        <div className="cover-mark"><span /> {playing ? '同步播放' : settlingOnCover ? '正在回到关键帧' : settledOnCover ? `Live 关键帧 ${(coverTimeMs / 1000).toFixed(1)}s` : '预览已暂停'}</div>
       </div>
-      <div className="preview-controls">
+      <div ref={previewControlsRef} className="preview-controls">
         <button className="round-button" onClick={togglePlayback} aria-label={playing ? '暂停预览' : '播放预览'}>
           {playing ? <PauseIcon /> : <PlayIcon />}
         </button>
@@ -407,11 +511,11 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
               onChange={(event) => setCoverFrame(Number(event.target.value))}
             />
           </div>
-          <small>播放结束后停留在关键帧</small>
+          <small>{settlingOnCover ? '正在柔和过渡到关键帧' : '播放结束后渐变停留在关键帧'}</small>
         </div>
         <span>{(playhead * 3).toFixed(1)} / 3.0s</span>
       </div>
-      <p className="canvas-hint">拖动画面移动位置 · 拖动进度条标记 Live 关键帧</p>
+      <p ref={canvasHintRef} className="canvas-hint">拖动画面移动位置 · 拖动进度条标记 Live 关键帧</p>
     </div>
   )
 }
