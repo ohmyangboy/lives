@@ -27,9 +27,6 @@ jobs:
       RELEASE_TAG: ${{ inputs.tag }}
       RELEASE_ASSET: ${{ inputs.asset }}
       RELEASE_SHA256: ${{ inputs.sha256 }}
-      DOWNLOAD_DIR: ${{ runner.temp }}/lives-release
-      MOUNT_DIR: ${{ runner.temp }}/lives-volume
-      LIVES_SERVICE: ${{ runner.temp }}/lives-volume/Lives.app/Contents/MacOS/live-photo-service
 
     steps:
       - name: Checkout public smoke fixtures
@@ -43,6 +40,7 @@ jobs:
 
       - name: Download published DMG
         run: |
+          DOWNLOAD_DIR="$RUNNER_TEMP/lives-release"
           mkdir -p "$DOWNLOAD_DIR"
           curl --fail --location --retry 3 \
             --output "$DOWNLOAD_DIR/$RELEASE_ASSET" \
@@ -50,11 +48,15 @@ jobs:
 
       - name: Verify published DMG
         run: |
+          DOWNLOAD_DIR="$RUNNER_TEMP/lives-release"
           printf '%s  %s\n' "$RELEASE_SHA256" "$DOWNLOAD_DIR/$RELEASE_ASSET" | shasum -a 256 --check
           hdiutil verify "$DOWNLOAD_DIR/$RELEASE_ASSET"
 
       - name: Mount and inspect release
         run: |
+          DOWNLOAD_DIR="$RUNNER_TEMP/lives-release"
+          MOUNT_DIR="$RUNNER_TEMP/lives-volume"
+          LIVES_SERVICE="$MOUNT_DIR/Lives.app/Contents/MacOS/live-photo-service"
           mkdir -p "$MOUNT_DIR"
           hdiutil attach -readonly -nobrowse -mountpoint "$MOUNT_DIR" "$DOWNLOAD_DIR/$RELEASE_ASSET"
           test -x "$LIVES_SERVICE"
@@ -65,8 +67,10 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$MOUNT_DIR/Lives.app"
 
       - name: Render and validate synthetic Live Photo pair
-        run: python3 smoke/run_release_smoke.py
+        run: |
+          export LIVES_SERVICE="$RUNNER_TEMP/lives-volume/Lives.app/Contents/MacOS/live-photo-service"
+          python3 smoke/run_release_smoke.py
 
       - name: Unmount release
         if: always()
-        run: hdiutil detach "$MOUNT_DIR" || true
+        run: hdiutil detach "$RUNNER_TEMP/lives-volume" || true
