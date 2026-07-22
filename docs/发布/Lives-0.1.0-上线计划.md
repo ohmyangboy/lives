@@ -31,7 +31,8 @@ Lives 已具备小规模种子测试的产品基础，但当前安装包只有 a
 - 为避免误公开应用源码，只通过 `publish` 专用远端推送站点分支 `public-site-main:main`，不推送本地应用源码分支。
 - GitHub Pages 已发布至 `https://ohmyangboy.github.io/lives/`；`v0.1.0` Release 已发布至 `https://github.com/ohmyangboy/lives/releases/tag/v0.1.0`。
 - 线上 DMG 已重新下载，SHA-256、文件大小、磁盘映像校验和逐字节比对均通过。
-- GitHub Actions `macos-15` M1/arm64 runner 已对线上 DMG 完成三路带音频拼贴、Live Photo 配对验证与 JPG/MOV 文件夹导出；[运行 29884820230](https://github.com/ohmyangboy/lives/actions/runs/29884820230) 成功。剩余门禁缩小为浏览器 quarantine/Gatekeeper、“保存到照片”和 iPhone 展示。
+- GitHub Actions `macos-15` M1/arm64 runner 已对线上 DMG 完成三路带音频拼贴、Live Photo 配对验证与 JPG/MOV 文件夹导出；[运行 29884820230](https://github.com/ohmyangboy/lives/actions/runs/29884820230) 成功。
+- 发布负责人于 2026-07-22 确认：正式版 macOS 真机的浏览器 quarantine/Gatekeeper、安装启动和“保存到照片”验收通过。iPhone/iCloud 展示为可选扩展验收，不阻塞 0.1.0 邀请制分发。
 
 发布链路如下：
 
@@ -88,8 +89,8 @@ gantt
   axisFormat  %m/%d
   section 发布准备
   统一版本与发布文案          :done, a1, 2026-07-21, 1d
-  官网、隐私与安装帮助        :active, a2, 2026-07-21, 2d
-  干净机器安装与真机导出验收  :crit, a3, after a2, 2d
+  官网、隐私与安装帮助        :done, a2, 2026-07-21, 2d
+  干净机器安装与真机导出验收  :done, a3, after a2, 2d
   section 灰度
   10 人种子测试               :a4, after a3, 4d
   修复 P0/P1 问题             :a5, after a4, 3d
@@ -209,10 +210,10 @@ latest.json
 - [x] `Lives_0.1.0_aarch64.dmg` 已生成（约 4.1 MB），SHA-256 为 `ea6dba1f4e54c55949c5afe0d0c8d994efa6f9f8cb871bcfebf068741a357d2c`。
 - [x] 0.1.0 `.app` 已生成，主应用与照片 Helper 版本一致；`codesign --verify --deep --strict` 通过。
 - [x] `hdiutil verify` 通过。
-- [ ] 从浏览器下载后的 Gatekeeper 流程实测并截图归档。
-- [ ] Apple“照片”和 iPhone/iCloud 的真实 Live Photo 验收通过。
-- [ ] 官网、隐私页、安装帮助、版本与 SHA-256 已公开。
-- [ ] Git tag `v0.1.0` 与 Release 创建完成。
+- [x] 从浏览器下载后的 Gatekeeper 流程已由发布负责人在正式版 macOS 真机实测并确认通过（2026-07-22；未要求归档包含本机信息的截图）。
+- [x] Apple“照片”的授权、写入与展示已由发布负责人在正式版 macOS 真机确认通过；iPhone/iCloud 为非阻塞可选验收。
+- [x] 官网、隐私页、安装帮助、版本与 SHA-256 已公开。
+- [x] Git tag `v0.1.0` 与 Release 创建完成。
 
 ## 参考来源
 

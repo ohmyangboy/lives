@@ -84,11 +84,11 @@ Apple 明确说明，即使是已识别开发者，从网络下载的软件第�
 3. Helper 目前是 arm64 thin binary，未启用正式发布所需的 Hardened Runtime 签名流程。
 4. 没有 Tauri Updater 插件、更新公钥、更新产物或 release CI。
 
-### 2.3 阶段 A 剩余人工验收
+### 2.3 阶段 A 验收记录
 
-1. 在一台运行正式版 macOS 的 Apple Silicon Mac 上，从线上 Release 下载 DMG，拖入“应用程序”，按 Apple 官方路径完成 Gatekeeper 首次打开实测。
+1. [已完成] 发布负责人已在运行正式版 macOS 的 Apple Silicon Mac 上，从浏览器下载线上 DMG、安装到“应用程序”，并按 Apple 官方路径完成 Gatekeeper 首次打开实测（2026-07-22 确认通过）。
 2. [已完成] GitHub Actions `macos-15` M1/arm64 runner（macOS 15.7.7，24G720）已重新下载线上 DMG，并通过 SHA-256、DMG、代码签名、三路音频拼贴、Live Photo 元数据、`PHLivePhoto` 配对验证和 JPG/MOV 文件夹导出。[成功运行](https://github.com/ohmyangboy/lives/actions/runs/29884820230)
-3. 在正式版 macOS 真机上验证“保存到照片”的授权与照片 App 展示；如启用 iCloud 照片，再到 iPhone 确认 Live 属性、关键帧与声音。
+3. [已完成] 发布负责人已在正式版 macOS 真机上验证“保存到照片”的授权、写入与照片 App 展示（2026-07-22 确认通过）。iPhone/iCloud 展示是非阻塞可选验收。
 
 当前 macOS 27 开发测试版 `26A5388g` 的系统 VideoToolbox 未提供 H.264/HEVC 编码器，不能作为 0.1.0 导出验收环境。
 
@@ -446,17 +446,17 @@ Lives 当前只写 arm64：
 ### 立即：今天完成决策
 
 - [x] 已决定仅做 10～30 人零成本预览，暂不申请 Apple Developer Program。
-- [ ] 确认源码私有、公开分发仓库独立。
-- [ ] 确认运营者真实姓名/主体和 support 邮箱。
-- [ ] 禁止官网出现 `xattr`、关闭 Gatekeeper、第三方代理下载。
+- [x] 确认源码私有、公开分发仓库独立。
+- [x] 确认运营者/版权主体为 `ohmyangboy`，support 邮箱为 `ohmyangboy@gmail.com`。
+- [x] 禁止官网出现 `xattr`、关闭 Gatekeeper、第三方代理下载。
 
 ### 阶段 A：1～2 天
 
-- [ ] 完成隐私/条款/第三方声明补充。
-- [ ] 配置 Issue templates、`SECURITY.md` 和支持邮箱。
-- [ ] 验证 0.1.0 DMG/hash/release notes。
-- [ ] 推送公开官网，创建 draft Release。
-- [ ] 浏览器重新下载并完成干净环境验收。
+- [x] 完成隐私/条款/第三方声明补充。
+- [x] 配置 Issue templates、`SECURITY.md` 和支持邮箱。
+- [x] 验证 0.1.0 DMG/hash/release notes。
+- [x] 推送公开官网并发布 `v0.1.0` Release。
+- [x] 浏览器重新下载并完成正式版 macOS 真机验收。
 - [ ] 邀请首批 10 人，不启用 updater。
 
 ### 阶段 B：Apple 账号通过后 3～7 天

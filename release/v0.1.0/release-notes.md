@@ -25,7 +25,7 @@ macOS Beta 或开发者预览版可能缺少或暂时禁用系统视频编码器
 
 线上 DMG 已在 GitHub Actions 的 macOS 15.7.7 M1/arm64 稳定 runner 上重新下载，并通过 SHA-256、磁盘映像、代码签名、三路带音频拼贴渲染、Live Photo 元数据、`PHLivePhoto` 配对验证与 JPG/MOV 文件夹导出。[查看成功运行](https://github.com/ohmyangboy/lives/actions/runs/29884820230)
 
-该自动化验证不包含 Gatekeeper 的浏览器 quarantine 流程、照片图库授权或 iPhone 展示，这三项仍需真机确认。
+自动化验证不覆盖浏览器 quarantine/Gatekeeper 和照片图库权限。发布负责人已于 2026-07-22 在正式版 macOS 真机完成安装启动及“保存到照片”验收并确认通过；iPhone/iCloud 展示为非阻塞可选验收。
 
 ## 文件校验
 

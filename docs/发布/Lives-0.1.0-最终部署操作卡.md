@@ -1,6 +1,6 @@
 # Lives 0.1.0 最终部署操作卡
 
-> 执行状态（2026-07-22）：仓库、Pages、Release、反馈入口和线上下载校验均已完成。应用源码未上传到公开仓库；第 5 节中的真机安装与导出仍需人工验收。
+> 执行状态（2026-07-22）：仓库、Pages、Release、反馈入口、线上下载校验、稳定版 macOS 安装与照片导出验收均已完成。应用源码未上传到公开仓库；v0.1.0 已通过邀请制分发门禁。
 
 ## 0. 发布物
 
@@ -60,10 +60,10 @@ shasum -a 256 ~/Downloads/Lives_0.1.0_aarch64.dmg
 ```
 
 - [x] 输出与本卡顶部 SHA-256 完全一致，且线上文件与本地冻结发布物逐字节相同。
-- [ ] 在运行正式版 macOS 的 Apple Silicon Mac 上打开线上下载的 DMG，把 Lives 拖入“应用程序”。首次启动按 Apple 官方的“隐私与安全性 → 仍要打开”流程完成 Gatekeeper 实测。
+- [x] 发布负责人已在运行正式版 macOS 的 Apple Silicon Mac 上打开浏览器下载的 DMG、安装 Lives，并按 Apple 官方流程完成 Gatekeeper 首次启动验收（2026-07-22 确认通过）。
 - [x] 在 GitHub Actions `macos-15` M1/arm64 稳定 runner（macOS 15.7.7，24G720）重新下载线上 DMG，使用三段带音频的合成视频完成三拼渲染、Live Photo 元数据写入、`PHLivePhoto` 配对验证和 JPG/MOV 文件夹导出。[查看成功运行](https://github.com/ohmyangboy/lives/actions/runs/29884820230)
-- [ ] 在正式版 macOS 真机上验证“保存到照片”的授权、写入和照片 App 展示。
-- [ ] 若启用 iCloud 照片，再到 iPhone 验证 Live 属性、关键帧和声音。
+- [x] 发布负责人已在正式版 macOS 真机上验证“保存到照片”的授权、写入和照片 App 展示（2026-07-22 确认通过）。
+- 可选：若启用 iCloud 照片，再到 iPhone 验证 Live 属性、关键帧和声音；该项不阻塞 0.1.0 邀请制分发。
 
 当前开发机运行 macOS 27 开发测试版 `26A5388g`。系统 `VTCopyVideoEncoderList` 未返回 H.264/HEVC 编码器，FFmpeg VideoToolbox 与 Lives 发布版均无法建立编码会话，因此该系统不能作为 0.1.0 导出验收环境；这不应通过修改或绕过 Gatekeeper 解决。
 
