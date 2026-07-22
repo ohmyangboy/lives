@@ -14,8 +14,14 @@ enum MediaInspector {
 
         let asset = AVURLAsset(url: url)
         let duration = try await asset.load(.duration)
-        guard duration.isNumeric, duration.seconds >= 3 else {
-            throw ServiceError(code: "VIDEO_TOO_SHORT", message: "\(url.lastPathComponent) 不足 3 秒", recovery: "请更换视频")
+        let durationMilliseconds = duration.isNumeric ? Int((duration.seconds * 1000).rounded(.down)) : 0
+        guard durationMilliseconds >= MediaConstraints.minimumSourceDurationMilliseconds else {
+            let displayedDuration = String(format: "%.1f", Double(durationMilliseconds) / 1000)
+            throw ServiceError(
+                code: "VIDEO_TOO_SHORT",
+                message: "\(url.lastPathComponent) 只有 \(displayedDuration) 秒，至少需要 2.5 秒",
+                recovery: "请选择更长的视频；接近 3 秒的 Live Photo 视频会自动补齐末帧"
+            )
         }
         guard let track = try await asset.loadTracks(withMediaType: .video).first else {
             throw ServiceError(code: "VIDEO_READ_FAILED", message: "\(url.lastPathComponent) 没有可用画面", recovery: "请检查视频文件是否完整")
@@ -27,7 +33,7 @@ enum MediaInspector {
         let codec = descriptions.first.map { fourCC(CMFormatDescriptionGetMediaSubType($0)) } ?? "unknown"
         return VideoInfo(
             path: path,
-            durationMs: Int((duration.seconds * 1000).rounded()),
+            durationMs: durationMilliseconds,
             width: Int(abs(transformed.width).rounded()),
             height: Int(abs(transformed.height).rounded()),
             codec: codec

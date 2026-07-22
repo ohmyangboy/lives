@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type WheelEvent } from 'react'
 import type { SlotClip, VideoClip } from '../domain'
-import { formatDuration } from '../domain'
+import { formatDuration, OUTPUT_DURATION_MS, sourceContentDurationMs, sourcePaddingDurationMs } from '../domain'
 import { FilmIcon } from '../icons'
 import { aspectFillSourceRect } from '../mediaGeometry'
 
@@ -99,9 +99,14 @@ export function Timeline({ clip, onChange }: Props) {
     return () => { disposed = true; video.src = '' }
   }, [clip.id, clip.durationMs, clip.previewUrl])
 
-  const maxStart = Math.max(0, clip.durationMs - 3000)
+  const maxStart = Math.max(0, clip.durationMs - OUTPUT_DURATION_MS)
   const left = clip.durationMs ? (clip.startTimeMs / clip.durationMs) * 100 : 0
-  const width = clip.durationMs ? Math.min(100, (3000 / clip.durationMs) * 100) : 100
+  const width = clip.durationMs ? Math.min(100, (OUTPUT_DURATION_MS / clip.durationMs) * 100) : 100
+  const contentDurationMs = sourceContentDurationMs(clip.durationMs, clip.startTimeMs)
+  const paddingDurationMs = sourcePaddingDurationMs(clip.durationMs, clip.startTimeMs)
+  const selectionDescription = paddingDurationMs
+    ? `${formatDuration(clip.startTimeMs)} — ${formatDuration(clip.startTimeMs + contentDurationMs)} · 末帧补齐 ${formatDuration(paddingDurationMs)}`
+    : `${formatDuration(clip.startTimeMs)} — ${formatDuration(clip.startTimeMs + OUTPUT_DURATION_MS)}`
   const updateZoom = (next: number) => setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Number(next.toFixed(2)))))
   const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
     if (!event.metaKey && !event.ctrlKey) return
@@ -114,7 +119,7 @@ export function Timeline({ clip, onChange }: Props) {
     <section className="timeline-panel">
       <div className="timeline-heading">
         <div><span className="eyebrow">当前片段</span><strong>{clip.name}</strong></div>
-        <span>{formatDuration(clip.startTimeMs)} — {formatDuration(clip.startTimeMs + 3000)}</span>
+        <span>{selectionDescription}</span>
       </div>
       <div className="timeline-workbench">
         <div className="timeline-toolbar">
@@ -127,8 +132,8 @@ export function Timeline({ clip, onChange }: Props) {
         <div className="timeline-viewport" ref={viewportRef} onWheel={handleWheel}>
           <div className="filmstrip" style={{ width: `${zoom * 100}%`, gridTemplateColumns: `repeat(${frameCount}, minmax(86px, 1fr))` }}>
             {frames.length ? frames.map((frame, index) => <img src={frame} alt="" key={index} />) : Array.from({ length: frameCount }, (_, index) => <i key={index} />)}
-            <div className="selection-window" style={{ left: `${left}%`, width: `${width}%` }}><b>3.0 秒</b></div>
-            <input aria-label="片段起点" aria-valuetext={`${formatDuration(clip.startTimeMs)} 到 ${formatDuration(clip.startTimeMs + 3000)}`} type="range" min={0} max={maxStart} step={100} value={Math.min(clip.startTimeMs, maxStart)} onChange={(event) => onChange(Number(event.target.value))} />
+            <div className="selection-window" style={{ left: `${left}%`, width: `${width}%` }}><b>{paddingDurationMs ? `${formatDuration(contentDurationMs)} + 补帧` : '3.0 秒'}</b></div>
+            <input aria-label="片段起点" aria-valuetext={selectionDescription} type="range" min={0} max={maxStart} step={100} value={Math.min(clip.startTimeMs, maxStart)} onChange={(event) => onChange(Number(event.target.value))} />
           </div>
         </div>
       </div>

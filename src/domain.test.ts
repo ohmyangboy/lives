@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeSourceQuality, createRenderProject, type SlotClip, type VideoClip } from './domain'
+import { analyzeSourceQuality, createRenderProject, MINIMUM_SOURCE_DURATION_MS, sourceContentDurationMs, sourcePaddingDurationMs, type SlotClip, type VideoClip } from './domain'
 
 const clip = (index: number): VideoClip => ({
   id: `clip-${index}`,
@@ -87,6 +87,17 @@ describe('render project', () => {
   it('keeps the Live Photo key frame inside the three-second clip', () => {
     const project = createRenderProject([clip(1)], 'single', undefined, { aspectRatio: '9:16', quality: '1080p' }, 4000)
     expect(project.coverTimeMs).toBe(2900)
+  })
+
+  it('keeps a short Live Photo-derived source at the beginning for native end padding', () => {
+    const shortLiveVideo = { ...clip(1), durationMs: 2833, startTimeMs: 400 }
+    const project = createRenderProject([shortLiveVideo], 'single')
+
+    expect(project.clips[0].startTimeMs).toBe(0)
+    expect(project.clips[0].sourceDurationMs).toBe(2833)
+    expect(MINIMUM_SOURCE_DURATION_MS).toBe(2500)
+    expect(sourceContentDurationMs(shortLiveVideo.durationMs)).toBe(2833)
+    expect(sourcePaddingDurationMs(shortLiveVideo.durationMs)).toBe(167)
   })
 
   it('rejects a template with too few clips', () => {

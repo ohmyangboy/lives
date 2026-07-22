@@ -127,6 +127,15 @@ export interface RenderProject {
   coverTimeMs: number
 }
 
+export const OUTPUT_DURATION_MS = 3000
+export const MINIMUM_SOURCE_DURATION_MS = 2500
+
+export const sourceContentDurationMs = (sourceDurationMs: number, startTimeMs = 0) =>
+  Math.min(OUTPUT_DURATION_MS, Math.max(0, sourceDurationMs - startTimeMs))
+
+export const sourcePaddingDurationMs = (sourceDurationMs: number, startTimeMs = 0) =>
+  Math.max(0, OUTPUT_DURATION_MS - sourceContentDurationMs(sourceDurationMs, startTimeMs))
+
 export const templates: CollageTemplate[] = [
   {
     id: 'single', name: '单画面', description: '完整画布', requiredClipCount: 1,
@@ -203,12 +212,12 @@ export function createRenderProject(
   return {
     id: crypto.randomUUID(),
     templateId,
-    canvas: { ...dimensions, fps: 30, durationMs: 3000 },
+    canvas: { ...dimensions, fps: 30, durationMs: OUTPUT_DURATION_MS },
     clips: filledClips.map((clip, index) => ({
       id: clip.id,
       sourcePath: clip.sourcePath,
       sourceDurationMs: clip.durationMs,
-      startTimeMs: Math.min(clip.startTimeMs, Math.max(0, clip.durationMs - 3000)),
+      startTimeMs: Math.min(clip.startTimeMs, Math.max(0, clip.durationMs - OUTPUT_DURATION_MS)),
       crop: clip.crop,
       targetSlotId: template.slots[index].id,
       audioEnabled: 'audioEnabled' in clip && clip.audioEnabled === true,

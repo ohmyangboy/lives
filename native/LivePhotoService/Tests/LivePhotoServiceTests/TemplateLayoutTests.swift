@@ -41,6 +41,61 @@ final class TemplateLayoutTests: XCTestCase {
         XCTAssertEqual(VideoRenderer.adaptiveBitRate(width: 720, height: 720), 4_000_000)
     }
 
+    func testShortLivePhotoVideoUsesItsContentThenPadsTheRemainder() {
+        let segment = MediaConstraints.segmentDurations(
+            sourceDurationMilliseconds: 2_833,
+            startTimeMilliseconds: 0
+        )
+
+        XCTAssertEqual(MediaConstraints.minimumSourceDurationMilliseconds, 2_500)
+        XCTAssertEqual(segment.contentMilliseconds, 2_833)
+        XCTAssertEqual(segment.paddingMilliseconds, 167)
+    }
+
+    func testLongVideoStillUsesAThreeSecondSelectionWithoutPadding() {
+        let segment = MediaConstraints.segmentDurations(
+            sourceDurationMilliseconds: 8_000,
+            startTimeMilliseconds: 2_000
+        )
+
+        XCTAssertEqual(segment.contentMilliseconds, 3_000)
+        XCTAssertEqual(segment.paddingMilliseconds, 0)
+    }
+
+    func testShortLivePhotoDerivedFixtureRendersAndValidatesWhenProvided() async throws {
+        guard let sourcePath = ProcessInfo.processInfo.environment["LIVES_SHORT_VIDEO_FIXTURE"] else {
+            throw XCTSkip("Set LIVES_SHORT_VIDEO_FIXTURE to run the short Live Photo video regression")
+        }
+        let info = try await MediaInspector.inspect(path: sourcePath)
+        XCTAssertGreaterThanOrEqual(info.durationMs, MediaConstraints.minimumSourceDurationMilliseconds)
+        XCTAssertLessThan(info.durationMs, MediaConstraints.outputDurationMilliseconds)
+
+        let project = RenderProject(
+            id: "short-live-photo-regression-\(UUID().uuidString)",
+            templateId: "single",
+            canvas: .init(width: 720, height: 1280, fps: 30, durationMs: 3_000),
+            clips: [
+                .init(
+                    id: "short-live-photo-source",
+                    sourcePath: sourcePath,
+                    sourceDurationMs: info.durationMs,
+                    startTimeMs: 0,
+                    crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
+                    targetSlotId: "full",
+                    audioEnabled: false
+                ),
+            ],
+            coverTimeMs: 1_500
+        )
+        let result = try await LivePhotoPipeline.validateOnly(
+            project: project,
+            cancellations: CancellationRegistry()
+        ) { _, _ in }
+
+        XCTAssertTrue(result.validated)
+        XCTAssertEqual(result.durationMs, 3_000)
+    }
+
     func testStackThreeUsesEqualVerticalSlots() throws {
         let canvas = CGSize(width: 1080, height: 1920)
         let top = try TemplateLayout.rect(for: "top", templateId: "stack-3", canvas: canvas)

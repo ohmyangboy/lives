@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { CollagePreview } from './components/CollagePreview'
 import { Timeline, TimelineEmpty } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
-import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, createRenderProject, formatDuration, templates, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
+import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, createRenderProject, formatDuration, MINIMUM_SOURCE_DURATION_MS, templates, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
 import { ClearIcon, CloseIcon, ExportIcon, FilmIcon, FolderIcon, InfoIcon, LiveIcon, PlusIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
@@ -281,7 +281,7 @@ export function App() {
   const activeClips = slotClips.filter((clip): clip is SlotClip => Boolean(clip))
   const sourceQuality = analyzeSourceQuality(activeClips.length ? activeClips : clips)
   const cropUpscaleRisk = sourceQuality.effectiveShortEdge < Math.min(canvas.width, canvas.height)
-  const canExport = desktopAvailable() && slotClips.length === currentTemplate.requiredClipCount && slotClips.every((clip): clip is SlotClip => clip !== undefined && clip.durationMs >= 3000)
+  const canExport = desktopAvailable() && slotClips.length === currentTemplate.requiredClipCount && slotClips.every((clip): clip is SlotClip => clip !== undefined && clip.durationMs >= MINIMUM_SOURCE_DURATION_MS)
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -348,20 +348,22 @@ export function App() {
     let cursor = 0
     let finished = 0
     let failed = 0
+    const failureMessages: string[] = []
     const worker = async () => {
       while (cursor < accepted.length) {
         const index = cursor++
         const path = accepted[index]
         try {
           const info = await nativeService.inspect(path)
-          if (info.durationMs < 3000) throw new Error('视频不足 3 秒')
+          if (info.durationMs < MINIMUM_SOURCE_DURATION_MS) throw new Error(`${path.split('/').pop() ?? '视频'} 只有 ${formatDuration(info.durationMs)}，至少需要 ${formatDuration(MINIMUM_SOURCE_DURATION_MS)}`)
           imported[index] = {
             id: crypto.randomUUID(), sourcePath: path, name: path.split('/').pop() ?? '视频', durationMs: info.durationMs,
             width: info.width, height: info.height, codec: info.codec, startTimeMs: 0,
             crop: { normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1 }, previewUrl: previewUrlForPath(path),
           }
-        } catch {
+        } catch (error) {
           failed += 1
+          failureMessages.push(error instanceof Error ? error.message : '无法读取视频')
         } finally {
           finished += 1
           setImportProgress({ done: finished, total: accepted.length })
@@ -388,7 +390,10 @@ export function App() {
       setActiveProjectId(target.id)
       setSelectedMaterialId(projectClipIds[0])
     }
-    if (failed) setNotice(`已添加 ${successful.length} 段视频；${failed} 段无法读取或不足 3 秒`)
+    if (failed) {
+      const reason = [...new Set(failureMessages)].slice(0, 2).join('；')
+      setNotice(successful.length ? `已添加 ${successful.length} 段视频；${failed} 段未添加：${reason}` : reason)
+    }
   }, [clips])
 
   const importBrowserFiles = async (files: FileList) => {
@@ -402,7 +407,7 @@ export function App() {
         video.onloadedmetadata = () => resolve({ durationMs: video.duration * 1000, width: video.videoWidth, height: video.videoHeight })
         video.onerror = () => reject(new Error(`无法读取 ${file.name}`))
       })
-      if (metadata.durationMs < 3000) { URL.revokeObjectURL(url); setNotice(`${file.name} 不足 3 秒`); continue }
+      if (metadata.durationMs < MINIMUM_SOURCE_DURATION_MS) { URL.revokeObjectURL(url); setNotice(`${file.name} 只有 ${formatDuration(metadata.durationMs)}，至少需要 ${formatDuration(MINIMUM_SOURCE_DURATION_MS)}`); continue }
       next.push({ id: crypto.randomUUID(), sourcePath: '', name: file.name, ...metadata, codec: file.type || 'video', startTimeMs: 0, crop: { normalizedCenterX: .5, normalizedCenterY: .5, scale: 1 }, previewUrl: url })
     }
     setClips((current) => [...current, ...next])

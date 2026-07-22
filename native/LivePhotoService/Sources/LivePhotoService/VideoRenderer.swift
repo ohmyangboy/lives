@@ -30,8 +30,37 @@ enum VideoRenderer {
                 throw ServiceError(code: "VIDEO_READ_FAILED", message: "无法读取一段视频", recovery: "请替换对应素材")
             }
             let start = CMTime(value: CMTimeValue(clip.startTimeMs), timescale: 1000)
-            let duration = CMTime(value: CMTimeValue(project.canvas.durationMs), timescale: 1000)
-            try compositionTrack.insertTimeRange(CMTimeRange(start: start, duration: duration), of: sourceTrack, at: .zero)
+            let assetDuration = try await asset.load(.duration)
+            let sourceDurationMilliseconds = Int((assetDuration.seconds * 1000).rounded(.down))
+            let segment = MediaConstraints.segmentDurations(
+                sourceDurationMilliseconds: sourceDurationMilliseconds,
+                startTimeMilliseconds: clip.startTimeMs,
+                outputDurationMilliseconds: project.canvas.durationMs
+            )
+            guard segment.contentMilliseconds >= MediaConstraints.minimumSourceDurationMilliseconds else {
+                throw ServiceError(code: "VIDEO_TOO_SHORT", message: "一段视频不足 2.5 秒", recovery: "请替换对应素材")
+            }
+            let contentDuration = CMTime(value: CMTimeValue(segment.contentMilliseconds), timescale: 1000)
+            try compositionTrack.insertTimeRange(CMTimeRange(start: start, duration: contentDuration), of: sourceTrack, at: .zero)
+
+            if segment.paddingMilliseconds > 0 {
+                // Live Photos exported as videos are often a few frames shorter
+                // than three seconds. Duplicate the final source frame and stretch
+                // that duplicate across the small remainder instead of rejecting
+                // the otherwise valid source or rendering a black tail.
+                let sourceFrameDuration = CMTime(value: 1, timescale: CMTimeScale(project.canvas.fps))
+                let repeatedFrameDuration = CMTimeCompare(contentDuration, sourceFrameDuration) < 0 ? contentDuration : sourceFrameDuration
+                let repeatedFrameStart = CMTimeAdd(start, CMTimeSubtract(contentDuration, repeatedFrameDuration))
+                try compositionTrack.insertTimeRange(
+                    CMTimeRange(start: repeatedFrameStart, duration: repeatedFrameDuration),
+                    of: sourceTrack,
+                    at: contentDuration
+                )
+                compositionTrack.scaleTimeRange(
+                    CMTimeRange(start: contentDuration, duration: repeatedFrameDuration),
+                    toDuration: CMTime(value: CMTimeValue(segment.paddingMilliseconds), timescale: 1000)
+                )
+            }
 
             let size = try await sourceTrack.load(.naturalSize)
             let preferredTransform = try await sourceTrack.load(.preferredTransform)
@@ -60,8 +89,16 @@ enum VideoRenderer {
             if clip.audioEnabled,
                let sourceAudioTrack = try await asset.loadTracks(withMediaType: .audio).first,
                let compositionAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) {
-                try compositionAudioTrack.insertTimeRange(CMTimeRange(start: start, duration: duration), of: sourceAudioTrack, at: .zero)
-                compositionAudioTracks.append(compositionAudioTrack)
+                // Insert only real source audio. The padded video tail remains
+                // silent, which avoids looping or stretching the final sound.
+                let audioTimeRange = try await sourceAudioTrack.load(.timeRange)
+                let audioAvailableMilliseconds = max(0, Int(((audioTimeRange.end.seconds - start.seconds) * 1000).rounded(.down)))
+                let audioContentMilliseconds = min(segment.contentMilliseconds, audioAvailableMilliseconds)
+                if audioContentMilliseconds > 0 {
+                    let audioContentDuration = CMTime(value: CMTimeValue(audioContentMilliseconds), timescale: 1000)
+                    try compositionAudioTrack.insertTimeRange(CMTimeRange(start: start, duration: audioContentDuration), of: sourceAudioTrack, at: .zero)
+                    compositionAudioTracks.append(compositionAudioTrack)
+                }
             }
         }
 
