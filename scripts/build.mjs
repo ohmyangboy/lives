@@ -5,7 +5,7 @@ const root = resolve(import.meta.dirname, '..')
 const source = resolve(root, 'src')
 const output = resolve(root, 'dist')
 const version = process.env.LIVES_VERSION || '0.1.0'
-const downloadUrl = process.env.LIVES_DOWNLOAD_URL || 'https://github.com/ohmyangboy/macToLive/releases/latest'
+const downloadUrl = process.env.LIVES_DOWNLOAD_URL || 'https://github.com/ohmyangboy/lives/releases/latest'
 
 await rm(output, { recursive: true, force: true })
 await mkdir(output, { recursive: true })
