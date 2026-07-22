@@ -6,15 +6,15 @@ on:
       tag:
         description: Release tag to test
         required: true
-        default: v0.1.1
+        default: v0.1.2
       asset:
         description: DMG asset name
         required: true
-        default: Lives_0.1.1_aarch64.dmg
+        default: Lives_0.1.2_aarch64.dmg
       sha256:
         description: Expected DMG SHA-256
         required: true
-        default: 391cfa66fd1567b1a8ebbad85b397114fe0eea97088dde515556bfc9da3caf70
+        default: 2e7ab431ff4ab69edfb356ab40936c60151abaa422b49a3e93d6cd4f3fdc45e6
 
 permissions:
   contents: read

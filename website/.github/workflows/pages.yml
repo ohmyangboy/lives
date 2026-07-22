@@ -33,7 +33,7 @@ jobs:
 
       - name: Build website
         env:
-          LIVES_VERSION: ${{ vars.LIVES_VERSION || '0.1.1' }}
+          LIVES_VERSION: ${{ vars.LIVES_VERSION || '0.1.2' }}
           LIVES_DOWNLOAD_URL: ${{ vars.LIVES_DOWNLOAD_URL || 'https://github.com/ohmyangboy/lives/releases/latest' }}
         run: npm run build
 
