@@ -8,6 +8,10 @@
     <meta property="og:title" content="Lives — 把多个瞬间，拼成一张 Live Photo" />
     <meta property="og:description" content="在 Mac 上从视频中截取 3 秒片段，自由拼贴，全程本地处理。" />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ohmyangboy.github.io/lives/" />
+    <meta property="og:image" content="https://ohmyangboy.github.io/lives/assets/lives-editor-home.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="canonical" href="https://ohmyangboy.github.io/lives/" />
     <link rel="icon" href="assets/lives-icon.svg" />
     <link rel="manifest" href="site.webmanifest" />
     <link rel="stylesheet" href="styles.css" />
@@ -22,12 +26,16 @@
         <span><strong>Lives</strong><small>实况拼贴</small></span>
       </a>
       <nav aria-label="主要导航">
+        <a href="#demo">演示</a>
         <a href="#features">功能</a>
         <a href="#privacy">隐私</a>
         <a href="#install">安装</a>
-        <a href="#faq">常见问题</a>
+        <a href="#support">反馈</a>
       </nav>
-      <a class="header-download" href="__LIVES_DOWNLOAD_URL__">下载 <span>v__LIVES_VERSION__</span></a>
+      <div class="header-actions">
+        <a class="github-link" href="https://github.com/ohmyangboy/lives" aria-label="打开 Lives 官方 GitHub 仓库">GitHub</a>
+        <a class="header-download" href="__LIVES_DOWNLOAD_URL__">下载 <span>v__LIVES_VERSION__</span></a>
+      </div>
     </header>
 
     <main id="main">
@@ -39,55 +47,48 @@
           <div class="hero-actions">
             <a class="primary-cta" href="__LIVES_DOWNLOAD_URL__">
               <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 20h14" /></svg>
-              <span><strong>下载 Apple Silicon 版</strong><small>公开测试版 · v__LIVES_VERSION__</small></span>
+              <span><strong>下载 Apple Silicon 版</strong><small>邀请制预览 · v__LIVES_VERSION__</small></span>
             </a>
-            <a class="text-link" href="#how">看看怎么用 <span aria-hidden="true">↓</span></a>
+            <a class="text-link" href="#how">看看怎么使用 <span aria-hidden="true">↓</span></a>
           </div>
-          <p class="hero-note">需要 Apple Silicon 与 macOS 13 或更高正式版本 · 暂不支持 macOS Beta · 当前未完成 Apple 公证</p>
+          <p class="hero-note">Apple 芯片 Mac · macOS 13+ 正式版本 · 未经 Apple 公证 · 暂无自动更新</p>
         </div>
 
-        <div class="product-stage" role="img" aria-label="Lives 编辑界面示意：左侧素材库、中间拼贴画布、右侧模板设置，下方为三秒时间线" data-reveal>
+        <figure class="product-stage real-product" data-reveal>
           <div class="window-glow"></div>
-          <div class="app-window" aria-hidden="true">
-            <div class="window-bar">
-              <div class="traffic-lights" aria-hidden="true"><i></i><i></i><i></i></div>
-              <div class="mini-brand"><img src="assets/lives-icon.svg" alt="" /><b>Lives</b></div>
-              <span>本地处理，不上传视频</span>
-              <button type="button" tabindex="-1">生成 Live Photo</button>
-            </div>
-            <div class="app-body">
-              <aside class="media-column">
-                <small>01 / 素材</small><b>视频素材库</b>
-                <div class="media-card selected"><i class="thumb coral"></i><span><strong>海边.mov</strong><small>0:12.5</small></span></div>
-                <div class="media-card"><i class="thumb leaf"></i><span><strong>晚餐.mp4</strong><small>1:35.6</small></span></div>
-                <div class="media-card"><i class="thumb blue"></i><span><strong>散步.mov</strong><small>0:56.7</small></span></div>
-              </aside>
-              <section class="canvas-column">
-                <div class="canvas-label"><small>02 / 构图</small><span>9:16 · 1080P</span></div>
-                <div class="live-canvas">
-                  <div class="canvas-cell sunset"><span>LIVE</span></div>
-                  <div class="canvas-cell dinner"></div>
-                  <div class="canvas-cell park"></div>
-                </div>
-                <div class="playbar"><i>▶</i><span><b></b></span><small>1.5 / 3.0s</small></div>
-              </section>
-              <aside class="settings-column">
-                <small>03 / 配置</small><b>拼贴设置</b>
-                <label>画面比例</label>
-                <div class="segments"><i></i><i class="active"></i><i></i></div>
-                <label>拼贴模板</label>
-                <div class="template-grid">
-                  <i></i><i></i><i class="active"></i><i></i><i></i><i></i>
-                </div>
-              </aside>
-            </div>
-            <div class="timeline">
-              <div class="timeline-copy"><small>当前片段</small><strong>海边.mov</strong></div>
-              <div class="filmstrip" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-            </div>
+          <div class="real-window">
+            <img src="assets/lives-editor-home.jpg" alt="Lives 完整编辑界面：左侧视频素材库、中间三拼画布、右侧拼贴设置和底部三秒时间线" width="2562" height="1642" />
           </div>
-          <p class="stage-caption" aria-hidden="true"><span></span> 界面示意 · 画面、选段和封面都可以继续调整</p>
+          <figcaption class="stage-caption"><span></span> 真实 Lives 界面 · 仅使用公开测试素材</figcaption>
+        </figure>
+      </section>
+
+      <aside class="trust-rail" aria-label="Lives 核心信息" data-reveal>
+        <div><strong>100% 本机</strong><span>不上传视频</span></div>
+        <div><strong>3 秒同步</strong><span>每格独立选段</span></div>
+        <div><strong>8 × 5</strong><span>8 种布局 · 5 种比例</span></div>
+        <a href="https://github.com/ohmyangboy/lives"><strong>官方 GitHub ↗</strong><span>Release、反馈与构建记录</span></a>
+      </aside>
+
+      <section class="demo section" id="demo">
+        <div class="demo-copy" data-reveal>
+          <p class="eyebrow">真实操作演示</p>
+          <h2>三个瞬间，<br />在同一个窗口完成。</h2>
+          <p>这段演示直接录制自 Lives 开发版：夜景、狗狗和骑行分别占据一个画格，同步播放三秒，并在结束时柔和回到设定的 Live 关键帧。</p>
+          <ul>
+            <li><b>01</b><span>每个画格独立选择三秒片段</span></li>
+            <li><b>02</b><span>9:16、3:4、1:1、4:3 与 16:9 即时切换</span></li>
+            <li><b>03</b><span>播放结束渐变回封面关键帧</span></li>
+          </ul>
+          <small>演示画面已经脱敏，仅使用 Pexels 公开测试素材：<a href="https://www.pexels.com/video/video-of-a-city-at-night-6412356/">夜景</a>、<a href="https://www.pexels.com/video/walking-with-the-dog-at-the-park-853810/">狗狗</a>与<a href="https://www.pexels.com/video/running-20207603/">骑行</a>。不包含用户视频或个人信息。</small>
         </div>
+        <figure class="demo-player" data-reveal>
+          <video id="product-demo-video" autoplay muted loop playsinline preload="metadata" poster="assets/lives-editor-home.jpg" aria-label="Lives 真实操作演示视频">
+            <source src="assets/lives-demo.mp4" type="video/mp4" />
+          </video>
+          <button class="demo-toggle" type="button" aria-controls="product-demo-video" aria-label="暂停演示视频" aria-pressed="false"><span aria-hidden="true">Ⅱ</span></button>
+          <figcaption><span><i></i> REAL APP CAPTURE</span><span>公开测试素材 · 无个人信息</span></figcaption>
+        </figure>
       </section>
 
       <section class="workflow section" id="how">
@@ -97,9 +98,9 @@
           <p>不需要学习复杂的剪辑软件。素材、画布和时间线始终在同一个窗口里。</p>
         </div>
         <ol class="workflow-list">
-          <li data-reveal><span>01</span><div class="step-visual import-visual"><i></i><i></i><i></i></div><h3>挑</h3><p>导入多个视频或一个文件夹，从每段素材里截取连续 3 秒。</p></li>
-          <li data-reveal><span>02</span><div class="step-visual compose-visual"><i></i><i></i><i></i></div><h3>拼</h3><p>把素材拖进画格。一个视频也能重复使用，截取不同瞬间。</p></li>
-          <li data-reveal><span>03</span><div class="step-visual live-visual"><i></i><i></i><i></i></div><h3>动</h3><p>设定关键帧和声音，保存到“照片”，或导出 JPG + MOV 配对文件。</p></li>
+          <li data-reveal><span>01</span><div class="step-visual real-crop crop-library"><img src="assets/lives-feature-library.jpg" alt="Lives 视频素材库中的三段公开测试素材" width="458" height="662" loading="lazy" /></div><h3>挑</h3><p>导入多个视频或一个文件夹，从每段素材里截取连续 3 秒。</p></li>
+          <li data-reveal><span>02</span><div class="step-visual real-crop crop-canvas"><img src="assets/lives-feature-preview.jpg" alt="Lives 夜景、狗狗与骑行三拼画布" width="448" height="734" loading="lazy" /></div><h3>拼</h3><p>把素材拖进画格。一个视频也能重复使用，截取不同瞬间。</p></li>
+          <li data-reveal><span>03</span><div class="step-visual real-crop crop-timeline"><img src="assets/lives-feature-keyframe.jpg" alt="Lives 三秒片段时间线与关键帧选择" width="1484" height="358" loading="lazy" /></div><h3>动</h3><p>设定关键帧和声音，保存到“照片”，或导出 JPG + MOV 配对文件。</p></li>
         </ol>
       </section>
 
@@ -111,16 +112,14 @@
         <div class="feature-grid">
           <article class="feature-card wide" data-reveal>
             <div class="feature-copy"><span>8 种布局</span><h3>每个画格，都是独立的三秒。</h3><p>上下、左右、三拼和大小画面自由组合。每个格子都可以单独选段、缩放、移动和开关原声。</p></div>
-            <div class="layouts" aria-hidden="true">
-              <i class="layout-one"></i><i class="layout-two"></i><i class="layout-three"></i><i class="layout-four"></i><i class="layout-five"></i>
-            </div>
+            <div class="feature-real-shot crop-settings"><img src="assets/lives-feature-layouts.jpg" alt="Lives 拼贴设置：画布方向、场景比例与八种拼贴模板" width="582" height="1328" loading="lazy" /></div>
           </article>
           <article class="feature-card" data-reveal>
-            <div class="feature-icon keyframe-icon" aria-hidden="true"><i></i><b></b></div>
-            <span>关键帧</span><h3>停在你最想留下的那一帧。</h3><p>预览播放结束后回到关键帧，看到的就是最终封面。</p>
+            <div class="feature-icon feature-real-shot crop-keyframe"><img src="assets/lives-feature-playback.jpg" alt="Lives 播放条与 Live Photo 关键帧控制" width="1096" height="196" loading="lazy" /></div>
+            <span>关键帧</span><h3>停在你最想留下的那一帧。</h3><p>预览播放结束后柔和渐变回关键帧，看到的就是最终 Live Photo 封面。</p>
           </article>
           <article class="feature-card" data-reveal>
-            <div class="feature-icon ratio-icon" aria-hidden="true"><i></i><i></i></div>
+            <div class="feature-icon feature-real-shot crop-ratio"><img src="assets/lives-feature-canvas.jpg" alt="Lives 竖屏三拼画布预览与画面缩放控制" width="1450" height="1122" loading="lazy" /></div>
             <span>横竖都行</span><h3>从 9:16 到 16:9。</h3><p>覆盖五种常用比例，并根据素材质量提供 1080P 或 720P 导出。</p>
           </article>
         </div>
@@ -131,12 +130,14 @@
           <div class="privacy-copy">
             <p class="eyebrow">本地，就是边界</p>
             <h2>你的视频，始终留在这台 Mac。</h2>
-            <p>Lives 直接引用原文件进行处理，不复制、不上传，也不会修改源视频。只有在你选择“保存到照片”时，才会请求仅添加照片的权限。</p>
+            <p>Lives 直接引用原文件进行处理，不上传，也不会修改源视频。只有在你选择“保存到照片”时，才会请求“仅添加照片”权限。</p>
             <ul>
               <li><span>✓</span> 无账号、无云端素材库</li>
               <li><span>✓</span> MOV / MP4 / M4V 本地解码</li>
-              <li><span>✓</span> 项目结束后自动清理临时文件</li>
+              <li><span>✓</span> 无广告、分析或静默崩溃上报</li>
+              <li><span>✓</span> 成功、失败或取消后清理临时文件</li>
             </ul>
+            <a class="privacy-detail-link" href="privacy.html">阅读完整隐私说明 <span aria-hidden="true">→</span></a>
           </div>
           <div class="privacy-orbit" aria-hidden="true">
             <i class="orbit one"></i><i class="orbit two"></i><i class="orbit three"></i>
@@ -149,7 +150,7 @@
         <div class="section-heading" data-reveal>
           <p class="eyebrow">安装 Lives</p>
           <h2>三步开始。</h2>
-          <p>当前版本通过 GitHub Releases 提供 Apple Silicon DMG。</p>
+          <p>当前版本只通过 Lives 官方 GitHub Releases 提供 Apple Silicon DMG。</p>
         </div>
         <ol class="install-list">
           <li data-reveal><span>1</span><div><h3>下载 DMG</h3><p>从本站按钮前往 GitHub Releases，下载与你设备匹配的安装包。</p></div></li>
@@ -158,8 +159,27 @@
         </ol>
         <aside class="release-notice" data-reveal>
           <strong>下载前请注意</strong>
-          <p>v__LIVES_VERSION__ 是公开测试版，当前使用 ad-hoc 签名，尚未配置 Developer ID、公证与应用内自动更新。仅支持 Apple Silicon 上的 macOS 正式版本，暂不支持 Beta 或开发者预览版。请只从本项目的 GitHub Releases 下载，并在每次更新时核对发布页信息。</p>
+          <p>v__LIVES_VERSION__ 是邀请制独立分发预览版，当前使用 ad-hoc 签名，尚未配置 Developer ID、公证与应用内自动更新。运行当前构建存在安全风险；请只从 <a class="inline-link" href="https://github.com/ohmyangboy/lives/releases">官方 Releases</a> 下载，核对版本和 SHA-256，并依据 <a class="inline-link" href="https://support.apple.com/zh-cn/102445">Apple 的安全说明</a>自行决定是否打开。</p>
         </aside>
+      </section>
+
+      <section class="support section" id="support">
+        <div class="section-heading" data-reveal>
+          <p class="eyebrow">反馈与官方渠道</p>
+          <h2>公开问题走 GitHub，私人信息走邮件。</h2>
+          <p>为了保护素材隐私，请不要在 Issue 中上传原视频、私人影像、个人信息或未脱敏日志。</p>
+        </div>
+        <div class="support-grid">
+          <a class="support-card" href="https://github.com/ohmyangboy/lives/issues/new/choose" data-reveal>
+            <span>公开反馈</span><h3>GitHub Issues</h3><p>适合 Bug、功能建议和可公开复现步骤。提交前可以先搜索是否已有相同问题。</p><b>创建 Issue ↗</b>
+          </a>
+          <a class="support-card" href="mailto:ohmyangboy@gmail.com" data-reveal>
+            <span>私人支持</span><h3>ohmyangboy@gmail.com</h3><p>适合包含个人信息、私人素材情况或不便公开的安全问题。发送前仍建议先删除不必要的附件。</p><b>发送邮件 ↗</b>
+          </a>
+          <a class="support-card" href="https://github.com/ohmyangboy/lives" data-reveal>
+            <span>唯一官方仓库</span><h3>ohmyangboy/lives</h3><p>官网源码、版本发布、SHA-256、安装说明和公开构建记录都以这里为准。</p><b>打开仓库 ↗</b>
+          </a>
+        </div>
       </section>
 
       <section class="faq section" id="faq">
@@ -167,9 +187,10 @@
         <div class="faq-list" data-reveal>
           <details><summary>生成的是一张真正的 Live Photo 吗？<span></span></summary><p>是。保存到 Apple“照片”时，Lives 会生成带有配对元数据的 JPEG 与 MOV，并作为一个 Live Photo 资产写入。通过 iCloud 照片同步到 iPhone 后，正常情况下会保留 Live 属性。</p></details>
           <details><summary>为什么需要照片权限？<span></span></summary><p>只有选择“保存到照片”时才需要。Lives 请求的是“仅添加照片”权限，不需要读取你的整个照片图库；你也可以改为导出到指定文件夹。</p></details>
-          <details><summary>支持 Intel Mac 吗？<span></span></summary><p>当前公开测试版仅提供 Apple Silicon（M 系列芯片）构建。Intel 与 Universal 版本仍在评估中。</p></details>
+          <details><summary>支持 Intel Mac 吗？<span></span></summary><p>当前邀请制预览版仅提供 Apple Silicon（M 系列芯片）构建。Intel 与 Universal 版本仍在评估中。</p></details>
           <details><summary>关闭 App 后，导入的视频会被删除吗？<span></span></summary><p>不会。Lives 使用原文件引用，不复制或修改视频。关闭 App 时只会清理生成过程中产生的临时文件。</p></details>
-          <details><summary>会自动更新吗？<span></span></summary><p>暂时不会。当前版本没有配置正式自动更新，请关注 GitHub Releases 并手动下载安装新版本。</p></details>
+          <details><summary>会自动更新吗？<span></span></summary><p>暂时不会。当前版本没有配置正式自动更新，请关注 <a class="inline-link" href="https://github.com/ohmyangboy/lives/releases">官方 GitHub Releases</a>，核对版本信息后手动下载安装。</p></details>
+          <details><summary>在哪里确认自己下载的是官方版本？<span></span></summary><p>唯一公开分发仓库是 <a class="inline-link" href="https://github.com/ohmyangboy/lives">github.com/ohmyangboy/lives</a>，官网是 <a class="inline-link" href="https://ohmyangboy.github.io/lives/">ohmyangboy.github.io/lives</a>。请勿从网盘、群文件或第三方转载页安装。</p></details>
         </div>
       </section>
 
@@ -177,15 +198,28 @@
         <img src="assets/lives-icon.svg" alt="" width="76" height="76" />
         <p class="eyebrow">Lives v__LIVES_VERSION__</p>
         <h2>下一张会动的照片，<br />从三个瞬间开始。</h2>
-        <a class="primary-cta" href="__LIVES_DOWNLOAD_URL__"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 20h14" /></svg><span><strong>前往 GitHub 下载</strong><small>Apple Silicon · 公开测试版</small></span></a>
+        <a class="primary-cta" href="__LIVES_DOWNLOAD_URL__"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 20h14" /></svg><span><strong>前往 GitHub 下载</strong><small>Apple Silicon · 邀请制预览</small></span></a>
       </section>
     </main>
 
-    <footer>
-      <a class="brand footer-brand" href="#top"><img src="assets/lives-icon.svg" alt="" width="38" height="38" /><span><strong>Lives</strong><small>实况拼贴</small></span></a>
-      <p>在 Mac 上，把视频里的瞬间拼成 Live Photo。</p>
-      <div><a href="https://github.com/ohmyangboy/lives/releases">版本发布</a><a href="privacy.html">隐私说明</a><a href="terms.html">使用条款</a><a href="notices.html">开源声明</a><a href="mailto:ohmyangboy@gmail.com">联系支持</a><a href="#install">安装帮助</a></div>
-      <small>© 2026 ohmyangboy · Lives v__LIVES_VERSION__ · Live Photos is a trademark of Apple Inc. Lives 与 Apple Inc. 无隶属或背书关系。</small>
+    <footer class="site-footer">
+      <div class="footer-top">
+        <div class="footer-intro">
+          <a class="brand footer-brand" href="#top"><img src="assets/lives-icon.svg" alt="" width="42" height="42" /><span><strong>Lives</strong><small>实况拼贴</small></span></a>
+          <p>在 Mac 上，把视频里的瞬间<br />拼成一张真正的 Live Photo。</p>
+          <span>本地处理 · 无需账号 · 不上传视频</span>
+        </div>
+        <nav class="footer-nav" aria-label="页脚导航">
+          <section><h2>产品</h2><a href="__LIVES_DOWNLOAD_URL__">下载 v__LIVES_VERSION__</a><a href="#features">功能</a><a href="#install">安装帮助</a></section>
+          <section><h2>项目</h2><a href="https://github.com/ohmyangboy/lives">官方仓库 ↗</a><a href="https://github.com/ohmyangboy/lives/releases">版本发布 ↗</a><a href="https://github.com/ohmyangboy/lives/issues">问题反馈 ↗</a></section>
+          <section><h2>法律</h2><a href="privacy.html">隐私说明</a><a href="terms.html">使用条款</a><a href="notices.html">开源声明</a></section>
+          <section><h2>联系</h2><a href="mailto:ohmyangboy@gmail.com">支持邮箱</a><small>ohmyangboy@gmail.com</small></section>
+        </nav>
+      </div>
+      <div class="footer-bottom">
+        <small>© 2026 ohmyangboy · Lives v__LIVES_VERSION__</small>
+        <small>Live Photos is a trademark of Apple Inc. · Lives 与 Apple Inc. 无隶属或背书关系。</small>
+      </div>
     </footer>
     <script type="module" src="main.js"></script>
   </body>

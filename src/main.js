@@ -22,3 +22,33 @@ document.querySelectorAll('a[href^="#"]').forEach((link) => {
     target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
   })
 })
+
+const demoVideo = document.querySelector('#product-demo-video')
+const demoToggle = document.querySelector('.demo-toggle')
+
+if (demoVideo && demoToggle) {
+  const syncDemoButton = () => {
+    const paused = demoVideo.paused
+    demoToggle.setAttribute('aria-label', paused ? '播放演示视频' : '暂停演示视频')
+    demoToggle.setAttribute('aria-pressed', paused ? 'true' : 'false')
+    demoToggle.querySelector('span').textContent = paused ? '▶' : 'Ⅱ'
+  }
+
+  demoToggle.addEventListener('click', async () => {
+    if (demoVideo.paused) {
+      try {
+        await demoVideo.play()
+      } catch {
+        syncDemoButton()
+      }
+    } else {
+      demoVideo.pause()
+    }
+  })
+
+  demoVideo.addEventListener('play', syncDemoButton)
+  demoVideo.addEventListener('pause', syncDemoButton)
+
+  if (reduceMotion) demoVideo.pause()
+  syncDemoButton()
+}
