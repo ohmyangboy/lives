@@ -8,7 +8,7 @@ import { Timeline, TimelineEmpty } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
 import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, createRenderProject, formatDuration, MINIMUM_SOURCE_DURATION_MS, templates, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
-import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, LiveIcon, PlusIcon, UpdateIcon } from './icons'
+import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, UpdateIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
 import { checkForUpdate, currentAppVersion, type AvailableUpdate } from './releaseUpdate'
 import xiaohongshuContactImage from './assets/xiaohongshu-contact.jpg'
@@ -268,6 +268,7 @@ export function App() {
   const [openHelpPopover, setOpenHelpPopover] = useState<'library' | 'templates'>()
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate>()
   const [feedbackPopoverOpen, setFeedbackPopoverOpen] = useState(false)
+  const [materialContextMenu, setMaterialContextMenu] = useState<{ x: number; y: number; clip: VideoClip }>()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const firstRunDialogRef = useRef<HTMLDivElement>(null)
   const firstRunPrimaryRef = useRef<HTMLButtonElement>(null)
@@ -369,10 +370,19 @@ export function App() {
     const subject = encodeURIComponent(`[Lives ${currentAppVersion}] 反馈`)
     const body = encodeURIComponent('请描述你遇到的问题或建议：\n\n复现步骤：\n1. \n2. \n\n预期结果：\n\n实际结果：\n\n（如方便，请附上不含个人隐私的截图或日志。）')
     try {
-      await openUrl(`mailto:ohmyangboy@gmail.com?subject=${subject}&body=${body}`)
+      await openUrl(`mailto:ohmyangboy@gmail.com?subject=${subject}&body=${body}`, 'Mail')
       setFeedbackPopoverOpen(false)
     } catch {
       setNotice('无法打开邮件应用，请手动发送邮件至 ohmyangboy@gmail.com')
+    }
+  }, [])
+
+  const openIssueFeedback = useCallback(async () => {
+    try {
+      await openUrl('https://github.com/ohmyangboy/lives/issues/new/choose')
+      setFeedbackPopoverOpen(false)
+    } catch {
+      setNotice('无法打开 GitHub Issues，请访问 github.com/ohmyangboy/lives/issues')
     }
   }, [])
 
@@ -640,6 +650,51 @@ export function App() {
     setSelectedSlotId(nextSelectedSlot)
   }
 
+  const handleClipContextMenu = useCallback((event: React.MouseEvent, clip: VideoClip) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const menuWidth = 170
+    const menuHeight = 85
+    const x = Math.min(event.clientX, window.innerWidth - menuWidth - 8)
+    const y = Math.min(event.clientY, window.innerHeight - menuHeight - 8)
+    setMaterialContextMenu({ x, y, clip })
+  }, [])
+
+  const handleRevealInFinder = useCallback(async (sourcePath: string) => {
+    setMaterialContextMenu(undefined)
+    if (!desktopAvailable()) {
+      setNotice('关联本地文件需要在 Mac App 中使用')
+      return
+    }
+    if (!sourcePath) {
+      setNotice('无法定位该素材的原文件路径')
+      return
+    }
+    try {
+      await nativeService.revealInFinder(sourcePath)
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '无法在 Finder 中定位该文件')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!materialContextMenu) return
+    const handleDismiss = () => setMaterialContextMenu(undefined)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMaterialContextMenu(undefined)
+    }
+    window.addEventListener('click', handleDismiss)
+    window.addEventListener('contextmenu', handleDismiss)
+    window.addEventListener('scroll', handleDismiss, true)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('click', handleDismiss)
+      window.removeEventListener('contextmenu', handleDismiss)
+      window.removeEventListener('scroll', handleDismiss, true)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [materialContextMenu])
+
   const removeClip = (id: string) => {
     const removed = clips.find((clip) => clip.id === id)
     if (removed && !removed.sourcePath) URL.revokeObjectURL(removed.previewUrl)
@@ -766,7 +821,10 @@ export function App() {
             <button className="feedback-button" onClick={() => setFeedbackPopoverOpen((current) => !current)} aria-expanded={feedbackPopoverOpen} aria-controls="feedback-popover" title="联系 Lives"><FeedbackIcon />反馈</button>
             {feedbackPopoverOpen && <div className="feedback-popover" id="feedback-popover" role="dialog" aria-label="反馈与联系">
               <div className="feedback-popover-heading"><span className="eyebrow">反馈与联系</span><strong>选择联系我的方式</strong></div>
-              <button className="feedback-email-card" onClick={openFeedback}><FeedbackIcon /><span><strong>发送邮件</strong><small>ohmyangboy@gmail.com</small></span><b>打开邮件应用</b></button>
+              <div className="feedback-channel-list">
+                <button className="feedback-email-card" onClick={openFeedback}><FeedbackIcon /><span><strong>发送邮件</strong><small>ohmyangboy@gmail.com</small></span><b>打开 Mail</b></button>
+                <button className="feedback-email-card feedback-issue-card" onClick={openIssueFeedback}><IssueIcon /><span><strong>GitHub Issue</strong><small>Bug 报告与功能建议</small></span><b>公开反馈</b></button>
+              </div>
               <div className="feedback-social-card">
                 <div><span className="feedback-social-label">小红书</span><strong>oi一页风</strong><small>小红书号：<b>95393080312</b></small><p>可以在小红书搜索账号，或使用手机扫描下方二维码。</p></div>
                 <img src={xiaohongshuContactImage} alt="小红书账号 oi一页风 的个人页与二维码" />
@@ -798,7 +856,7 @@ export function App() {
             <div className="clip-list material-library">
               {activeProjectClips.map((clip, index) => {
                 const materialId = clip.id
-                return <div key={materialId} role="button" tabIndex={0} aria-pressed={materialId === selectedMaterialId} aria-label={`${clip.name}，${formatDuration(clip.durationMs)}`} className={['clip-card', materialId === selectedMaterialId && 'selected', materialId === sourceDragFeedback?.materialId && 'dragging'].filter(Boolean).join(' ')} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && !(event.target as HTMLElement).closest('button')) { event.preventDefault(); setSelectedMaterialId(materialId) } }} onPointerDown={(event) => beginSourcePointerDrag(event, materialId)} onPointerMove={moveSourcePointerDrag} onPointerUp={finishSourcePointerDrag} onPointerCancel={cancelSourcePointerDrag}>
+                return <div key={materialId} role="button" tabIndex={0} aria-pressed={materialId === selectedMaterialId} aria-label={`${clip.name}，${formatDuration(clip.durationMs)}`} className={['clip-card', materialId === selectedMaterialId && 'selected', materialId === sourceDragFeedback?.materialId && 'dragging'].filter(Boolean).join(' ')} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && !(event.target as HTMLElement).closest('button')) { event.preventDefault(); setSelectedMaterialId(materialId) } }} onPointerDown={(event) => beginSourcePointerDrag(event, materialId)} onPointerMove={moveSourcePointerDrag} onPointerUp={finishSourcePointerDrag} onPointerCancel={cancelSourcePointerDrag} onContextMenu={(event) => handleClipContextMenu(event, clip)}>
                   <span className="clip-index">{String(index + 1).padStart(2, '0')}</span>
                   <VideoCover src={clip.previewUrl} />
                   <span className="clip-copy"><strong>{clip.name}</strong><small>{formatDuration(clip.durationMs)} · {clip.width}×{clip.height}</small><em>拖入画面格</em></span>
@@ -867,6 +925,32 @@ export function App() {
       <input ref={fileInputRef} hidden type="file" multiple accept="video/quicktime,video/mp4,.m4v" onChange={(event) => event.target.files && void importBrowserFiles(event.target.files)} />
       {destinationPickerVisible && <ExportDestinationPicker aspectRatio={aspectRatio} quality={exportQuality} sourceQuality={sourceQuality} cropUpscaleRisk={cropUpscaleRisk} destination={pickerDestination} onQualityChange={setExportQuality} onDestinationChange={setPickerDestination} onExport={() => void exportFromPicker()} onClose={() => setDestinationPickerVisible(false)} />}
       {exportState.visible && <ExportOverlay {...exportState} destination={exportDestination} onClose={() => setExportState(initialExport)} onCancel={() => { if (exportState.jobId) void nativeService.cancel(exportState.jobId); setExportState(initialExport) }} onRetry={() => void exportProject()} onOpenPrivacySettings={() => void nativeService.openPhotoPrivacySettings()} onFallbackToFolder={() => void exportToFolderInstead()} onRevealResult={() => exportDestination === 'photos' ? void nativeService.openPhotos() : exportState.outputPath ? void nativeService.revealInFinder(exportState.outputPath) : undefined} />}
+      {materialContextMenu && (
+        <div
+          className="material-context-menu"
+          style={{ left: materialContextMenu.x, top: materialContextMenu.y }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            className="context-menu-item"
+            onClick={() => void handleRevealInFinder(materialContextMenu.clip.sourcePath)}
+          >
+            <FolderIcon />
+            <span>在 Finder 中的位置</span>
+          </button>
+          <button
+            className="context-menu-item danger"
+            onClick={() => {
+              const id = materialContextMenu.clip.id
+              setMaterialContextMenu(undefined)
+              removeClip(id)
+            }}
+          >
+            <CloseIcon />
+            <span>从素材库移除</span>
+          </button>
+        </div>
+      )}
     </main>
   )
 }
