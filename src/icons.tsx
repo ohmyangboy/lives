@@ -17,4 +17,6 @@ export const ClearIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><p
 export const FolderIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M3 7.5h7l2-2h9v13H3v-11Z" /></Icon>
 export const InfoIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5h.01" /></Icon>
 export const CheckIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="m5 12 4 4L19 6" /></Icon>
+export const UpdateIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M20 11a8 8 0 1 0 2 5.5" /><path d="M20 4v7h-7" /><path d="M12 8v8M9 13l3 3 3-3" /></Icon>
+export const FeedbackIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></Icon>
 export const PhotosIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><circle cx="12" cy="12" r="2" /><path d="M12 4c2-3 6 0 4 3 4-1 5 4 2 5 3 2 1 6-2 5 1 4-4 5-5 2-2 3-6 1-5-2-4 1-5-4-2-5-3-2-1-6 2-5 0-4 5-5 6-1Z" /></Icon>

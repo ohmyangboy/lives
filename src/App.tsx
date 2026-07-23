@@ -7,8 +7,9 @@ import { Timeline, TimelineEmpty } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
 import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, createRenderProject, formatDuration, MINIMUM_SOURCE_DURATION_MS, templates, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
-import { ClearIcon, CloseIcon, ExportIcon, FilmIcon, FolderIcon, InfoIcon, LiveIcon, PlusIcon } from './icons'
+import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, LiveIcon, PlusIcon, UpdateIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
+import { checkForUpdate, currentAppVersion, type AvailableUpdate } from './releaseUpdate'
 
 interface ExportState {
   visible: boolean
@@ -263,6 +264,7 @@ export function App() {
   const [startupPhase, setStartupPhase] = useState<'visible' | 'leaving' | 'hidden'>('visible')
   const [firstRunGuideVisible, setFirstRunGuideVisible] = useState(shouldShowFirstRunGuide)
   const [openHelpPopover, setOpenHelpPopover] = useState<'library' | 'templates'>()
+  const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate>()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const firstRunDialogRef = useRef<HTMLDivElement>(null)
   const firstRunPrimaryRef = useRef<HTMLButtonElement>(null)
@@ -323,6 +325,26 @@ export function App() {
   useEffect(() => {
     if (!desktopAvailable()) return
     nativeService.healthCheck().catch(() => setNotice('原生媒体服务未能启动，请重新打开 App'))
+  }, [])
+
+  useEffect(() => {
+    if (!desktopAvailable()) return
+    let cancelled = false
+    void checkForUpdate().then((update) => {
+      if (!cancelled) setAvailableUpdate(update)
+    }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [])
+
+  const openUpdate = useCallback(() => {
+    if (!availableUpdate) return
+    window.open(availableUpdate.htmlUrl, '_blank', 'noopener,noreferrer')
+  }, [availableUpdate])
+
+  const openFeedback = useCallback(() => {
+    const subject = encodeURIComponent(`[Lives ${currentAppVersion}] 反馈`)
+    const body = encodeURIComponent('请描述你遇到的问题或建议：\n\n复现步骤：\n1. \n2. \n\n预期结果：\n\n实际结果：\n\n（如方便，请附上不含个人隐私的截图或日志。）')
+    window.location.href = `mailto:ohmyangboy@gmail.com?subject=${subject}&body=${body}`
   }, [])
 
   useEffect(() => {
@@ -710,6 +732,8 @@ export function App() {
         <div className="brand"><span className="brand-mark"><LiveIcon /></span><div><strong>Lives</strong><small>实况拼贴</small></div></div>
         <div className="project-meta"><span className={clips.length ? 'status-dot active' : 'status-dot'} />{projectSummary}</div>
         <div className="titlebar-actions">
+          {availableUpdate && <button className="update-button" onClick={openUpdate} title={`发现 Lives ${availableUpdate.version}，前往官方下载页`}><UpdateIcon /><span>更新</span><b>v{availableUpdate.version}</b></button>}
+          <button className="feedback-button" onClick={openFeedback} title="通过邮件向 Lives 发送反馈"><FeedbackIcon />反馈</button>
           <button className="clear-project" disabled={!canClearCollage} onClick={clearCollage} title="保留素材，仅清除当前拼贴"><ClearIcon />清除拼贴</button>
           <button className="primary-button" disabled={!clips.length} onClick={requestExport}><ExportIcon />生成 Live Photo</button>
         </div>
