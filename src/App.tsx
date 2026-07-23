@@ -12,6 +12,7 @@ import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, I
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
 import { checkForUpdate, currentAppVersion, type AvailableUpdate } from './releaseUpdate'
 import xiaohongshuContactImage from './assets/xiaohongshu-contact.jpg'
+import wechatSponsorImage from './assets/wechat-sponsor.jpg'
 
 interface ExportState {
   visible: boolean
@@ -826,8 +827,21 @@ export function App() {
                 <button className="feedback-email-card feedback-issue-card" onClick={openIssueFeedback}><IssueIcon /><span><strong>GitHub Issue</strong><small>Bug 报告与功能建议</small></span><b>公开反馈</b></button>
               </div>
               <div className="feedback-social-card">
-                <div><span className="feedback-social-label">小红书</span><strong>oi一页风</strong><small>小红书号：<b>95393080312</b></small><p>可以在小红书搜索账号，或使用手机扫描下方二维码。</p></div>
-                <img src={xiaohongshuContactImage} alt="小红书账号 oi一页风 的个人页与二维码" />
+                <p className="feedback-support-hint">也可以在小红书联系我；如果 Lives 对你有帮助，欢迎通过微信赞赏支持后续开发。</p>
+                <div className="feedback-code-grid">
+                  <section className="feedback-code-card">
+                    <span className="feedback-social-label">小红书</span>
+                    <img className="feedback-qr-image" src={xiaohongshuContactImage} alt="小红书账号 oi一页风 的个人页二维码" />
+                    <strong>oi一页风</strong>
+                    <small>小红书号：<b>95393080312</b></small>
+                  </section>
+                  <section className="feedback-code-card feedback-wechat-card">
+                    <span className="feedback-wechat-label">微信赞赏</span>
+                    <img className="feedback-qr-image feedback-wechat-qr-image" src={wechatSponsorImage} alt="mugu 的微信赞赏码" />
+                    <strong>支持 Lives</strong>
+                    <small>微信扫一扫，感谢你的支持</small>
+                  </section>
+                </div>
               </div>
               <small className="feedback-privacy-note">发送截图或日志前，请先移除私人素材和个人信息。</small>
             </div>}
