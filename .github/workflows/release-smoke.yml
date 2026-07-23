@@ -14,7 +14,7 @@ on:
       sha256:
         description: Expected DMG SHA-256
         required: true
-        default: 2e7ab431ff4ab69edfb356ab40936c60151abaa422b49a3e93d6cd4f3fdc45e6
+        default: c339278825bbc384b5d3c9fc0cd19ae66daa2f1d078496f9962304382893ae36
 
 permissions:
   contents: read
