@@ -60,3 +60,4 @@ DerivedData/
 *.profdata
 *.log
 .tooling/
+release/v*/ffmpeg-*.tar.xz

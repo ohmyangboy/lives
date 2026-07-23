@@ -10,7 +10,7 @@ export interface VideoInfo {
   codec: string
 }
 
-export type NativeStage = 'inspecting' | 'rendering' | 'writingMetadata' | 'validating' | 'requestingPhotoPermission' | 'saving' | 'exportingFiles' | 'verifyingSavedAsset' | 'completed'
+export type NativeStage = 'inspecting' | 'transcoding' | 'rendering' | 'writingMetadata' | 'validating' | 'requestingPhotoPermission' | 'saving' | 'exportingFiles' | 'verifyingSavedAsset' | 'completed'
 
 export interface ExportedPairResult {
   directoryPath: string

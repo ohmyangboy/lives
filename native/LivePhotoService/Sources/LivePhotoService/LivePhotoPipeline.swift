@@ -200,13 +200,20 @@ enum LivePhotoPipeline {
         let photoURL = directory.appendingPathComponent("cover.jpg")
         let contentIdentifier = UUID().uuidString
         do {
-            await progress("rendering", 0.08)
-            try await VideoRenderer.render(
+            await progress("transcoding", 0.08)
+            let preparedProject = try await CompatibilityTranscoder.prepare(
                 project: project,
+                workingDirectory: directory,
+                cancellations: cancellations
+            ) { value in await progress("transcoding", 0.08 + value * 0.17) }
+            try await cancellations.check(project.id)
+            await progress("rendering", 0.25)
+            try await VideoRenderer.render(
+                project: preparedProject,
                 outputURL: videoURL,
                 contentIdentifier: contentIdentifier,
                 cancellations: cancellations
-            ) { value in await progress("rendering", 0.08 + value * 0.57) }
+            ) { value in await progress("rendering", 0.25 + value * 0.40) }
             try await cancellations.check(project.id)
             await progress("writingMetadata", 0.68)
             try await writeCover(from: videoURL, to: photoURL, atMilliseconds: project.coverTimeMs, contentIdentifier: contentIdentifier)

@@ -19,17 +19,22 @@
       <p class="legal-updated">适用于 Lives v__LIVES_VERSION__</p>
       <section>
         <h2>主要运行时组件</h2>
-        <p>Lives 使用 React、Tauri、Tauri Dialog/Shell Plugin、Serde 与 serde_json。它们分别依据 MIT 或 Apache-2.0 许可提供，版权归各上游作者和贡献者所有。</p>
+        <p>Lives 使用 React、Tauri、Tauri Plugins、Serde、serde_json 与 FFmpeg。版权归各上游作者和贡献者所有。</p>
         <ul>
           <li><a class="inline-link" href="https://github.com/facebook/react">React / React DOM</a> — MIT</li>
           <li><a class="inline-link" href="https://github.com/tauri-apps/tauri">Tauri</a> — MIT / Apache-2.0</li>
           <li><a class="inline-link" href="https://github.com/tauri-apps/plugins-workspace">Tauri Plugins</a> — MIT / Apache-2.0</li>
           <li><a class="inline-link" href="https://github.com/serde-rs/serde">Serde</a> — MIT / Apache-2.0</li>
+          <li><a class="inline-link" href="https://ffmpeg.org">FFmpeg 8.1.2</a> — LGPL-2.1-or-later</li>
         </ul>
       </section>
       <section>
+        <h2>FFmpeg 兼容格式转换</h2>
+        <p>当 macOS 无法直接解码某段视频时，Lives 会使用动态链接的精简 FFmpeg 运行时，仅在本机转换用户选中的片段。该构建未启用 GPL 或 nonfree 组件。对应的 <a class="inline-link" href="https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz">FFmpeg 8.1.2 源代码</a>、LGPL 2.1 许可文本和完整构建配置随发布资料提供。</p>
+      </section>
+      <section>
         <h2>许可条款</h2>
-        <p>第三方组件按其原许可“按原样”提供，不附带任何明示或默示担保。MIT License 与 Apache License 2.0 的完整条款可分别在上游项目和 <a class="inline-link" href="https://www.apache.org/licenses/LICENSE-2.0">Apache 官方许可页</a>查看。</p>
+        <p>第三方组件按其原许可“按原样”提供，不附带任何明示或默示担保。MIT License、Apache License 2.0 与 LGPL 2.1 的完整条款可分别在上游项目、<a class="inline-link" href="https://www.apache.org/licenses/LICENSE-2.0">Apache 官方许可页</a>和 <a class="inline-link" href="https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html">GNU 官方许可页</a>查看。</p>
       </section>
       <section>
         <h2>Lives 的权利范围</h2>

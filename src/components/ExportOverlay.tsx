@@ -3,7 +3,7 @@ import { CheckIcon, CloseIcon, FolderIcon, PhotosIcon } from '../icons'
 import { useModalFocus } from './useModalFocus'
 
 const labels: Record<NativeStage, string> = {
-  inspecting: '检查素材', rendering: '合成视频', writingMetadata: '写入 Live 元数据', validating: '校验 Live Photo',
+  inspecting: '检查素材', transcoding: '转换兼容格式', rendering: '合成视频', writingMetadata: '写入 Live 元数据', validating: '校验 Live Photo',
   requestingPhotoPermission: '请求照片权限', saving: '保存到“照片”', exportingFiles: '导出配对文件', verifyingSavedAsset: '确认 Live 状态', completed: '完成',
 }
 

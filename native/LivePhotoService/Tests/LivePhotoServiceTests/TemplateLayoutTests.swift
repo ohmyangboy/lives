@@ -96,6 +96,57 @@ final class TemplateLayoutTests: XCTestCase {
         XCTAssertEqual(result.durationMs, 3_000)
     }
 
+    func testIncompatibleVideoIsConvertedWhenFixtureIsProvided() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let sourcePath = environment["LIVES_INCOMPATIBLE_VIDEO_FIXTURE"] else {
+            throw XCTSkip("Set LIVES_INCOMPATIBLE_VIDEO_FIXTURE to run the compatibility conversion regression")
+        }
+        guard environment["LIVES_FFMPEG_PATH"] != nil else {
+            throw XCTSkip("Set LIVES_FFMPEG_PATH to the bundled FFmpeg runtime")
+        }
+        let sourceURL = URL(fileURLWithPath: sourcePath)
+        let sourceRequiresConversion = try await CompatibilityTranscoder.requiresTranscoding(sourceURL: sourceURL)
+        XCTAssertTrue(sourceRequiresConversion)
+
+        let info = try await MediaInspector.inspect(path: sourcePath)
+        let workingDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LivesCompatibilityTest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workingDirectory) }
+        let project = RenderProject(
+            id: "compatibility-regression-\(UUID().uuidString)",
+            templateId: "single",
+            canvas: .init(width: 720, height: 1280, fps: 30, durationMs: 3_000),
+            clips: [
+                .init(
+                    id: "incompatible-source",
+                    sourcePath: sourcePath,
+                    sourceDurationMs: info.durationMs,
+                    startTimeMs: 0,
+                    crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
+                    targetSlotId: "full",
+                    audioEnabled: true
+                ),
+            ],
+            coverTimeMs: 1_500
+        )
+
+        let prepared = try await CompatibilityTranscoder.prepare(
+            project: project,
+            workingDirectory: workingDirectory,
+            cancellations: CancellationRegistry()
+        ) { _ in }
+
+        let converted = try XCTUnwrap(prepared.clips.first)
+        XCTAssertNotEqual(converted.sourcePath, sourcePath)
+        XCTAssertEqual(converted.startTimeMs, 0)
+        XCTAssertGreaterThanOrEqual(converted.sourceDurationMs, 3_000)
+        let convertedRequiresConversion = try await CompatibilityTranscoder.requiresTranscoding(
+            sourceURL: URL(fileURLWithPath: converted.sourcePath)
+        )
+        XCTAssertFalse(convertedRequiresConversion)
+    }
+
     func testStackThreeUsesEqualVerticalSlots() throws {
         let canvas = CGSize(width: 1080, height: 1920)
         let top = try TemplateLayout.rect(for: "top", templateId: "stack-3", canvas: canvas)

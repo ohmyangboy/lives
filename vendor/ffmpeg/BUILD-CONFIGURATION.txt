@@ -1,0 +1,43 @@
+FFmpeg version: 8.1.2
+Source: https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz
+Source SHA-256: 464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c
+License: LGPL-2.1-or-later
+Architecture: Apple Silicon (arm64)
+Minimum macOS version: 13.0
+
+The bundled runtime is dynamically linked and uses this minimal configuration:
+
+./configure \
+  --prefix=<temporary-install-directory> \
+  --install-name-dir=@rpath \
+  --arch=arm64 \
+  --target-os=darwin \
+  --cc=clang \
+  --disable-autodetect \
+  --disable-static \
+  --enable-shared \
+  --disable-doc \
+  --disable-debug \
+  --disable-network \
+  --disable-programs \
+  --enable-ffmpeg \
+  --disable-everything \
+  --enable-avcodec \
+  --enable-avformat \
+  --enable-avfilter \
+  --enable-swscale \
+  --enable-swresample \
+  --enable-protocol=file \
+  --enable-demuxer=mov \
+  --enable-muxer=mov \
+  --enable-decoder=vp8,vp9,av1,opus,vorbis \
+  --enable-encoder=prores_ks,aac \
+  --enable-parser=vp8,vp9,av1,opus,vorbis \
+  --enable-filter=scale,format,aresample \
+  --enable-audiotoolbox \
+  --extra-cflags=-mmacosx-version-min=13.0 \
+  --extra-ldflags="-mmacosx-version-min=13.0 -Wl,-rpath,@executable_path/../lib"
+
+Rebuild with:
+
+scripts/build-ffmpeg-runtime.sh /path/to/ffmpeg-8.1.2
