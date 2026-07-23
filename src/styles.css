@@ -35,7 +35,15 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .update-button svg { width: 15px; }.update-button b { padding: 3px 5px; border-radius: 5px; color: #20190a; background: var(--amber); font-family: 'SFMono-Regular', 'Menlo', monospace; font-size: 8px; font-weight: 700; }
 .update-button:hover { color: #1e1608; border-color: var(--amber-soft); background: var(--amber-soft); box-shadow: 0 8px 22px rgba(244,185,66,.16); }.update-button:hover b { background: rgba(27,20,8,.18); }
 .feedback-button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 11px; border: 1px solid rgba(255,255,255,.11); border-radius: 10px; color: #b8b2a7; background: rgba(255,255,255,.035); cursor: pointer; font-size: 11px; transition: .2s ease; }
-.feedback-button svg { width: 15px; }.feedback-button:hover { color: var(--amber-soft); border-color: rgba(244,185,66,.52); background: rgba(244,185,66,.1); }
+.feedback-button svg { width: 15px; }.feedback-button:hover, .feedback-button[aria-expanded="true"] { color: var(--amber-soft); border-color: rgba(244,185,66,.52); background: rgba(244,185,66,.1); }
+.feedback-menu-anchor { position: relative; -webkit-app-region: no-drag; }
+.feedback-popover { position: absolute; z-index: 90; top: 49px; right: 0; width: 330px; max-height: calc(100vh - 92px); overflow-y: auto; overscroll-behavior: contain; padding: 16px; border: 1px solid rgba(255,255,255,.14); border-radius: 15px; background: rgba(34,32,28,.97); box-shadow: 0 24px 70px rgba(0,0,0,.55), inset 0 1px rgba(255,255,255,.06); backdrop-filter: blur(22px) saturate(125%); animation: helpPopoverIn .16s ease-out both; }
+.feedback-popover::before { content: ''; position: absolute; top: -5px; right: 27px; width: 9px; height: 9px; transform: rotate(45deg); border-left: 1px solid rgba(255,255,255,.14); border-top: 1px solid rgba(255,255,255,.14); background: #22201c; }
+.feedback-popover-heading { display: grid; gap: 6px; padding: 2px 2px 13px; }.feedback-popover-heading strong { font-size: 14px; }
+.feedback-email-card { width: 100%; min-height: 58px; display: grid; grid-template-columns: 30px minmax(0,1fr) auto; align-items: center; gap: 9px; padding: 10px; border: 1px solid rgba(244,185,66,.26); border-radius: 11px; color: #ddd7cb; background: rgba(244,185,66,.065); text-align: left; cursor: pointer; transition: .16s ease; }
+.feedback-email-card:hover { border-color: rgba(244,185,66,.58); background: rgba(244,185,66,.12); }.feedback-email-card > svg { width: 18px; color: var(--amber); }.feedback-email-card > span { min-width: 0; display: grid; gap: 3px; }.feedback-email-card strong { font-size: 11px; }.feedback-email-card small { overflow: hidden; color: #aaa397; font-size: 9px; text-overflow: ellipsis; }.feedback-email-card > b { color: var(--amber-soft); font-size: 8px; font-weight: 600; }
+.feedback-social-card { display: grid; gap: 12px; margin-top: 10px; padding: 12px; border: 1px solid rgba(255,255,255,.1); border-radius: 11px; background: rgba(255,255,255,.025); }.feedback-social-card > div { display: grid; gap: 5px; }.feedback-social-label { width: fit-content; padding: 3px 6px; border-radius: 5px; color: #fff; background: #ff2442; font-size: 8px; font-weight: 750; }.feedback-social-card strong { font-size: 13px; }.feedback-social-card small { color: #aaa397; font-size: 9px; user-select: text; -webkit-user-select: text; }.feedback-social-card small b { color: var(--paper); font-family: 'SFMono-Regular','Menlo',monospace; }.feedback-social-card p { margin: 2px 0 0; color: #8f897f; font-size: 9px; line-height: 1.55; }
+.feedback-social-card img { display: block; width: 100%; border-radius: 9px; background: #fff; }.feedback-privacy-note { display: block; padding: 11px 3px 1px; color: #777168; font-size: 8px; line-height: 1.5; text-align: center; }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand-mark { width: 36px; height: 36px; display: grid; place-items: center; color: var(--ink); background: var(--amber); border-radius: 10px; transform: rotate(-3deg); box-shadow: inset 0 0 0 1px rgba(255,226,160,.72), 0 7px 22px rgba(244,185,66,.18); }
 .brand-mark svg { width: 21px; transform: rotate(3deg); }
@@ -393,7 +401,7 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .titlebar, .composition-toolbar, .slot-clear-button, .source-drag-ghost, .overlay, .startup-splash, .first-run-overlay, .first-run-dialog, .context-help-popover { backdrop-filter: none; }
+  .titlebar, .composition-toolbar, .slot-clear-button, .source-drag-ghost, .overlay, .startup-splash, .first-run-overlay, .first-run-dialog, .context-help-popover, .feedback-popover { backdrop-filter: none; }
   .titlebar { background: #181714; }
   .composition-toolbar, .slot-clear-button, .source-drag-ghost { background: #211f1b; }
   .overlay { background: #090908; }
@@ -401,6 +409,7 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
   .first-run-overlay { background: rgba(8,8,7,.88); }
   .first-run-dialog { background: #1e1d1a; }
   .context-help-popover { background: #23211d; }
+  .feedback-popover { background: #22201c; }
   .destination-card, .export-card { background: #1f1e1a; }
 }
 

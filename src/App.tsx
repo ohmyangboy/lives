@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { CollagePreview } from './components/CollagePreview'
@@ -10,6 +11,7 @@ import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } 
 import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, LiveIcon, PlusIcon, UpdateIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
 import { checkForUpdate, currentAppVersion, type AvailableUpdate } from './releaseUpdate'
+import xiaohongshuContactImage from './assets/xiaohongshu-contact.jpg'
 
 interface ExportState {
   visible: boolean
@@ -265,11 +267,13 @@ export function App() {
   const [firstRunGuideVisible, setFirstRunGuideVisible] = useState(shouldShowFirstRunGuide)
   const [openHelpPopover, setOpenHelpPopover] = useState<'library' | 'templates'>()
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate>()
+  const [feedbackPopoverOpen, setFeedbackPopoverOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const firstRunDialogRef = useRef<HTMLDivElement>(null)
   const firstRunPrimaryRef = useRef<HTMLButtonElement>(null)
   const libraryHelpRef = useRef<HTMLDivElement>(null)
   const templateHelpRef = useRef<HTMLDivElement>(null)
+  const feedbackPopoverRef = useRef<HTMLDivElement>(null)
   const internalDragRef = useRef(false)
   const sourcePointerDragRef = useRef<{ pointerId: number; materialId: string; startX: number; startY: number; active: boolean } | undefined>(undefined)
   const activeMediaProject = mediaProjects.find((project) => project.id === activeProjectId) ?? mediaProjects[0]
@@ -317,6 +321,22 @@ export function App() {
     }
   }, [openHelpPopover])
 
+  useEffect(() => {
+    if (!feedbackPopoverOpen) return
+    const dismissOnOutsidePress = (event: PointerEvent) => {
+      if (!feedbackPopoverRef.current?.contains(event.target as Node)) setFeedbackPopoverOpen(false)
+    }
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFeedbackPopoverOpen(false)
+    }
+    document.addEventListener('pointerdown', dismissOnOutsidePress)
+    window.addEventListener('keydown', dismissOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', dismissOnOutsidePress)
+      window.removeEventListener('keydown', dismissOnEscape)
+    }
+  }, [feedbackPopoverOpen])
+
   const resolveMaterial = useCallback((materialId: string) => {
     const source = clips.find((clip) => clip.id === materialId)
     return source ? { source, startTimeMs: 0 } : undefined
@@ -336,15 +356,24 @@ export function App() {
     return () => { cancelled = true }
   }, [])
 
-  const openUpdate = useCallback(() => {
+  const openUpdate = useCallback(async () => {
     if (!availableUpdate) return
-    window.open(availableUpdate.htmlUrl, '_blank', 'noopener,noreferrer')
+    try {
+      await openUrl(availableUpdate.htmlUrl)
+    } catch {
+      setNotice('无法打开更新页面，请访问 github.com/ohmyangboy/lives/releases')
+    }
   }, [availableUpdate])
 
-  const openFeedback = useCallback(() => {
+  const openFeedback = useCallback(async () => {
     const subject = encodeURIComponent(`[Lives ${currentAppVersion}] 反馈`)
     const body = encodeURIComponent('请描述你遇到的问题或建议：\n\n复现步骤：\n1. \n2. \n\n预期结果：\n\n实际结果：\n\n（如方便，请附上不含个人隐私的截图或日志。）')
-    window.location.href = `mailto:ohmyangboy@gmail.com?subject=${subject}&body=${body}`
+    try {
+      await openUrl(`mailto:ohmyangboy@gmail.com?subject=${subject}&body=${body}`)
+      setFeedbackPopoverOpen(false)
+    } catch {
+      setNotice('无法打开邮件应用，请手动发送邮件至 ohmyangboy@gmail.com')
+    }
   }, [])
 
   useEffect(() => {
@@ -733,7 +762,18 @@ export function App() {
         <div className="project-meta"><span className={clips.length ? 'status-dot active' : 'status-dot'} />{projectSummary}</div>
         <div className="titlebar-actions">
           {availableUpdate && <button className="update-button" onClick={openUpdate} title={`发现 Lives ${availableUpdate.version}，前往官方下载页`}><UpdateIcon /><span>更新</span><b>v{availableUpdate.version}</b></button>}
-          <button className="feedback-button" onClick={openFeedback} title="通过邮件向 Lives 发送反馈"><FeedbackIcon />反馈</button>
+          <div className="feedback-menu-anchor" ref={feedbackPopoverRef}>
+            <button className="feedback-button" onClick={() => setFeedbackPopoverOpen((current) => !current)} aria-expanded={feedbackPopoverOpen} aria-controls="feedback-popover" title="联系 Lives"><FeedbackIcon />反馈</button>
+            {feedbackPopoverOpen && <div className="feedback-popover" id="feedback-popover" role="dialog" aria-label="反馈与联系">
+              <div className="feedback-popover-heading"><span className="eyebrow">反馈与联系</span><strong>选择联系我的方式</strong></div>
+              <button className="feedback-email-card" onClick={openFeedback}><FeedbackIcon /><span><strong>发送邮件</strong><small>ohmyangboy@gmail.com</small></span><b>打开邮件应用</b></button>
+              <div className="feedback-social-card">
+                <div><span className="feedback-social-label">小红书</span><strong>oi一页风</strong><small>小红书号：<b>95393080312</b></small><p>可以在小红书搜索账号，或使用手机扫描下方二维码。</p></div>
+                <img src={xiaohongshuContactImage} alt="小红书账号 oi一页风 的个人页与二维码" />
+              </div>
+              <small className="feedback-privacy-note">发送截图或日志前，请先移除私人素材和个人信息。</small>
+            </div>}
+          </div>
           <button className="clear-project" disabled={!canClearCollage} onClick={clearCollage} title="保留素材，仅清除当前拼贴"><ClearIcon />清除拼贴</button>
           <button className="primary-button" disabled={!clips.length} onClick={requestExport}><ExportIcon />生成 Live Photo</button>
         </div>

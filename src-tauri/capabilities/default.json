@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "dialog:allow-open",
+    "opener:default",
     {
       "identifier": "shell:allow-spawn",
       "allow": [

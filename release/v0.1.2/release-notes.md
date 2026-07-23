@@ -13,7 +13,7 @@
 ## 更新与反馈
 
 - 启动时会静默检查官方 GitHub Release；有更高稳定版本时，右上角会提示下载更新。
-- 右上角新增“反馈”按钮，可直接向 `ohmyangboy@gmail.com` 发送邮件。
+- 右上角新增“反馈”入口，可通过 `ohmyangboy@gmail.com` 邮件或小红书账号 `95393080312` 联系开发者。
 
 ## 安装前请了解
 
@@ -23,4 +23,4 @@
 
 `Lives_0.1.2_aarch64.dmg`
 
-`c339278825bbc384b5d3c9fc0cd19ae66daa2f1d078496f9962304382893ae36`
+`752da5fcd95dda9bf09e623ab4b53652c527e7ec5f816ec48ceb38b95cb02e2d`
