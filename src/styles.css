@@ -486,3 +486,293 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 @media (forced-colors: active) {
   .material-context-menu { backdrop-filter: none; background: #211f1b; }
 }
+
+/* 顶部 Brand 快捷应用菜单 */
+.brand-menu-anchor {
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+
+.brand-menu-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background .16s ease, border-color .16s ease;
+}
+
+.brand-menu-button:hover,
+.brand-menu-button[aria-expanded="true"] {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.brand-chevron {
+  width: 14px;
+  height: 14px;
+  color: #8c867a;
+  transition: transform .2s ease, color .2s ease;
+}
+
+.brand-menu-button:hover .brand-chevron,
+.brand-menu-button[aria-expanded="true"] .brand-chevron {
+  color: var(--amber);
+}
+
+.brand-menu-button[aria-expanded="true"] .brand-chevron {
+  transform: rotate(180deg);
+}
+
+.app-menu-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 95;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(33, 31, 27, 0.96);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), inset 0 1px rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px) saturate(130%);
+  animation: helpPopoverIn .14s ease-out both;
+}
+
+.app-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #e4ded3;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background .14s ease, color .14s ease;
+}
+
+.app-menu-item svg {
+  width: 15px;
+  height: 15px;
+  color: var(--amber);
+  flex-shrink: 0;
+}
+
+.app-menu-item:hover {
+  background: rgba(244, 185, 66, 0.14);
+  color: #ffffff;
+}
+
+.app-menu-version {
+  margin-left: auto;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: #8c867a;
+  background: rgba(255, 255, 255, 0.07);
+  font-family: 'SFMono-Regular', 'Menlo', monospace;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.app-menu-divider {
+  height: 1px;
+  margin: 3px 4px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+/* 关于 Lives (About Modal) 类似 AntiGravity IDE 的弹窗样式 */
+.about-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  animation: overlayFadeIn .16s ease-out both;
+}
+
+.about-dialog {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  padding: 26px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  background: #1e1c18;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.75), inset 0 1px rgba(255, 255, 255, 0.08);
+  animation: dialogPopIn .18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.about-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #8c867a;
+  cursor: pointer;
+  transition: background .14s ease, color .14s ease;
+}
+
+.about-close:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #ffffff;
+}
+
+.about-close svg {
+  width: 14px;
+  height: 14px;
+}
+
+.about-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.about-icon-badge {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 2px solid rgba(59, 130, 246, 0.6);
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.15);
+  color: #3b82f6;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+  flex-shrink: 0;
+}
+
+.about-icon-badge svg {
+  width: 24px;
+  height: 24px;
+}
+
+.about-title-group h2 {
+  margin: 0 0 4px;
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.about-subtitle {
+  margin: 0;
+  color: #9e978a;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.about-body {
+  margin-bottom: 24px;
+}
+
+.about-info-list {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.about-info-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.about-info-row dt {
+  color: #a09a8e;
+  font-weight: 500;
+  text-align: left;
+}
+
+.about-info-row dd {
+  margin: 0;
+  color: #e4ded3;
+  font-family: 'SFMono-Regular', 'Menlo', 'Cascadia Code', monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.about-info-row.user-agent-row dd {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 11px;
+  color: #8c867a;
+}
+
+.about-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.about-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 72px;
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .14s ease;
+}
+
+.about-button.secondary {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: #d1cbc0;
+}
+
+.about-button.secondary:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.about-button.primary {
+  border: 1px solid #1d4ed8;
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.about-button.primary:hover {
+  background: #1d4ed8;
+}
+
+.about-button svg {
+  width: 14px;
+  height: 14px;
+}

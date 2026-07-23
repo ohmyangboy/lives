@@ -8,9 +8,11 @@ import { Timeline, TimelineEmpty } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
 import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, createRenderProject, formatDuration, MINIMUM_SOURCE_DURATION_MS, templates, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
-import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, UpdateIcon } from './icons'
+import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, UpdateIcon, ChevronDownIcon, GithubIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
 import { checkForUpdate, currentAppVersion, type AvailableUpdate } from './releaseUpdate'
+import { AboutModal } from './components/AboutModal'
+import { getSystemDiagnosticInfo, formatSystemInfoText } from './systemInfo'
 import xiaohongshuContactImage from './assets/xiaohongshu-contact.jpg'
 import wechatSponsorImage from './assets/wechat-sponsor.jpg'
 
@@ -269,6 +271,8 @@ export function App() {
   const [openHelpPopover, setOpenHelpPopover] = useState<'library' | 'templates'>()
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate>()
   const [feedbackPopoverOpen, setFeedbackPopoverOpen] = useState(false)
+  const [appMenuOpen, setAppMenuOpen] = useState(false)
+  const [aboutModalOpen, setAboutModalOpen] = useState(false)
   const [materialContextMenu, setMaterialContextMenu] = useState<{ x: number; y: number; clip: VideoClip }>()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const firstRunDialogRef = useRef<HTMLDivElement>(null)
@@ -276,6 +280,7 @@ export function App() {
   const libraryHelpRef = useRef<HTMLDivElement>(null)
   const templateHelpRef = useRef<HTMLDivElement>(null)
   const feedbackPopoverRef = useRef<HTMLDivElement>(null)
+  const appMenuRef = useRef<HTMLDivElement>(null)
   const internalDragRef = useRef(false)
   const sourcePointerDragRef = useRef<{ pointerId: number; materialId: string; startX: number; startY: number; active: boolean } | undefined>(undefined)
   const activeMediaProject = mediaProjects.find((project) => project.id === activeProjectId) ?? mediaProjects[0]
@@ -367,9 +372,26 @@ export function App() {
     }
   }, [availableUpdate])
 
+  const handleManualCheckUpdate = useCallback(async () => {
+    setNotice('正在检查更新...')
+    try {
+      const update = await checkForUpdate()
+      if (update) {
+        setAvailableUpdate(update)
+        setNotice(`发现新版本 Lives v${update.version}`)
+      } else {
+        setNotice(`当前已是最新版本 (v${currentAppVersion})`)
+      }
+    } catch {
+      setNotice('检查更新失败，请检查网络连接')
+    }
+  }, [])
+
   const openFeedback = useCallback(async () => {
-    const subject = encodeURIComponent(`[Lives ${currentAppVersion}] 反馈`)
-    const body = encodeURIComponent('请描述你遇到的问题或建议：\n\n复现步骤：\n1. \n2. \n\n预期结果：\n\n实际结果：\n\n（如方便，请附上不含个人隐私的截图或日志。）')
+    const diagInfo = getSystemDiagnosticInfo(true)
+    const formattedDiag = formatSystemInfoText(diagInfo)
+    const subject = encodeURIComponent(`[Lives v${currentAppVersion}] 反馈`)
+    const body = encodeURIComponent(`请描述你遇到的问题或功能建议：\n\n复现步骤：\n1. \n2. \n\n预期结果：\n\n实际结果：\n\n----------------------------------------\n设备与环境信息：\n${formattedDiag}\n----------------------------------------`)
     try {
       await openUrl(`mailto:ohmyangboy@gmail.com?subject=${subject}&body=${body}`, 'Mail')
       setFeedbackPopoverOpen(false)
@@ -379,8 +401,12 @@ export function App() {
   }, [])
 
   const openIssueFeedback = useCallback(async () => {
+    const diagInfo = getSystemDiagnosticInfo(true)
+    const formattedDiag = formatSystemInfoText(diagInfo)
+    const issueTitle = encodeURIComponent(`[反馈] Lives v${currentAppVersion}`)
+    const issueBody = encodeURIComponent(`### 问题描述 / 建议\n\n\n### 复现步骤\n1. \n2. \n\n### 预期效果与实际结果\n\n\n---\n### 设备与环境诊断信息\n\`\`\`text\n${formattedDiag}\n\`\`\``)
     try {
-      await openUrl('https://github.com/ohmyangboy/lives/issues/new/choose')
+      await openUrl(`https://github.com/ohmyangboy/lives/issues/new?title=${issueTitle}&body=${issueBody}`)
       setFeedbackPopoverOpen(false)
     } catch {
       setNotice('无法打开 GitHub Issues，请访问 github.com/ohmyangboy/lives/issues')
@@ -679,6 +705,24 @@ export function App() {
   }, [])
 
   useEffect(() => {
+    if (!appMenuOpen) return
+    const handlePointerDown = (event: PointerEvent) => {
+      if (appMenuRef.current && !appMenuRef.current.contains(event.target as Node)) {
+        setAppMenuOpen(false)
+      }
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAppMenuOpen(false)
+    }
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [appMenuOpen])
+
+  useEffect(() => {
     if (!materialContextMenu) return
     const handleDismiss = () => setMaterialContextMenu(undefined)
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -814,7 +858,33 @@ export function App() {
       <header className="titlebar" data-tauri-drag-region onDoubleClick={(event) => {
         if (!(event.target as HTMLElement).closest('button')) toggleWindowZoom()
       }}>
-        <div className="brand"><span className="brand-mark"><LiveIcon /></span><div><strong>Lives</strong><small>实况拼贴</small></div></div>
+        <div className="brand-menu-anchor" ref={appMenuRef}>
+          <button className="brand-menu-button" onClick={() => setAppMenuOpen((current) => !current)} aria-expanded={appMenuOpen} aria-controls="app-menu-popover" title="展开 Lives 应用菜单">
+            <span className="brand-mark"><LiveIcon /></span>
+            <div><strong>Lives</strong><small>实况拼贴</small></div>
+            <ChevronDownIcon className="brand-chevron" />
+          </button>
+          {appMenuOpen && <div className="app-menu-popover" id="app-menu-popover" role="menu" aria-label="Lives 应用程序菜单">
+            <button className="app-menu-item" role="menuitem" onClick={() => { setAppMenuOpen(false); setAboutModalOpen(true) }}>
+              <InfoIcon />
+              <span>关于 Lives</span>
+            </button>
+            <button className="app-menu-item" role="menuitem" onClick={() => { setAppMenuOpen(false); void handleManualCheckUpdate() }}>
+              <UpdateIcon />
+              <span>检查更新...</span>
+              <b className="app-menu-version">v{currentAppVersion}</b>
+            </button>
+            <div className="app-menu-divider" />
+            <button className="app-menu-item" role="menuitem" onClick={() => { setAppMenuOpen(false); setFeedbackPopoverOpen(true) }}>
+              <FeedbackIcon />
+              <span>反馈与支持</span>
+            </button>
+            <button className="app-menu-item" role="menuitem" onClick={() => { setAppMenuOpen(false); void openUrl('https://github.com/ohmyangboy/lives') }}>
+              <GithubIcon />
+              <span>GitHub 仓库</span>
+            </button>
+          </div>}
+        </div>
         <div className="project-meta"><span className={clips.length ? 'status-dot active' : 'status-dot'} />{projectSummary}</div>
         <div className="titlebar-actions">
           {availableUpdate && <button className="update-button" onClick={openUpdate} title={`发现 Lives ${availableUpdate.version}，前往官方下载页`}><UpdateIcon /><span>更新</span><b>v{availableUpdate.version}</b></button>}
@@ -965,6 +1035,7 @@ export function App() {
           </button>
         </div>
       )}
+      {aboutModalOpen && <AboutModal onClose={() => setAboutModalOpen(false)} onNotice={setNotice} />}
     </main>
   )
 }
