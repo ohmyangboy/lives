@@ -10,6 +10,11 @@
 - 时间线会明确标识原始时长与补帧部分。
 - 导入失败时显示具体文件和实际时长。
 
+## 更新与反馈
+
+- 启动时会静默检查官方 GitHub Release；有更高稳定版本时，右上角会提示下载更新。
+- 右上角新增“反馈”按钮，可直接向 `ohmyangboy@gmail.com` 发送邮件。
+
 ## 安装前请了解
 
 此版本使用 ad-hoc 签名，尚未经过 Apple Developer ID 签名或 Apple 公证，也没有应用内自动更新。请只从官方 Release 下载并核对 SHA-256。
@@ -18,4 +23,4 @@
 
 `Lives_0.1.2_aarch64.dmg`
 
-`2e7ab431ff4ab69edfb356ab40936c60151abaa422b49a3e93d6cd4f3fdc45e6`
+`c339278825bbc384b5d3c9fc0cd19ae66daa2f1d078496f9962304382893ae36`
