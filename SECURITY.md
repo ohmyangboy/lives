@@ -7,7 +7,7 @@
 | 0.1.x | 邀请制预览版，接受安全报告 |
 | 更早的内部构建 | 不支持，请升级到最新公开版本 |
 
-Lives 0.1.2 使用 ad-hoc 签名，尚未经过 Apple Developer ID 签名或 Apple 公证。请只从 [ohmyangboy/lives Releases](https://github.com/ohmyangboy/lives/releases) 下载，并核对发布页提供的 SHA-256。
+Lives 0.1.3 使用 ad-hoc 签名，尚未经过 Apple Developer ID 签名或 Apple 公证。请只从 [ohmyangboy/lives Releases](https://github.com/ohmyangboy/lives/releases) 下载，并核对发布页提供的 SHA-256。
 
 ## 私密报告安全问题
 
