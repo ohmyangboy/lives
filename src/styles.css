@@ -298,14 +298,15 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .timeline-toolbar small { margin-left: 7px; color: #88837a; font-size: 8px; }
 .timeline-viewport { min-width: 0; overflow-x: auto; overflow-y: hidden; border-radius: 7px; background: #25241f; scrollbar-width: thin; scrollbar-color: #5c5549 transparent; }
 .timeline-viewport::-webkit-scrollbar { height: 5px; }.timeline-viewport::-webkit-scrollbar-thumb { background: #5c5549; border-radius: 99px; }
-.filmstrip { position: relative; height: 94px; display: grid; min-width: 100%; background: #25241f; }
+.filmstrip { position: relative; height: 94px; display: grid; min-width: 100%; background: #25241f; cursor: crosshair; touch-action: none; user-select: none; }
+.filmstrip.is-dragging { cursor: ew-resize; }
 .filmstrip > img, .filmstrip > i { min-width: 0; width: 100%; height: 94px; object-fit: cover; border-right: 1px solid rgba(0,0,0,.4); }
 .filmstrip > i { background: linear-gradient(125deg, #33312b, #20201c); }
-.selection-window { position: absolute; z-index: 2; top: 0; bottom: 0; min-width: 50px; border: 2px solid var(--amber); background: rgba(244,185,66,.07); box-shadow: 0 0 0 2000px rgba(8,8,7,.63); pointer-events: none; }
+.selection-window { position: absolute; z-index: 2; top: 0; bottom: 0; background: rgba(244,185,66,.07); box-shadow: inset 0 0 0 2px var(--amber), 0 0 0 2000px rgba(8,8,7,.63); pointer-events: none; }
 .selection-window::before, .selection-window::after { content: ''; position: absolute; top: 37%; width: 4px; height: 24%; border-radius: 3px; background: var(--amber); }
 .selection-window::before { left: 3px; }.selection-window::after { right: 3px; }
 .selection-window b { position: absolute; left: 50%; top: 7px; transform: translateX(-50%); padding: 2px 5px; border-radius: 3px; color: #161109; background: var(--amber); font-family: 'DM Mono'; font-size: 7px; white-space: nowrap; }
-.filmstrip input { position: absolute; z-index: 4; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: ew-resize; }
+.timeline-range-input { position: absolute; z-index: 4; top: 50%; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
 .timeline-viewport:focus-within { box-shadow: 0 0 0 2px rgba(255,215,127,.75); }
 .timeline-scale { grid-column: 2; display: flex; justify-content: space-between; color: #8d887f; font-family: 'SFMono-Regular', 'Menlo', monospace; font-size: 8px; padding-top: 8px; }
 .timeline-empty .timeline-heading { opacity: .78; }
