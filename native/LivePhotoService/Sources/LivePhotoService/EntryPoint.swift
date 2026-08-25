@@ -38,6 +38,7 @@ actor ResponseWriter {
         guard let data = try? encoder.encode(response) else { return }
         FileHandle.standardOutput.write(data)
         FileHandle.standardOutput.write(Data([0x0a]))
+        fflush(stdout)
     }
 }
 

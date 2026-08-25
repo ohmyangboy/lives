@@ -11,7 +11,7 @@
   - 移除了已填充视频画格上的 1px 白色内描边（仅保留空画格虚线提示），防止浏览器百分比渲染在非整数像素下露出底部白线；
   - 增加前端与后端渲染尺寸的防下溢微量过充，并严格吸附底边像素，彻底杜绝浅色系统背景下的露底白边。
 - **封面 JPEG 精度与画质提升**：补齐 Orientation、像素尺寸等元数据，并将 JPEG 导出质量提升至 0.95，确保静态封面在系统相册展示时与视频流完全对齐。
-- **Apple Developer ID 官方签名**：本次版本已使用官方 **Apple Developer ID Application: Yonghao Yang (LGKLTGNTY2)** 完整签署，大幅提升 Gatekeeper 识别与系统安全性。
+- **Apple Developer ID 官方签名**：本次版本已使用官方 **Developer ID Application: Yonghao Yang (LGKLTGNTY2)** 完整签署，大幅提升 Gatekeeper 识别与系统安全性。
 
 ## 安装说明
 
@@ -21,4 +21,4 @@
 
 `Lives_0.1.4_aarch64.dmg`
 
-`0defc6d1e4305472d2552f04c5e8fa73dd29b72b9af5823808c9818356293bdb`
+`af8b7995c056986310a9d45508f900acdbe6a643d58461052a1d66d1caa0a6b7`
