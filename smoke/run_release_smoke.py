@@ -103,10 +103,11 @@ def run_service(service: Path, request: dict[str, object]) -> dict[str, object]:
 
 
 def validate_pair(payload: dict[str, object], output_dir: Path) -> None:
-    photo = Path(str(payload.get("photoPath", "")))
-    video = Path(str(payload.get("videoPath", "")))
-    if photo.parent != output_dir or video.parent != output_dir:
-        raise RuntimeError("Export escaped the isolated smoke output directory")
+    photo = Path(str(payload.get("photoPath", ""))).resolve()
+    video = Path(str(payload.get("videoPath", ""))).resolve()
+    target_dir = output_dir.resolve()
+    if photo.parent != target_dir or video.parent != target_dir:
+        raise RuntimeError(f"Export escaped the isolated smoke output directory: {photo.parent} vs {target_dir}")
     if not photo.is_file() or photo.stat().st_size == 0:
         raise RuntimeError("Exported JPEG is missing or empty")
     if not video.is_file() or video.stat().st_size == 0:
