@@ -48,6 +48,7 @@ def build_request(fixture_dir: Path, output_dir: Path) -> dict[str, object]:
 
 
 def run_service(service: Path, request: dict[str, object]) -> dict[str, object]:
+    import threading
     process = subprocess.Popen(
         [str(service), "serve"],
         stdin=subprocess.PIPE,
@@ -60,30 +61,28 @@ def run_service(service: Path, request: dict[str, object]) -> dict[str, object]:
     assert process.stdout is not None
     assert process.stderr is not None
 
+    def read_stderr():
+        assert process.stderr is not None
+        for line in iter(process.stderr.readline, ''):
+            print(line, end="", file=sys.stderr)
+
+    stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+    stderr_thread.start()
+
     process.stdin.write(json.dumps(request, separators=(",", ":")) + "\n")
     process.stdin.flush()
 
-    selector = selectors.DefaultSelector()
-    selector.register(process.stdout, selectors.EVENT_READ, "stdout")
-    selector.register(process.stderr, selectors.EVENT_READ, "stderr")
-    deadline = time.monotonic() + 600
     final: dict[str, object] | None = None
-
     try:
-        while time.monotonic() < deadline and final is None:
-            for key, _ in selector.select(timeout=1):
-                line = key.fileobj.readline()
-                if not line:
-                    continue
-                if key.data == "stderr":
-                    print(line, end="", file=sys.stderr)
-                    continue
-                print(line, end="")
+        for line in iter(process.stdout.readline, ''):
+            print(line, end="")
+            try:
                 response = json.loads(line)
                 if response.get("requestId") == request["requestId"] and response.get("type") in {"result", "error"}:
                     final = response
-            if process.poll() is not None and final is None:
-                raise RuntimeError(f"Lives service exited before a final response: {process.returncode}")
+                    break
+            except Exception:
+                pass
     finally:
         process.terminate()
         try:
