@@ -21,7 +21,7 @@ interface GitHubRelease {
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Pick<Response, 'ok' | 'json'>>
 
 const numericVersion = (value: string) => {
-  const match = value.trim().match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?$/i)
+  const match = value.trim().match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-.*)?$/i)
   if (!match) return undefined
   return [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)]
 }

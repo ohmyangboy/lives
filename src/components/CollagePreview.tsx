@@ -66,8 +66,9 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
     const slotAspect = (canvasWidth * slot.width) / (canvasHeight * slot.height)
     const baseWidth = sourceAspect > slotAspect ? sourceAspect / slotAspect : 1
     const baseHeight = sourceAspect > slotAspect ? 1 : slotAspect / sourceAspect
-    const renderedWidth = baseWidth * clip.crop.scale
-    const renderedHeight = baseHeight * clip.crop.scale
+    // Add a tiny 0.2% bleed to eliminate subpixel rounding gaps in CSS layout
+    const renderedWidth = baseWidth * clip.crop.scale * 1.002
+    const renderedHeight = baseHeight * clip.crop.scale * 1.002
     return {
       renderedWidth,
       renderedHeight,

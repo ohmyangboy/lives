@@ -257,8 +257,11 @@ enum LivePhotoPipeline {
             throw ServiceError(code: "LIVE_METADATA_FAILED", message: "无法生成 Live Photo 封面", recovery: "请重试")
         }
         let properties: [CFString: Any] = [
-            kCGImageDestinationLossyCompressionQuality: 0.92,
+            kCGImageDestinationLossyCompressionQuality: 0.95,
             kCGImagePropertyMakerAppleDictionary: ["17": contentIdentifier],
+            kCGImagePropertyOrientation: 1,
+            kCGImagePropertyPixelWidth: image.width,
+            kCGImagePropertyPixelHeight: image.height,
         ]
         CGImageDestinationAddImage(destination, image, properties as CFDictionary)
         guard CGImageDestinationFinalize(destination) else {

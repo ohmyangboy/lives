@@ -1,4 +1,6 @@
+import AVFoundation
 import CoreGraphics
+import CoreVideo
 import XCTest
 @testable import LivePhotoService
 
@@ -283,17 +285,540 @@ final class TemplateLayoutTests: XCTestCase {
             centerY: 0.5,
             userScale: 1
         )
+        let canvas = CGSize(width: 1280, height: 720)
         let crop = TemplateLayout.sourceCropRectangle(
             target: target,
+            canvas: canvas,
             transform: transform,
             naturalSize: naturalSize
         )
 
-        XCTAssertEqual(crop.minX, 160, accuracy: 0.001)
-        XCTAssertEqual(crop.minY, 0, accuracy: 0.001)
-        XCTAssertEqual(crop.width, 320, accuracy: 0.001)
+        XCTAssertEqual(crop.minX, 0)
+        XCTAssertEqual(crop.minY, 0)
+        XCTAssertEqual(crop.width, 481.0, accuracy: 0.001)
         XCTAssertEqual(crop.height, 360, accuracy: 0.001)
-        XCTAssertEqual(crop.applying(transform), target)
+    }
+
+    func testTemplateLayoutSnapsOuterEdgesToCanvasBounds() throws {
+        // 720p 16:9 canvas where 1280 is not divisible by 3
+        let canvas = CGSize(width: 1280, height: 720)
+        let left = try TemplateLayout.rect(for: "left", templateId: "side-3", canvas: canvas)
+        let center = try TemplateLayout.rect(for: "center", templateId: "side-3", canvas: canvas)
+        let right = try TemplateLayout.rect(for: "right", templateId: "side-3", canvas: canvas)
+
+        XCTAssertEqual(left.minX, 0)
+        XCTAssertEqual(left.minY, 0)
+        XCTAssertEqual(left.height, 720)
+        XCTAssertEqual(right.maxX, 1280)
+        XCTAssertEqual(right.height, 720)
+        XCTAssertEqual(center.height, 720)
+
+        let heroTop = try TemplateLayout.rect(for: "hero-top", templateId: "hero-top", canvas: CGSize(width: 720, height: 1280))
+        let bottomLeft = try TemplateLayout.rect(for: "bottom-left", templateId: "hero-top", canvas: CGSize(width: 720, height: 1280))
+        let bottomRight = try TemplateLayout.rect(for: "bottom-right", templateId: "hero-top", canvas: CGSize(width: 720, height: 1280))
+
+        XCTAssertEqual(heroTop.minX, 0)
+        XCTAssertEqual(heroTop.minY, 0)
+        XCTAssertEqual(heroTop.width, 720)
+        XCTAssertEqual(bottomLeft.minX, 0)
+        XCTAssertEqual(bottomLeft.maxY, 1280)
+        XCTAssertEqual(bottomRight.maxX, 720)
+        XCTAssertEqual(bottomRight.maxY, 1280)
+    }
+
+    func testSourceCropRectangleClampsWithoutTruncatingEdgeDimensions() {
+        let naturalSize = CGSize(width: 1080, height: 1920)
+        let canvas = CGSize(width: 1080, height: 1920)
+        let target = CGRect(x: 0, y: 0, width: 1080, height: 1920)
+        let transform = CGAffineTransform.identity
+        let crop = TemplateLayout.sourceCropRectangle(
+            target: target,
+            canvas: canvas,
+            transform: transform,
+            naturalSize: naturalSize
+        )
+
+        XCTAssertEqual(crop.minX, 0)
+        XCTAssertEqual(crop.minY, 0)
+        XCTAssertEqual(crop.width, 1080)
+        XCTAssertEqual(crop.height, 1920)
+    }
+
+    func testDiagnoseCollageRenderingAndCoverPixels() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let sourceVideoURL = directory.appendingPathComponent("source.mov")
+        let outputVideoURL = directory.appendingPathComponent("paired.mov")
+
+        // Create a 3-second 1080x1920 test video filled with solid cyan (R:0, G:200, B:200)
+        let width = 1080
+        let height = 1920
+        let fps = 30
+        let durationSeconds = 3.0
+
+        let writer = try AVAssetWriter(outputURL: sourceVideoURL, fileType: .mov)
+        let settings: [String: Any] = [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: width,
+            AVVideoHeightKey: height,
+        ]
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+        input.expectsMediaDataInRealTime = false
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: input,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey as String: width,
+                kCVPixelBufferHeightKey as String: height,
+            ]
+        )
+        writer.add(input)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+
+        guard let pixelBufferPool = adaptor.pixelBufferPool else {
+            XCTFail("No pixel buffer pool")
+            return
+        }
+        let frameCount = Int(durationSeconds * Double(fps))
+        for frameIndex in 0..<frameCount {
+            let time = CMTime(value: CMTimeValue(frameIndex), timescale: CMTimeScale(fps))
+            while !input.isReadyForMoreMediaData {
+                try await Task.sleep(nanoseconds: 1_000_000)
+            }
+            var buffer: CVPixelBuffer?
+            CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, adaptor.pixelBufferPool!, &buffer)
+            guard let pixelBuffer = buffer else { continue }
+            CVPixelBufferLockBaseAddress(pixelBuffer, [])
+            let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer)!
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+            // Fill with solid magenta / cyan (B:200, G:200, R:0, A:255)
+            for y in 0..<height {
+                let row = baseAddress.advanced(by: y * bytesPerRow).assumingMemoryBound(to: UInt8.self)
+                for x in 0..<width {
+                    row[x * 4 + 0] = 200 // B
+                    row[x * 4 + 1] = 200 // G
+                    row[x * 4 + 2] = 0   // R
+                    row[x * 4 + 3] = 255 // A
+                }
+            }
+            CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
+            adaptor.append(pixelBuffer, withPresentationTime: time)
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+
+        // Now render side-2 (left and right) using this video
+        let project = RenderProject(
+            id: UUID().uuidString,
+            templateId: "side-2",
+            canvas: .init(width: width, height: height, fps: fps, durationMs: 3000),
+            clips: [
+                .init(
+                    id: "clip-left",
+                    sourcePath: sourceVideoURL.path,
+                    sourceDurationMs: 3000,
+                    startTimeMs: 0,
+                    crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
+                    targetSlotId: "left",
+                    audioEnabled: false
+                ),
+                .init(
+                    id: "clip-right",
+                    sourcePath: sourceVideoURL.path,
+                    sourceDurationMs: 3000,
+                    startTimeMs: 0,
+                    crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
+                    targetSlotId: "right",
+                    audioEnabled: false
+                ),
+            ],
+            coverTimeMs: 0
+        )
+
+        try await VideoRenderer.render(
+            project: project,
+            outputURL: outputVideoURL,
+            contentIdentifier: UUID().uuidString,
+            cancellations: CancellationRegistry()
+        ) { _ in }
+
+        // Extract cover
+        let asset = AVURLAsset(url: outputVideoURL)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        let image = try await generator.image(at: .zero).image
+
+        // Inspect pixel colors in the extracted image
+        XCTAssertEqual(image.width, width)
+        XCTAssertEqual(image.height, height)
+
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                  data: nil,
+                  width: width,
+                  height: height,
+                  bitsPerComponent: 8,
+                  bytesPerRow: width * 4,
+                  space: colorSpace,
+                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ) else {
+            XCTFail("Failed to create context")
+            return
+        }
+
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let pixelData = context.data else {
+            XCTFail("Failed to read pixel data")
+            return
+        }
+
+        let ptr = pixelData.assumingMemoryBound(to: UInt8.self)
+        func getPixel(x: Int, y: Int) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+            let offset = (y * width + x) * 4
+            return (ptr[offset + 0], ptr[offset + 1], ptr[offset + 2], ptr[offset + 3])
+        }
+
+        let midY = height / 2
+        print("[Diagnose] Left edge x=0:", getPixel(x: 0, y: midY))
+        print("[Diagnose] Left slot inner x=100:", getPixel(x: 100, y: midY))
+        print("[Diagnose] Seam x=539:", getPixel(x: 539, y: midY))
+        print("[Diagnose] Seam x=540:", getPixel(x: 540, y: midY))
+        print("[Diagnose] Right slot inner x=900:", getPixel(x: 900, y: midY))
+        print("[Diagnose] Right edge x=1079:", getPixel(x: 1079, y: midY))
+
+        // Check if edges or seam are black (R+G+B < 30)
+        let leftEdge = getPixel(x: 0, y: midY)
+        let rightEdge = getPixel(x: 1079, y: midY)
+        let seam1 = getPixel(x: 539, y: midY)
+        let seam2 = getPixel(x: 540, y: midY)
+
+        XCTAssertGreaterThan(Int(leftEdge.g) + Int(leftEdge.b), 100, "Left edge is black: \(leftEdge)")
+        XCTAssertGreaterThan(Int(rightEdge.g) + Int(rightEdge.b), 100, "Right edge is black: \(rightEdge)")
+        XCTAssertGreaterThan(Int(seam1.g) + Int(seam1.b), 100, "Seam (539) is black: \(seam1)")
+        XCTAssertGreaterThan(Int(seam2.g) + Int(seam2.b), 100, "Seam (540) is black: \(seam2)")
+    }
+
+    func testDiagnoseRotatedVideoCollagePixels() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let sourceVideoURL = directory.appendingPathComponent("rotated_source.mov")
+        let outputVideoURL = directory.appendingPathComponent("paired_rotated.mov")
+
+        // Create a 1920x1080 landscape video with a 90-degree transform (iPhone portrait video)
+        let sourceWidth = 1920
+        let sourceHeight = 1080
+        let fps = 30
+        let durationSeconds = 3.0
+
+        let writer = try AVAssetWriter(outputURL: sourceVideoURL, fileType: .mov)
+        let settings: [String: Any] = [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: sourceWidth,
+            AVVideoHeightKey: sourceHeight,
+        ]
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+        input.expectsMediaDataInRealTime = false
+        // iPhone vertical video has preferredTransform: 90 deg clockwise [0, 1, -1, 0, 1080, 0]
+        input.transform = CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 1080, ty: 0)
+
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: input,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey as String: sourceWidth,
+                kCVPixelBufferHeightKey as String: sourceHeight,
+            ]
+        )
+        writer.add(input)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+
+        let frameCount = Int(durationSeconds * Double(fps))
+        for frameIndex in 0..<frameCount {
+            let time = CMTime(value: CMTimeValue(frameIndex), timescale: CMTimeScale(fps))
+            while !input.isReadyForMoreMediaData {
+                try await Task.sleep(nanoseconds: 1_000_000)
+            }
+            var buffer: CVPixelBuffer?
+            CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, adaptor.pixelBufferPool!, &buffer)
+            guard let pixelBuffer = buffer else { continue }
+            CVPixelBufferLockBaseAddress(pixelBuffer, [])
+            let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer)!
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+            // Fill with solid yellow (B:0, G:220, R:220, A:255)
+            for y in 0..<sourceHeight {
+                let row = baseAddress.advanced(by: y * bytesPerRow).assumingMemoryBound(to: UInt8.self)
+                for x in 0..<sourceWidth {
+                    row[x * 4 + 0] = 0   // B
+                    row[x * 4 + 1] = 220 // G
+                    row[x * 4 + 2] = 220 // R
+                    row[x * 4 + 3] = 255 // A
+                }
+            }
+            CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
+            adaptor.append(pixelBuffer, withPresentationTime: time)
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+
+        let width = 1080
+        let height = 1920
+
+        // Render side-2 with rotated source in left and right
+        let project = RenderProject(
+            id: UUID().uuidString,
+            templateId: "side-2",
+            canvas: .init(width: width, height: height, fps: fps, durationMs: 3000),
+            clips: [
+                .init(
+                    id: "clip-left",
+                    sourcePath: sourceVideoURL.path,
+                    sourceDurationMs: 3000,
+                    startTimeMs: 0,
+                    crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
+                    targetSlotId: "left",
+                    audioEnabled: false
+                ),
+                .init(
+                    id: "clip-right",
+                    sourcePath: sourceVideoURL.path,
+                    sourceDurationMs: 3000,
+                    startTimeMs: 0,
+                    crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
+                    targetSlotId: "right",
+                    audioEnabled: false
+                ),
+            ],
+            coverTimeMs: 0
+        )
+
+        try await VideoRenderer.render(
+            project: project,
+            outputURL: outputVideoURL,
+            contentIdentifier: UUID().uuidString,
+            cancellations: CancellationRegistry()
+        ) { _ in }
+
+        // Extract cover
+        let asset = AVURLAsset(url: outputVideoURL)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        let image = try await generator.image(at: .zero).image
+
+        XCTAssertEqual(image.width, width)
+        XCTAssertEqual(image.height, height)
+
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                  data: nil,
+                  width: width,
+                  height: height,
+                  bitsPerComponent: 8,
+                  bytesPerRow: width * 4,
+                  space: colorSpace,
+                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ) else {
+            XCTFail("Failed to create context")
+            return
+        }
+
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let pixelData = context.data else {
+            XCTFail("Failed to read pixel data")
+            return
+        }
+
+        let ptr = pixelData.assumingMemoryBound(to: UInt8.self)
+        func getPixel(x: Int, y: Int) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+            let offset = (y * width + x) * 4
+            return (ptr[offset + 0], ptr[offset + 1], ptr[offset + 2], ptr[offset + 3])
+        }
+
+        let midY = height / 2
+        print("[Diagnose Rotated] Left edge x=0:", getPixel(x: 0, y: midY))
+        print("[Diagnose Rotated] Left slot inner x=100:", getPixel(x: 100, y: midY))
+        print("[Diagnose Rotated] Seam x=539:", getPixel(x: 539, y: midY))
+        print("[Diagnose Rotated] Seam x=540:", getPixel(x: 540, y: midY))
+        print("[Diagnose Rotated] Right slot inner x=900:", getPixel(x: 900, y: midY))
+        print("[Diagnose Rotated] Right edge x=1079:", getPixel(x: 1079, y: midY))
+
+        let leftEdge = getPixel(x: 0, y: midY)
+        let rightEdge = getPixel(x: 1079, y: midY)
+        let seam1 = getPixel(x: 539, y: midY)
+        let seam2 = getPixel(x: 540, y: midY)
+
+        XCTAssertGreaterThan(Int(leftEdge.r) + Int(leftEdge.g), 100, "Left edge is black: \(leftEdge)")
+        XCTAssertGreaterThan(Int(rightEdge.r) + Int(rightEdge.g), 100, "Right edge is black: \(rightEdge)")
+        XCTAssertGreaterThan(Int(seam1.r) + Int(seam1.g), 100, "Seam (539) is black: \(seam1)")
+        XCTAssertGreaterThan(Int(seam2.r) + Int(seam2.g), 100, "Seam (540) is black: \(seam2)")
+    }
+
+    func testDiagnoseBottomEdgeAndStackCollagePixels() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let sourceVideoURL = directory.appendingPathComponent("stack_source.mov")
+        let outputVideoURL = directory.appendingPathComponent("stack_paired.mov")
+
+        let sourceWidth = 1080
+        let sourceHeight = 1920
+        let fps = 30
+        let durationSeconds = 3.0
+
+        let writer = try AVAssetWriter(outputURL: sourceVideoURL, fileType: .mov)
+        let settings: [String: Any] = [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: sourceWidth,
+            AVVideoHeightKey: sourceHeight,
+        ]
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+        input.expectsMediaDataInRealTime = false
+
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: input,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey as String: sourceWidth,
+                kCVPixelBufferHeightKey as String: sourceHeight,
+            ]
+        )
+        writer.add(input)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+
+        guard let pixelBufferPool = adaptor.pixelBufferPool else {
+            XCTFail("No pixel buffer pool")
+            return
+        }
+        let frameCount = Int(durationSeconds * Double(fps))
+        for frameIndex in 0..<frameCount {
+            let time = CMTime(value: CMTimeValue(frameIndex), timescale: CMTimeScale(fps))
+            while !input.isReadyForMoreMediaData {
+                try await Task.sleep(nanoseconds: 1_000_000)
+            }
+            var buffer: CVPixelBuffer?
+            CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, &buffer)
+            guard let pixelBuffer = buffer else { continue }
+            CVPixelBufferLockBaseAddress(pixelBuffer, [])
+            let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer)!
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+            // Fill with solid purple (B:200, G:0, R:200, A:255)
+            for y in 0..<sourceHeight {
+                let row = baseAddress.advanced(by: y * bytesPerRow).assumingMemoryBound(to: UInt8.self)
+                for x in 0..<sourceWidth {
+                    row[x * 4 + 0] = 200 // B
+                    row[x * 4 + 1] = 0   // G
+                    row[x * 4 + 2] = 200 // R
+                    row[x * 4 + 3] = 255 // A
+                }
+            }
+            CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
+            adaptor.append(pixelBuffer, withPresentationTime: time)
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+
+        let width = 1080
+        let height = 1920
+
+        // Test stack-2 (top & bottom)
+        let project = RenderProject(
+            id: UUID().uuidString,
+            templateId: "stack-2",
+            canvas: .init(width: width, height: height, fps: fps, durationMs: 3000),
+            clips: [
+                .init(
+                    id: "clip-top",
+                    sourcePath: sourceVideoURL.path,
+                    sourceDurationMs: 3000,
+                    startTimeMs: 0,
+                    crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
+                    targetSlotId: "top",
+                    audioEnabled: false
+                ),
+                .init(
+                    id: "clip-bottom",
+                    sourcePath: sourceVideoURL.path,
+                    sourceDurationMs: 3000,
+                    startTimeMs: 0,
+                    crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
+                    targetSlotId: "bottom",
+                    audioEnabled: false
+                ),
+            ],
+            coverTimeMs: 0
+        )
+
+        try await VideoRenderer.render(
+            project: project,
+            outputURL: outputVideoURL,
+            contentIdentifier: UUID().uuidString,
+            cancellations: CancellationRegistry()
+        ) { _ in }
+
+        let asset = AVURLAsset(url: outputVideoURL)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        let image = try await generator.image(at: .zero).image
+
+        XCTAssertEqual(image.width, width)
+        XCTAssertEqual(image.height, height)
+
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                  data: nil,
+                  width: width,
+                  height: height,
+                  bitsPerComponent: 8,
+                  bytesPerRow: width * 4,
+                  space: colorSpace,
+                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ) else {
+            XCTFail("Failed to create context")
+            return
+        }
+
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let pixelData = context.data else {
+            XCTFail("Failed to read pixel data")
+            return
+        }
+
+        let ptr = pixelData.assumingMemoryBound(to: UInt8.self)
+        func getPixel(x: Int, y: Int) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+            let offset = (y * width + x) * 4
+            return (ptr[offset + 0], ptr[offset + 1], ptr[offset + 2], ptr[offset + 3])
+        }
+
+        let midX = width / 2
+        print("[Diagnose Stack] Top edge y=0:", getPixel(x: midX, y: 0))
+        print("[Diagnose Stack] Seam y=959:", getPixel(x: midX, y: 959))
+        print("[Diagnose Stack] Seam y=960:", getPixel(x: midX, y: 960))
+        print("[Diagnose Stack] Bottom edge y=1919:", getPixel(x: midX, y: 1919))
+        print("[Diagnose Stack] Bottom-left (0, 1919):", getPixel(x: 0, y: 1919))
+        print("[Diagnose Stack] Bottom-right (1079, 1919):", getPixel(x: 1079, y: 1919))
+
+        let topEdge = getPixel(x: midX, y: 0)
+        let bottomEdge = getPixel(x: midX, y: 1919)
+        let seam1 = getPixel(x: midX, y: 959)
+        let seam2 = getPixel(x: midX, y: 960)
+
+        XCTAssertGreaterThan(Int(topEdge.r) + Int(topEdge.b), 100, "Top edge is black: \(topEdge)")
+        XCTAssertGreaterThan(Int(bottomEdge.r) + Int(bottomEdge.b), 100, "Bottom edge is black: \(bottomEdge)")
+        XCTAssertGreaterThan(Int(seam1.r) + Int(seam1.b), 100, "Seam (959) is black: \(seam1)")
+        XCTAssertGreaterThan(Int(seam2.r) + Int(seam2.b), 100, "Seam (960) is black: \(seam2)")
     }
 }
 

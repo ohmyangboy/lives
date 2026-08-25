@@ -836,6 +836,12 @@ export function App() {
     if (desktopAvailable()) void getCurrentWindow().toggleMaximize()
   }
 
+  const handleTitlebarMouseDown = (event: React.MouseEvent<HTMLElement>) => {
+    if (event.button !== 0) return
+    if ((event.target as HTMLElement).closest('button, a, input, select, textarea, [role="menuitem"], [role="dialog"]')) return
+    if (desktopAvailable()) void getCurrentWindow().startDragging()
+  }
+
   const exportFromPicker = async () => {
     if (pickerDestination === 'folder') {
       const folder = await chooseExportFolder()
@@ -855,7 +861,7 @@ export function App() {
 
   return (
     <main className={['app', isDragging && 'is-dragging', sourceDragFeedback && 'source-dragging'].filter(Boolean).join(' ')}>
-      <header className="titlebar" data-tauri-drag-region onDoubleClick={(event) => {
+      <header className="titlebar" data-tauri-drag-region onMouseDown={handleTitlebarMouseDown} onDoubleClick={(event) => {
         if (!(event.target as HTMLElement).closest('button')) toggleWindowZoom()
       }}>
         <div className="brand-menu-anchor" ref={appMenuRef}>

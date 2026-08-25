@@ -29,9 +29,14 @@ enum VideoRenderer {
                   let compositionTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
                 throw ServiceError(code: "VIDEO_READ_FAILED", message: "无法读取一段视频", recovery: "请替换对应素材")
             }
-            let start = CMTime(value: CMTimeValue(clip.startTimeMs), timescale: 1000)
+            let videoTimeRange = try await sourceTrack.load(.timeRange)
+            let videoTrackStart = CMTimeCompare(videoTimeRange.start, .zero) > 0 ? videoTimeRange.start : .zero
+            let start = CMTimeAdd(videoTrackStart, CMTime(value: CMTimeValue(clip.startTimeMs), timescale: 1000))
             let assetDuration = try await asset.load(.duration)
-            let sourceDurationMilliseconds = Int((assetDuration.seconds * 1000).rounded(.down))
+            let sourceDurationSeconds = (videoTimeRange.duration.isValid && videoTimeRange.duration.seconds > 0)
+                ? videoTimeRange.duration.seconds
+                : assetDuration.seconds
+            let sourceDurationMilliseconds = Int((sourceDurationSeconds * 1000).rounded(.down))
             let segment = MediaConstraints.segmentDurations(
                 sourceDurationMilliseconds: sourceDurationMilliseconds,
                 startTimeMilliseconds: clip.startTimeMs,
@@ -75,15 +80,18 @@ enum VideoRenderer {
             )
             let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionTrack)
             layer.setTransform(transform, at: .zero)
-            // AVFoundation expects the crop rectangle in the source track's
-            // clean-aperture coordinate space. Convert the target cell back
-            // through the aspect-fill transform before applying the crop.
-            let sourceCrop = TemplateLayout.sourceCropRectangle(
-                target: target,
-                transform: transform,
-                naturalSize: size
-            )
-            layer.setCropRectangle(sourceCrop, at: .zero)
+            if project.templateId != "single" {
+                // AVFoundation expects the crop rectangle in the source track's
+                // clean-aperture coordinate space. Convert the target cell back
+                // through the aspect-fill transform before applying the crop.
+                let sourceCrop = TemplateLayout.sourceCropRectangle(
+                    target: target,
+                    canvas: canvasSize,
+                    transform: transform,
+                    naturalSize: size
+                )
+                layer.setCropRectangle(sourceCrop, at: .zero)
+            }
             layerInstructions.append(layer)
 
             if clip.audioEnabled,
@@ -92,11 +100,13 @@ enum VideoRenderer {
                 // Insert only real source audio. The padded video tail remains
                 // silent, which avoids looping or stretching the final sound.
                 let audioTimeRange = try await sourceAudioTrack.load(.timeRange)
-                let audioAvailableMilliseconds = max(0, Int(((audioTimeRange.end.seconds - start.seconds) * 1000).rounded(.down)))
+                let audioTrackStart = CMTimeCompare(audioTimeRange.start, .zero) > 0 ? audioTimeRange.start : .zero
+                let audioStart = CMTimeAdd(audioTrackStart, CMTime(value: CMTimeValue(clip.startTimeMs), timescale: 1000))
+                let audioAvailableMilliseconds = max(0, Int(((audioTimeRange.end.seconds - audioStart.seconds) * 1000).rounded(.down)))
                 let audioContentMilliseconds = min(segment.contentMilliseconds, audioAvailableMilliseconds)
                 if audioContentMilliseconds > 0 {
                     let audioContentDuration = CMTime(value: CMTimeValue(audioContentMilliseconds), timescale: 1000)
-                    try compositionAudioTrack.insertTimeRange(CMTimeRange(start: start, duration: audioContentDuration), of: sourceAudioTrack, at: .zero)
+                    try compositionAudioTrack.insertTimeRange(CMTimeRange(start: audioStart, duration: audioContentDuration), of: sourceAudioTrack, at: .zero)
                     compositionAudioTracks.append(compositionAudioTrack)
                 }
             }

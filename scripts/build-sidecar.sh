@@ -39,8 +39,12 @@ cp "$project_root/src-tauri/icons/icon.icns" "$helper_resources/icon.icns"
 cp "$project_root/vendor/ffmpeg/licenses/COPYING.LGPLv2.1" "$ffmpeg_notices/COPYING.LGPLv2.1"
 cp "$project_root/vendor/ffmpeg/BUILD-CONFIGURATION.txt" "$ffmpeg_notices/BUILD-CONFIGURATION.txt"
 chmod +x "$helper_macos/live-photo-service" "$helper_macos/ffmpeg"
-find "$helper_lib" -type f -name '*.dylib' -exec codesign --force --sign - --timestamp=none {} \;
-codesign --force --sign - --timestamp=none "$helper_macos/ffmpeg"
-codesign --force --sign - --timestamp=none \
+SIGNING_IDENTITY="${SIGNING_IDENTITY:-Developer ID Application: Yonghao Yang (LGKLTGNTY2)}"
+
+find "$helper_lib" -type f -name '*.dylib' -exec codesign --force --sign "$SIGNING_IDENTITY" --timestamp --options runtime {} \;
+codesign --force --sign "$SIGNING_IDENTITY" --timestamp --options runtime "$helper_macos/ffmpeg"
+codesign --force --sign "$SIGNING_IDENTITY" --timestamp --options runtime "$helper_macos/live-photo-service"
+codesign --force --sign "$SIGNING_IDENTITY" --timestamp --options runtime "$output_dir/live-photo-service-$target_triple"
+codesign --force --sign "$SIGNING_IDENTITY" --timestamp --options runtime \
   --entitlements "$project_root/src-tauri/Entitlements.plist" \
   "$helper_app"

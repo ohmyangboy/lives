@@ -48,7 +48,17 @@ enum TemplateLayout {
         default:
             throw ServiceError(code: "INVALID_PROJECT", message: "模板与素材位置不匹配", recovery: "请重新选择模板")
         }
-        return CGRect(x: normalized.minX * canvas.width, y: normalized.minY * canvas.height, width: normalized.width * canvas.width, height: normalized.height * canvas.height)
+        let rawX = normalized.minX * canvas.width
+        let rawY = normalized.minY * canvas.height
+        let rawWidth = normalized.width * canvas.width
+        let rawHeight = normalized.height * canvas.height
+
+        let minX = normalized.minX <= 0.0001 ? 0 : rawX
+        let minY = normalized.minY <= 0.0001 ? 0 : rawY
+        let width = normalized.maxX >= 0.9999 ? (canvas.width - minX) : rawWidth
+        let height = normalized.maxY >= 0.9999 ? (canvas.height - minY) : rawHeight
+
+        return CGRect(x: minX, y: minY, width: width, height: height)
     }
 
     static func aspectFillTransform(
@@ -78,11 +88,27 @@ enum TemplateLayout {
 
     static func sourceCropRectangle(
         target: CGRect,
+        canvas: CGSize,
         transform: CGAffineTransform,
         naturalSize: CGSize
     ) -> CGRect {
         let sourceBounds = CGRect(origin: .zero, size: naturalSize)
-        let sourceCrop = target.applying(transform.inverted()).standardized
-        return sourceCrop.intersection(sourceBounds)
+        let touchesLeft = target.minX <= 1.0
+        let touchesTop = target.minY <= 1.0
+        let touchesRight = target.maxX >= canvas.width - 1.0
+        let touchesBottom = target.maxY >= canvas.height - 1.0
+
+        let minX = touchesLeft ? target.minX - 10_000 : target.minX - 2.0
+        let minY = touchesTop ? target.minY - 10_000 : target.minY - 2.0
+        let maxX = touchesRight ? target.maxX + 10_000 : target.maxX + 2.0
+        let maxY = touchesBottom ? target.maxY + 10_000 : target.maxY + 2.0
+
+        let expandedTarget = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+        let rawCrop = expandedTarget.applying(transform.inverted()).standardized
+        let clampedMinX = max(0, min(sourceBounds.width, rawCrop.minX))
+        let clampedMinY = max(0, min(sourceBounds.height, rawCrop.minY))
+        let clampedMaxX = max(clampedMinX, min(sourceBounds.width, rawCrop.maxX))
+        let clampedMaxY = max(clampedMinY, min(sourceBounds.height, rawCrop.maxY))
+        return CGRect(x: clampedMinX, y: clampedMinY, width: clampedMaxX - clampedMinX, height: clampedMaxY - clampedMinY)
     }
 }
