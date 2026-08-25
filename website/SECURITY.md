@@ -4,10 +4,10 @@
 
 | 版本 | 状态 |
 | --- | --- |
-| 0.1.x (含 0.1.4-beta.1) | 体验预览版，接受安全报告 |
+| 0.1.x (含 0.1.4) | 正式版，接受安全报告 |
 | 更早的内部构建 | 不支持，请升级到最新公开版本 |
 
-Lives 0.1.4-beta.1 已使用 Apple Developer ID 签名（Developer ID Application: Yonghao Yang）。请只从 [ohmyangboy/lives Releases](https://github.com/ohmyangboy/lives/releases) 下载，并核对发布页提供的 SHA-256。
+Lives 0.1.4 已使用 Apple Developer ID 签名（Developer ID Application: Yonghao Yang）。请只从 [ohmyangboy/lives Releases](https://github.com/ohmyangboy/lives/releases) 下载，并核对发布页提供的 SHA-256。
 
 ## 私密报告安全问题
 

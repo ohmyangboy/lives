@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 const root = resolve(import.meta.dirname, '..')
 const source = resolve(root, 'src')
 const output = resolve(root, 'dist')
-const version = process.env.LIVES_VERSION || '0.1.4-beta.1'
+const version = process.env.LIVES_VERSION || '0.1.4'
 const downloadUrl = process.env.LIVES_DOWNLOAD_URL || 'https://github.com/ohmyangboy/lives/releases/latest'
 
 await rm(output, { recursive: true, force: true })
