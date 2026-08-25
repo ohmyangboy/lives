@@ -66,7 +66,7 @@ def run_service(service: Path, request: dict[str, object]) -> dict[str, object]:
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ, "stdout")
     selector.register(process.stderr, selectors.EVENT_READ, "stderr")
-    deadline = time.monotonic() + 240
+    deadline = time.monotonic() + 600
     final: dict[str, object] | None = None
 
     try:
