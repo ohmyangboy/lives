@@ -46,8 +46,8 @@ actor CancellationRegistry {
     private var cancelled = Set<String>()
     func cancel(_ jobId: String) { cancelled.insert(jobId) }
     func isCancelled(_ jobId: String) -> Bool { cancelled.contains(jobId) }
-    func check(_ jobId: String) throws {
-        if cancelled.contains(jobId) { throw ServiceError.cancelled }
+    func check(_ jobId: String, throwing error: ServiceError = .cancelled) throws {
+        if cancelled.contains(jobId) { throw error }
     }
     func finish(_ jobId: String) { cancelled.remove(jobId) }
 }
@@ -125,13 +125,22 @@ final class ServiceRuntime {
                 let envelope = try request.payload.decode(DownloadUpdateEnvelope.self)
                 let result = try await UpdateService.downloadAndPrepare(
                     dmgURLString: envelope.dmgUrl,
-                    expectedSHA256: envelope.expectedSha256
+                    expectedSHA256: envelope.expectedSha256,
+                    cancellations: cancellations,
+                    requestId: request.requestId
                 ) { [writer] stage, progress in
                     Task {
                         await writer.send(ServiceResponse(requestId: request.requestId, type: "progress", stage: stage, progress: progress))
                     }
                 }
                 await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: try encodeValue(result)))
+            case "getStagedUpdate":
+                // 冷启动恢复：存在完整且更新的暂存包时返回安装信息，否则返回 null。
+                if let staged = UpdateService.stagedUpdate() {
+                    await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: try encodeValue(staged)))
+                } else {
+                    await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: .null))
+                }
             case "installAndRelaunch":
                 let envelope = try request.payload.decode(InstallUpdateEnvelope.self)
                 try UpdateService.installAndRelaunch(

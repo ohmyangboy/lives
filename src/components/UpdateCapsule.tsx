@@ -122,7 +122,7 @@ export function UpdateCapsule({ coordinator }: UpdateCapsuleProps) {
           <button
             className="update-action-btn prominent"
             onClick={() => coordinator.installAndRelaunch()}
-            title={`Lives v${state.release.version} 下载完成，点击立即重启并更新到最新版本`}
+            title={`Lives v${state.release.version} 已准备就绪，点击立即重启并更新到最新版本`}
           >
             <RestartIcon className="update-icon" />
             <span>重启</span>

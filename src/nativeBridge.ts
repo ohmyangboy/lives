@@ -1,4 +1,5 @@
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { Command, type Child } from '@tauri-apps/plugin-shell'
 
 import type { RenderProject } from './domain'
@@ -47,6 +48,7 @@ class LivePhotoService {
   private child?: Child
   private pending = new Map<string, PendingRequest>()
   private starting?: Promise<void>
+  private activeDownloadRequestId?: string
 
   private async start() {
     if (this.child) return
@@ -84,9 +86,8 @@ class LivePhotoService {
     }
   }
 
-  private async request<T>(action: string, payload: unknown, onProgress?: PendingRequest['onProgress']): Promise<T> {
+  private async request<T>(action: string, payload: unknown, onProgress?: PendingRequest['onProgress'], requestId: string = crypto.randomUUID()): Promise<T> {
     await this.start()
-    const requestId = crypto.randomUUID()
     return new Promise<T>((resolve, reject) => {
       this.pending.set(requestId, { resolve: resolve as (value: unknown) => void, reject, onProgress })
       this.child!.write(`${JSON.stringify({ requestId, action, payload })}\n`).catch((error) => {
@@ -110,7 +111,20 @@ class LivePhotoService {
   openPhotoPrivacySettings() { return this.request<void>('openPhotoPrivacySettings', {}) }
   revealInFinder(path: string) { return this.request<void>('revealInFinder', { path }) }
   downloadAndPrepareUpdate(dmgUrl: string, expectedSha256?: string, onProgress?: PendingRequest['onProgress']) {
-    return this.request<PreparedUpdateInfo>('downloadAndPrepareUpdate', { dmgUrl, expectedSha256 }, onProgress)
+    const requestId = crypto.randomUUID()
+    this.activeDownloadRequestId = requestId
+    return this.request<PreparedUpdateInfo>('downloadAndPrepareUpdate', { dmgUrl, expectedSha256 }, onProgress, requestId)
+      .finally(() => {
+        if (this.activeDownloadRequestId === requestId) this.activeDownloadRequestId = undefined
+      })
+  }
+  cancelActiveDownload() {
+    const requestId = this.activeDownloadRequestId
+    if (!requestId) return Promise.resolve()
+    return this.request<void>('cancel', { jobId: requestId }).catch(() => undefined)
+  }
+  getStagedUpdate() {
+    return this.request<PreparedUpdateInfo | null>('getStagedUpdate', {})
   }
   installAndRelaunch(stagedAppPath: string, targetAppPath?: string) {
     return this.request<void>('installAndRelaunch', { stagedAppPath, targetAppPath })
@@ -123,6 +137,17 @@ const service = new LivePhotoService()
 export const desktopAvailable = () => isTauri()
 export const previewUrlForPath = (path: string) => isTauri() ? convertFileSrc(path) : path
 export const nativeService = service
+
+/** 获取当前窗口；Web 预览环境返回 null（调用方自行兜底）。 */
+export const getCurrentWindowSafely = () => {
+  if (!isTauri()) return null
+  try {
+    return getCurrentWindow()
+  } catch {
+    return null
+  }
+}
+
 export const exitApplication = async () => {
   if (!isTauri()) {
     window.close()

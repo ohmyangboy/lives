@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, afterEach } from 'vitest'
 import {
   compareVersions,
   currentAppVersion,
@@ -113,12 +113,24 @@ describe('UpdateCoordinator state machine', () => {
     htmlUrl: 'https://example.com/releases/v0.9.0',
   }
 
+  const makeUpdater = (overrides: Partial<UpdaterPort> = {}): UpdaterPort => ({
+    checkForUpdate: vi.fn().mockResolvedValue(undefined),
+    getStagedUpdate: vi.fn().mockResolvedValue(undefined),
+    downloadAndPrepare: vi.fn(),
+    installAndRelaunch: vi.fn().mockResolvedValue(undefined),
+    cancelActiveDownload: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('cold boot: silently checks and auto-downloads when update is available', async () => {
     let progressCallback: ((stage: 'downloading' | 'verifying' | 'preparing', progress: number) => void) | undefined
     let resolveDownload: ((val: { stagedAppPath: string; targetAppPath?: string }) => void) | undefined
 
-
-    const mockUpdater: UpdaterPort = {
+    const mockUpdater = makeUpdater({
       checkForUpdate: vi.fn().mockResolvedValue(sampleRelease),
       downloadAndPrepare: vi.fn().mockImplementation((_rel, onProg) => {
         progressCallback = onProg
@@ -126,8 +138,7 @@ describe('UpdateCoordinator state machine', () => {
           resolveDownload = resolve
         })
       }),
-      installAndRelaunch: vi.fn().mockResolvedValue(undefined),
-    }
+    })
 
     const coordinator = new UpdateCoordinator(mockUpdater)
     const states: UpdateState[] = []
@@ -135,9 +146,12 @@ describe('UpdateCoordinator state machine', () => {
 
     expect(coordinator.state).toEqual({ kind: 'idle' })
 
-    // Cold start
+    // Cold start：先做暂存恢复探测（异步），随后静默检查并自动下载
     coordinator.start()
-    expect(coordinator.state).toEqual({ kind: 'checkingSilently' })
+    await vi.waitFor(() => expect(mockUpdater.downloadAndPrepare).toHaveBeenCalledWith(sampleRelease, expect.any(Function)))
+    expect(coordinator.state.kind).toBe('downloading')
+    // 状态迁移确实经过静默检查与发现更新
+    expect(states.map((s) => s.kind)).toEqual(expect.arrayContaining(['idle', 'checkingSilently', 'updateAvailable', 'downloading']))
 
     // Wait for checkForUpdate promise
     await vi.waitFor(() => expect(mockUpdater.checkForUpdate).toHaveBeenCalled())
@@ -180,11 +194,7 @@ describe('UpdateCoordinator state machine', () => {
 
   it('cold boot: silently checks and remains silent when up to date', async () => {
     const fixedNow = new Date('2026-08-28T10:00:00Z')
-    const mockUpdater: UpdaterPort = {
-      checkForUpdate: vi.fn().mockResolvedValue(undefined),
-      downloadAndPrepare: vi.fn(),
-      installAndRelaunch: vi.fn(),
-    }
+    const mockUpdater = makeUpdater({ checkForUpdate: vi.fn().mockResolvedValue(undefined) })
 
     const coordinator = new UpdateCoordinator(mockUpdater, 'https://fallback.test', () => fixedNow)
     coordinator.start()
@@ -197,11 +207,7 @@ describe('UpdateCoordinator state machine', () => {
 
   it('manual check: shows up-to-date toast when already on latest version', async () => {
     const fixedNow = new Date('2026-08-28T11:00:00Z')
-    const mockUpdater: UpdaterPort = {
-      checkForUpdate: vi.fn().mockResolvedValue(undefined),
-      downloadAndPrepare: vi.fn(),
-      installAndRelaunch: vi.fn(),
-    }
+    const mockUpdater = makeUpdater({ checkForUpdate: vi.fn().mockResolvedValue(undefined) })
 
     const coordinator = new UpdateCoordinator(mockUpdater, 'https://fallback.test', () => fixedNow)
     coordinator.checkForUpdates(true)
@@ -214,11 +220,10 @@ describe('UpdateCoordinator state machine', () => {
   })
 
   it('handles download failure with error message, retry, and dismiss', async () => {
-    const mockUpdater: UpdaterPort = {
+    const mockUpdater = makeUpdater({
       checkForUpdate: vi.fn().mockResolvedValue(sampleRelease),
       downloadAndPrepare: vi.fn().mockRejectedValue(new Error('Network connection timeout')),
-      installAndRelaunch: vi.fn(),
-    }
+    })
 
     const coordinator = new UpdateCoordinator(mockUpdater, 'https://github.com/ohmyangboy/lives/releases')
     coordinator.checkForUpdates(true)
@@ -235,5 +240,123 @@ describe('UpdateCoordinator state machine', () => {
     // Dismiss failure returns to idle
     coordinator.dismissFailure()
     expect(coordinator.state).toEqual({ kind: 'idle' })
+  })
+
+  // ---- Watchdogs：任何状态必然收尾 ----
+
+  it('watchdog: manual check that never resolves fails with timeout message', async () => {
+    const mockUpdater = makeUpdater({
+      checkForUpdate: vi.fn().mockImplementation((_signal) => new Promise(() => {})),
+    })
+
+    const coordinator = new UpdateCoordinator(mockUpdater, 'https://fallback.test', () => new Date(), { checkTimeoutMs: 20 })
+    coordinator.checkForUpdates(true)
+
+    expect(coordinator.state).toEqual({ kind: 'checking' })
+    await vi.waitFor(() => expect(coordinator.state.kind).toBe('failed'))
+    expect(coordinator.state).toMatchObject({
+      kind: 'failed',
+      failure: { message: expect.stringContaining('检查更新超时') },
+    })
+  })
+
+  it('watchdog: silent check that never resolves returns to idle without UI noise', async () => {
+    const mockUpdater = makeUpdater({
+      checkForUpdate: vi.fn().mockImplementation((_signal) => new Promise(() => {})),
+    })
+
+    const coordinator = new UpdateCoordinator(mockUpdater, 'https://fallback.test', () => new Date(), { checkTimeoutMs: 20 })
+    coordinator.start()
+
+    await vi.waitFor(() => expect(coordinator.state.kind).toBe('idle'))
+  })
+
+  it('watchdog: download stall cancels the download and enters failed state', async () => {
+    let progressCallback: ((stage: 'downloading' | 'verifying' | 'preparing', progress: number) => void) | undefined
+    const mockUpdater = makeUpdater({
+      checkForUpdate: vi.fn().mockResolvedValue(sampleRelease),
+      downloadAndPrepare: vi.fn().mockImplementation((_rel, onProg) => {
+        progressCallback = onProg
+        return new Promise(() => {}) // never resolves
+      }),
+    })
+
+    const coordinator = new UpdateCoordinator(mockUpdater, 'https://fallback.test', () => new Date(), {
+      downloadStallTimeoutMs: 250,
+      downloadWatchdogTickMs: 10,
+    })
+    coordinator.start()
+    await vi.waitFor(() => expect(coordinator.state.kind).toBe('downloading'))
+
+    // 一次进度后彻底停滞
+    progressCallback?.('downloading', 0.1)
+    await vi.waitFor(() => expect(coordinator.state.kind).toBe('failed'), { timeout: 2000 })
+    expect(coordinator.state).toMatchObject({
+      kind: 'failed',
+      failure: { message: expect.stringContaining('下载停滞') },
+    })
+    expect(mockUpdater.cancelActiveDownload).toHaveBeenCalled()
+
+    // 之后到达的下载错误（取消引起）不会覆盖 failed 态文案
+    expect(coordinator.state).toMatchObject({ kind: 'failed', failure: { message: expect.stringContaining('下载停滞') } })
+  })
+
+  // ---- 中断恢复（Sparkle stage: .downloaded 语义）----
+
+  it('cold boot: recovers a staged newer update straight to readyToInstall without re-downloading', async () => {
+    const staged = {
+      stagedAppPath: '/Users/x/Library/Caches/com.yangbukun.lives/Updates/staged/Lives.app',
+      targetAppPath: '/Applications/Lives.app',
+      version: '9.9.9',
+    }
+    const mockUpdater = makeUpdater({
+      getStagedUpdate: vi.fn().mockResolvedValue(staged),
+      checkForUpdate: vi.fn().mockResolvedValue(undefined),
+      downloadAndPrepare: vi.fn(),
+    })
+
+    const coordinator = new UpdateCoordinator(mockUpdater)
+    coordinator.start()
+
+    await vi.waitFor(() => expect(coordinator.state.kind).toBe('readyToInstall'))
+    expect(coordinator.state).toMatchObject({
+      kind: 'readyToInstall',
+      release: { version: '9.9.9', displayVersion: 'v9.9.9' },
+      stagedAppPath: staged.stagedAppPath,
+      targetAppPath: staged.targetAppPath,
+    })
+    // 不应再走检查/下载
+    expect(mockUpdater.checkForUpdate).not.toHaveBeenCalled()
+    expect(mockUpdater.downloadAndPrepare).not.toHaveBeenCalled()
+
+    // 恢复态可直接一键安装
+    coordinator.installAndRelaunch()
+    await vi.waitFor(() => expect(mockUpdater.installAndRelaunch).toHaveBeenCalledWith(staged.stagedAppPath, staged.targetAppPath))
+  })
+
+  it('cold boot: ignores stale staged update and falls back to silent check', async () => {
+    const stale = { stagedAppPath: '/x/Lives.app', targetAppPath: '/Applications/Lives.app', version: '0.0.1' }
+    const mockUpdater = makeUpdater({
+      getStagedUpdate: vi.fn().mockResolvedValue(stale),
+      checkForUpdate: vi.fn().mockResolvedValue(undefined),
+    })
+
+    const coordinator = new UpdateCoordinator(mockUpdater, 'https://fallback.test', () => new Date('2026-08-28T10:00:00Z'))
+    coordinator.start()
+
+    await vi.waitFor(() => expect(coordinator.state.kind).toBe('upToDate'))
+    expect(mockUpdater.checkForUpdate).toHaveBeenCalled()
+  })
+
+  it('cold boot: getStagedUpdate failure (old sidecar) does not block the silent check', async () => {
+    const mockUpdater = makeUpdater({
+      getStagedUpdate: vi.fn().mockRejectedValue(new Error('UNKNOWN_COMMAND')),
+      checkForUpdate: vi.fn().mockResolvedValue(undefined),
+    })
+
+    const coordinator = new UpdateCoordinator(mockUpdater, 'https://fallback.test', () => new Date('2026-08-28T10:00:00Z'))
+    coordinator.start()
+
+    await vi.waitFor(() => expect(coordinator.state.kind).toBe('upToDate'))
   })
 })

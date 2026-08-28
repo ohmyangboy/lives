@@ -12,6 +12,7 @@ struct ServiceError: Error, Codable {
     let recovery: String
 
     static let cancelled = ServiceError(code: "TASK_CANCELLED", message: "已取消生成", recovery: "编辑状态已保留")
+    static let updateCancelled = ServiceError(code: "UPDATE_CANCELLED", message: "更新下载已取消", recovery: "可随时重新检查更新")
 }
 
 struct ServiceResponse: Encodable {

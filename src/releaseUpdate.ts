@@ -1,11 +1,27 @@
 import appPackage from '../package.json'
-import { desktopAvailable, exitApplication, nativeService, type UpdateStage } from './nativeBridge'
+import { desktopAvailable, exitApplication, nativeService, getCurrentWindowSafely, type UpdateStage } from './nativeBridge'
 
 
 
 export const releaseApiUrl = 'https://api.github.com/repos/ohmyangboy/lives/releases/latest'
 export const officialReleasePage = 'https://github.com/ohmyangboy/lives/releases/latest'
 export const currentAppVersion = appPackage.version
+
+/** 看门狗常量：任何状态都不允许永久 pending（Sparkle/PaperRss 的「必然收尾」不变式）。 */
+export const CHECK_TIMEOUT_MS = 12_000
+export const DOWNLOAD_STALL_TIMEOUT_MS = 90_000
+export const DOWNLOAD_WATCHDOG_TICK_MS = 10_000
+export const FORCE_EXIT_DELAY_MS = 8_000
+export const FORCE_EXIT_RETRY_MS = 4_000
+
+/** dev-only：localStorage 设 lives.updates.debugForce=1 时，把任何有效 release 视为可更新，便于不发版验证重启链路。 */
+const debugForceUpdateAvailable = (): boolean => {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem('lives.updates.debugForce') === '1'
+  } catch {
+    return false
+  }
+}
 
 export interface UpdateRelease {
   version: string
@@ -31,6 +47,12 @@ export interface UpdatePreparation {
 export interface UpdateFailure {
   message: string
   fallbackUrl: string
+}
+
+export interface StagedUpdateInfo {
+  stagedAppPath: string
+  targetAppPath: string
+  version?: string
 }
 
 export type UpdateState =
@@ -83,9 +105,10 @@ export const compareVersions = (candidate: string, current: string) => {
   return 0
 }
 
-export const fetchLatestRelease = async (fetcher: FetchLike = fetch): Promise<UpdateRelease | undefined> => {
+export const fetchLatestRelease = async (fetcher: FetchLike = fetch, signal?: AbortSignal): Promise<UpdateRelease | undefined> => {
   const response = await fetcher(releaseApiUrl, {
     headers: { Accept: 'application/vnd.github+json' },
+    signal,
   })
   if (!response.ok) return undefined
 
@@ -100,7 +123,8 @@ export const fetchLatestRelease = async (fetcher: FetchLike = fetch): Promise<Up
   }
 
   const comparison = compareVersions(release.tag_name, currentAppVersion)
-  if (comparison === undefined || comparison <= 0) return undefined
+  const force = debugForceUpdateAvailable()
+  if (comparison === undefined || (comparison <= 0 && !force)) return undefined
 
   const rawVersion = release.tag_name.replace(/^v/i, '')
   const assets = Array.isArray(release.assets) ? release.assets : []
@@ -125,13 +149,17 @@ export const fetchLatestRelease = async (fetcher: FetchLike = fetch): Promise<Up
   }
 }
 
+export type DownloadStage = 'downloading' | 'verifying' | 'preparing'
+
 export interface UpdaterPort {
-  checkForUpdate(): Promise<UpdateRelease | undefined>
+  checkForUpdate(signal?: AbortSignal): Promise<UpdateRelease | undefined>
+  getStagedUpdate(): Promise<StagedUpdateInfo | undefined>
   downloadAndPrepare(
     release: UpdateRelease,
-    onProgress: (stage: 'downloading' | 'verifying' | 'preparing', progress: number) => void
+    onProgress: (stage: DownloadStage, progress: number) => void
   ): Promise<{ stagedAppPath: string; targetAppPath?: string }>
   installAndRelaunch(stagedAppPath: string, targetAppPath?: string): Promise<void>
+  cancelActiveDownload(): Promise<void>
 }
 
 export class DefaultUpdaterPort implements UpdaterPort {
@@ -141,13 +169,19 @@ export class DefaultUpdaterPort implements UpdaterPort {
     this.fetcher = fetcher
   }
 
-  async checkForUpdate(): Promise<UpdateRelease | undefined> {
-    return fetchLatestRelease(this.fetcher)
+  async checkForUpdate(signal?: AbortSignal): Promise<UpdateRelease | undefined> {
+    return fetchLatestRelease(this.fetcher, signal)
+  }
+
+  async getStagedUpdate(): Promise<StagedUpdateInfo | undefined> {
+    if (!desktopAvailable()) return undefined
+    const staged = await nativeService.getStagedUpdate()
+    return staged ?? undefined
   }
 
   async downloadAndPrepare(
     release: UpdateRelease,
-    onProgress: (stage: 'downloading' | 'verifying' | 'preparing', progress: number) => void
+    onProgress: (stage: DownloadStage, progress: number) => void
   ): Promise<{ stagedAppPath: string; targetAppPath?: string }> {
     if (!desktopAvailable()) {
       // Mock for web preview / non-Tauri dev
@@ -182,10 +216,34 @@ export class DefaultUpdaterPort implements UpdaterPort {
     }
     await nativeService.installAndRelaunch(stagedAppPath, targetAppPath)
     await exitApplication()
+    // 进程应已退出；若我们仍在运行（exit_app 未生效），安排强制退出：
+    // 先重试 exit_app，最终 destroy 窗口（后台脚本会照常换包并复活）。
+    this.scheduleForceExit()
+  }
+
+  private scheduleForceExit(): void {
+    setTimeout(() => {
+      void exitApplication()
+      setTimeout(() => {
+        const win = getCurrentWindowSafely()
+        try { void win?.destroy() } catch { /* 窗口已不存在 */ }
+      }, FORCE_EXIT_RETRY_MS)
+    }, FORCE_EXIT_DELAY_MS)
+  }
+
+  async cancelActiveDownload(): Promise<void> {
+    if (!desktopAvailable()) return
+    await nativeService.cancelActiveDownload()
   }
 }
 
 export type UpdateStateListener = (state: UpdateState) => void
+
+export interface UpdateCoordinatorOptions {
+  checkTimeoutMs?: number
+  downloadStallTimeoutMs?: number
+  downloadWatchdogTickMs?: number
+}
 
 export class UpdateCoordinator {
   private _state: UpdateState = { kind: 'idle' }
@@ -195,15 +253,27 @@ export class UpdateCoordinator {
   private fallbackUrl: string
   private hasStarted = false
   private now: () => Date
+  private options: Required<UpdateCoordinatorOptions>
+
+  private checkAbort?: AbortController
+  private downloadWatchdog?: ReturnType<typeof setTimeout>
+  private lastDownloadProgressAt = 0
+  private downloadCancelRequested = false
 
   constructor(
     updater: UpdaterPort = new DefaultUpdaterPort(),
     fallbackUrl: string = officialReleasePage,
-    now: () => Date = () => new Date()
+    now: () => Date = () => new Date(),
+    options: UpdateCoordinatorOptions = {}
   ) {
     this.updater = updater
     this.fallbackUrl = fallbackUrl
     this.now = now
+    this.options = {
+      checkTimeoutMs: options.checkTimeoutMs ?? CHECK_TIMEOUT_MS,
+      downloadStallTimeoutMs: options.downloadStallTimeoutMs ?? DOWNLOAD_STALL_TIMEOUT_MS,
+      downloadWatchdogTickMs: options.downloadWatchdogTickMs ?? DOWNLOAD_WATCHDOG_TICK_MS,
+    }
   }
 
   get state(): UpdateState {
@@ -255,13 +325,49 @@ export class UpdateCoordinator {
   }
 
   /**
-   * Cold start silent check (idempotent).
-   * Silently checks in background. If update is found, immediately starts background silent download.
+   * Cold start (idempotent).
+   * 1) 先尝试中断恢复：存在「已下载未安装」且比当前版本新的暂存包 → 直接 readyToInstall。
+   * 2) 否则静默检查；发现更新即自动开始静默下载。
    */
   start(): void {
     if (this.hasStarted) return
     this.hasStarted = true
-    this.initiateCheck(false)
+    void this.resumeStagedUpdateIfAvailable().then((resumed) => {
+      if (!resumed && this._state.kind === 'idle') {
+        this.initiateCheck(false)
+      }
+    })
+  }
+
+  /** Sparkle 的 stage: .downloaded 恢复语义：无需重新下载，一键完成安装。 */
+  private async resumeStagedUpdateIfAvailable(): Promise<boolean> {
+    try {
+      const staged = await this.updater.getStagedUpdate()
+      if (!staged?.version || this._state.kind !== 'idle') return false
+      const stagedVersion = staged.version
+      const comparison = compareVersions(stagedVersion, currentAppVersion)
+      if (comparison === undefined || comparison <= 0) return false
+
+      const release: UpdateRelease = {
+        version: stagedVersion,
+        displayVersion: `v${stagedVersion}`,
+        releaseNotes: '上次下载的更新已就绪，点击重启完成安装。',
+        dmgUrl: '',
+        htmlUrl: this.fallbackUrl,
+        isCritical: false,
+      }
+      if (this._state.kind !== 'idle') return false
+      this.setState({
+        kind: 'readyToInstall',
+        release,
+        stagedAppPath: staged.stagedAppPath,
+        targetAppPath: staged.targetAppPath,
+      })
+      return true
+    } catch {
+      // 恢复失败不阻塞正常检查（旧版 sidecar 无此能力时同样走这里）。
+      return false
+    }
   }
 
   /**
@@ -279,9 +385,26 @@ export class UpdateCoordinator {
   private initiateCheck(userInitiated: boolean): void {
     this.setState(userInitiated ? { kind: 'checking' } : { kind: 'checkingSilently' })
 
+    const controller = new AbortController()
+    this.checkAbort = controller
+
+    // 收尾不变式：检查必须在超时后强制落定（不依赖底层实现是否尊重 AbortSignal）。
+    const stillChecking = () => this._state.kind === 'checking' || this._state.kind === 'checkingSilently'
+    const timeout = setTimeout(() => {
+      controller.abort()
+      if (!stillChecking()) return
+      const message = `检查更新超时（${Math.round(this.options.checkTimeoutMs / 1000)} 秒），请检查网络后重试`
+      if (userInitiated) {
+        this.applyFailure(message)
+      } else {
+        this.setState({ kind: 'idle' })
+      }
+    }, this.options.checkTimeoutMs)
+
     void this.updater
-      .checkForUpdate()
+      .checkForUpdate(controller.signal)
       .then((release) => {
+        if (!stillChecking()) return // 超时已收尾，忽略迟到的结果
         if (!release) {
           const checkTime = this.now()
           const wasManual = this._state.kind === 'checking'
@@ -297,13 +420,21 @@ export class UpdateCoordinator {
         }
       })
       .catch((error) => {
-        const message = error instanceof Error ? error.message : '检查更新失败'
-        if (userInitiated || this._state.kind === 'checking') {
+        if (!stillChecking()) return // 超时已收尾，忽略迟到的取消/错误
+        const aborted = controller.signal.aborted
+        const message = aborted
+          ? `检查更新超时（${Math.round(this.options.checkTimeoutMs / 1000)} 秒），请检查网络后重试`
+          : error instanceof Error ? error.message : '检查更新失败'
+        if (userInitiated) {
           this.applyFailure(message)
         } else {
           // Silent check failure silently returns to idle
           this.setState({ kind: 'idle' })
         }
+      })
+      .finally(() => {
+        clearTimeout(timeout)
+        if (this.checkAbort === controller) this.checkAbort = undefined
       })
   }
 
@@ -314,26 +445,36 @@ export class UpdateCoordinator {
     const release = targetRelease ?? (this._state.kind === 'updateAvailable' ? this._state.release : undefined)
     if (!release) return
 
+    this.downloadCancelRequested = false
+    this.lastDownloadProgressAt = Date.now()
     this.setState({
       kind: 'downloading',
       progress: { release, fractionCompleted: undefined },
     })
+    this.startDownloadWatchdog()
 
     void this.updater
       .downloadAndPrepare(release, (stage, progress) => {
+        this.lastDownloadProgressAt = Date.now()
         if (stage === 'downloading') {
-          this.setState({
-            kind: 'downloading',
-            progress: { release, fractionCompleted: progress },
-          })
+          if (this._state.kind === 'downloading') {
+            this.setState({
+              kind: 'downloading',
+              progress: { release, fractionCompleted: progress },
+            })
+          }
         } else if (stage === 'preparing' || stage === 'verifying') {
-          this.setState({
-            kind: 'preparing',
-            preparation: { release, fractionCompleted: progress },
-          })
+          if (this._state.kind === 'downloading' || this._state.kind === 'preparing') {
+            this.setState({
+              kind: 'preparing',
+              preparation: { release, fractionCompleted: progress },
+            })
+          }
         }
       })
       .then(({ stagedAppPath, targetAppPath }) => {
+        this.stopDownloadWatchdog()
+        if (this._state.kind !== 'downloading' && this._state.kind !== 'preparing') return
         this.setState({
           kind: 'readyToInstall',
           release,
@@ -342,9 +483,35 @@ export class UpdateCoordinator {
         })
       })
       .catch((error) => {
+        this.stopDownloadWatchdog()
+        // 看门狗已设置 failed 态时，忽略后续的取消/超时错误。
+        if (this.downloadCancelRequested) return
         const message = error instanceof Error ? error.message : '下载或准备更新失败'
-        this.applyFailure(message)
+        if (this._state.kind === 'downloading' || this._state.kind === 'preparing') {
+          this.applyFailure(message)
+        }
       })
+  }
+
+  /** 下载停滞看门狗：超过阈值无任何进度 → 取消下载并进入 failed（可重试）。 */
+  private startDownloadWatchdog(): void {
+    this.stopDownloadWatchdog()
+    this.downloadWatchdog = setInterval(() => {
+      const idleFor = Date.now() - this.lastDownloadProgressAt
+      if (idleFor < this.options.downloadStallTimeoutMs) return
+      this.stopDownloadWatchdog()
+      if (this._state.kind !== 'downloading' && this._state.kind !== 'preparing') return
+      this.downloadCancelRequested = true
+      this.applyFailure('下载停滞（长时间无进展），已自动取消，请重试')
+      void this.updater.cancelActiveDownload().catch(() => undefined)
+    }, this.options.downloadWatchdogTickMs)
+  }
+
+  private stopDownloadWatchdog(): void {
+    if (this.downloadWatchdog) {
+      clearInterval(this.downloadWatchdog)
+      this.downloadWatchdog = undefined
+    }
   }
 
   /**
