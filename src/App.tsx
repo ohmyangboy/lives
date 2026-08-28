@@ -10,8 +10,10 @@ import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, createRende
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
 import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, UpdateIcon, ChevronDownIcon, GithubIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
-import { checkForUpdate, currentAppVersion, type AvailableUpdate } from './releaseUpdate'
+import { currentAppVersion, defaultUpdateCoordinator } from './releaseUpdate'
+import { UpdateCapsule } from './components/UpdateCapsule'
 import { AboutModal } from './components/AboutModal'
+
 import { getSystemDiagnosticInfo, formatSystemInfoText } from './systemInfo'
 import xiaohongshuContactImage from './assets/xiaohongshu-contact.jpg'
 import wechatSponsorImage from './assets/wechat-sponsor.jpg'
@@ -269,10 +271,10 @@ export function App() {
   const [startupPhase, setStartupPhase] = useState<'visible' | 'leaving' | 'hidden'>('visible')
   const [firstRunGuideVisible, setFirstRunGuideVisible] = useState(shouldShowFirstRunGuide)
   const [openHelpPopover, setOpenHelpPopover] = useState<'library' | 'templates'>()
-  const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate>()
   const [feedbackPopoverOpen, setFeedbackPopoverOpen] = useState(false)
   const [appMenuOpen, setAppMenuOpen] = useState(false)
   const [aboutModalOpen, setAboutModalOpen] = useState(false)
+
   const [materialContextMenu, setMaterialContextMenu] = useState<{ x: number; y: number; clip: VideoClip }>()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const firstRunDialogRef = useRef<HTMLDivElement>(null)
@@ -355,37 +357,13 @@ export function App() {
   }, [])
 
   useEffect(() => {
-    if (!desktopAvailable()) return
-    let cancelled = false
-    void checkForUpdate().then((update) => {
-      if (!cancelled) setAvailableUpdate(update)
-    }).catch(() => undefined)
-    return () => { cancelled = true }
+    defaultUpdateCoordinator.start()
   }, [])
 
-  const openUpdate = useCallback(async () => {
-    if (!availableUpdate) return
-    try {
-      await openUrl(availableUpdate.htmlUrl)
-    } catch {
-      setNotice('无法打开更新页面，请访问 github.com/ohmyangboy/lives/releases')
-    }
-  }, [availableUpdate])
-
-  const handleManualCheckUpdate = useCallback(async () => {
-    setNotice('正在检查更新...')
-    try {
-      const update = await checkForUpdate()
-      if (update) {
-        setAvailableUpdate(update)
-        setNotice(`发现新版本 Lives v${update.version}`)
-      } else {
-        setNotice(`当前已是最新版本 (v${currentAppVersion})`)
-      }
-    } catch {
-      setNotice('检查更新失败，请检查网络连接')
-    }
+  const handleManualCheckUpdate = useCallback(() => {
+    defaultUpdateCoordinator.checkForUpdates(true)
   }, [])
+
 
   const openFeedback = useCallback(async () => {
     const diagInfo = getSystemDiagnosticInfo(true)
@@ -893,7 +871,7 @@ export function App() {
         </div>
         <div className="project-meta"><span className={clips.length ? 'status-dot active' : 'status-dot'} />{projectSummary}</div>
         <div className="titlebar-actions">
-          {availableUpdate && <button className="update-button" onClick={openUpdate} title={`发现 Lives ${availableUpdate.version}，前往官方下载页`}><UpdateIcon /><span>更新</span><b>v{availableUpdate.version}</b></button>}
+          <UpdateCapsule coordinator={defaultUpdateCoordinator} />
           <div className="feedback-menu-anchor" ref={feedbackPopoverRef}>
             <button className="feedback-button" onClick={() => setFeedbackPopoverOpen((current) => !current)} aria-expanded={feedbackPopoverOpen} aria-controls="feedback-popover" title="联系 Lives"><FeedbackIcon />反馈</button>
             {feedbackPopoverOpen && <div className="feedback-popover" id="feedback-popover" role="dialog" aria-label="反馈与联系">

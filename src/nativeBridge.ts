@@ -12,16 +12,24 @@ export interface VideoInfo {
 
 export type NativeStage = 'inspecting' | 'transcoding' | 'rendering' | 'writingMetadata' | 'validating' | 'requestingPhotoPermission' | 'saving' | 'exportingFiles' | 'verifyingSavedAsset' | 'completed'
 
+export type UpdateStage = 'downloading' | 'verifying' | 'preparing' | 'completed'
+
 export interface ExportedPairResult {
   directoryPath: string
   photoPath: string
   videoPath: string
 }
 
+export interface PreparedUpdateInfo {
+  stagedAppPath: string
+  targetAppPath: string
+  version?: string
+}
+
 interface NativeEnvelope {
   requestId: string
   type: 'result' | 'progress' | 'error'
-  stage?: NativeStage
+  stage?: string
   progress?: number
   payload?: unknown
   error?: { code: string; message: string; recovery: string }
@@ -30,8 +38,9 @@ interface NativeEnvelope {
 type PendingRequest = {
   resolve: (value: unknown) => void
   reject: (reason: Error) => void
-  onProgress?: (stage: NativeStage, progress: number) => void
+  onProgress?: (stage: any, progress: number) => void
 }
+
 
 class LivePhotoService {
   private child?: Child
@@ -99,7 +108,14 @@ class LivePhotoService {
   openPhotos() { return this.request<void>('openPhotos', {}) }
   openPhotoPrivacySettings() { return this.request<void>('openPhotoPrivacySettings', {}) }
   revealInFinder(path: string) { return this.request<void>('revealInFinder', { path }) }
+  downloadAndPrepareUpdate(dmgUrl: string, expectedSha256?: string, onProgress?: PendingRequest['onProgress']) {
+    return this.request<PreparedUpdateInfo>('downloadAndPrepareUpdate', { dmgUrl, expectedSha256 }, onProgress)
+  }
+  installAndRelaunch(stagedAppPath: string, targetAppPath?: string) {
+    return this.request<void>('installAndRelaunch', { stagedAppPath, targetAppPath })
+  }
 }
+
 
 const service = new LivePhotoService()
 

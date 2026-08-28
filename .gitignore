@@ -45,8 +45,10 @@ src-tauri/binaries/live-photo-service-*
 src-tauri/resources/LiveCollagePhotosHelper.app/
 
 # Swift Package Manager / Xcode
+.build/
 native/LivePhotoService/.build/
 native/LivePhotoService/.swiftpm/
+
 DerivedData/
 *.xcuserstate
 *.xcworkspace/xcuserdata/

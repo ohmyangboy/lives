@@ -121,6 +121,24 @@ final class ServiceRuntime {
                 let envelope = try request.payload.decode(PathEnvelope.self)
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: envelope.path)])
                 await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: .null))
+            case "downloadAndPrepareUpdate":
+                let envelope = try request.payload.decode(DownloadUpdateEnvelope.self)
+                let result = try await UpdateService.downloadAndPrepare(
+                    dmgURLString: envelope.dmgUrl,
+                    expectedSHA256: envelope.expectedSha256
+                ) { [writer] stage, progress in
+                    Task {
+                        await writer.send(ServiceResponse(requestId: request.requestId, type: "progress", stage: stage, progress: progress))
+                    }
+                }
+                await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: try encodeValue(result)))
+            case "installAndRelaunch":
+                let envelope = try request.payload.decode(InstallUpdateEnvelope.self)
+                try UpdateService.installAndRelaunch(
+                    stagedAppPath: envelope.stagedAppPath,
+                    targetAppPath: envelope.targetAppPath
+                )
+                await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: .null))
             default:
                 throw ServiceError(code: "UNKNOWN_COMMAND", message: "无法识别这个操作", recovery: "请重新启动 App")
             }
