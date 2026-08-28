@@ -3,8 +3,9 @@ name: Deploy Lives website to Pages
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - "README.md"
+    paths:
+      - "website/**"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -19,6 +20,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -35,14 +39,12 @@ jobs:
         env:
           LIVES_VERSION: ${{ vars.LIVES_VERSION || '0.1.7' }}
           LIVES_DOWNLOAD_URL: ${{ vars.LIVES_DOWNLOAD_URL || 'https://github.com/ohmyangboy/lives/releases/latest' }}
-
-
         run: npm run build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: dist
+          path: website/dist
 
   deploy:
     environment:

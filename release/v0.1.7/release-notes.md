@@ -1,39 +1,51 @@
 # Lives 0.1.7
 
-适用于 Apple Silicon Mac，要求 macOS 13 Ventura 或更高的正式版本。推荐所有用户升级。
+适用于 Apple Silicon Mac，要求 macOS 13 Ventura 或更高的正式版本。
+
+本版本与 0.1.6 功能一致，是从 0.1.6 起首个**由全新更新链路交付**的版本：从 0.1.6 升级到本版本的过程，即为新的「静默下载 → 一键重启 → 原子换包 → 复活新版」完整链路的真机验证。
 
 ## 更新要点
 
-- **应用内自动更新与一键重启安装修复**：
-  - 修复点击“重启”无响应的问题，解耦 RPC 与后台替换脚本时序；
-  - 优化重启替换脚本逻辑，主进程安全退出后自动原子替换并唤起最新版；
-  - 完善应用路径定位机制，兼容各类安装目录。
-- **Apple Developer ID 官方签名与公证**：
-  - 完整签署 Developer ID 证书并通过 Apple Notary 官方公证（Notarized & Stapled）。
+- **自动更新全链路真机验证版本**：
+  - 0.1.6 用户将实际体验新更新链路：冷启动静默检查 → 后台自动下载（SHA-256 校验）→ 胶囊一键「重启」原子换包并进入 0.1.7；
+  - 若更新过程异常退出，下次冷启动会直接提示完成安装，不重复下载。
+- **官网同步更新**：
+  - 官网版本信息与自动更新说明同步至 0.1.7；
+  - 恢复官网 Pages 自动部署流水线（推送 main 即自动更新官网）。
+
+## 说明
+
+- 若重启过程出现异常，请查看 `~/Library/Caches/com.yangbukun.lives/Updates/relaunch.log` 并附上日志反馈。
 
 ## 文件校验
 
 `Lives_0.1.7_aarch64.dmg`
 
-`dbed9e4c612108944812708ec63d79f29f0be645133f201fe558978196d144c6`
+`252682358cf2ddf6d1640beeed9a28c3ba36e5a6c80faf0886e69ff77d07f555`
 
 ---
 
 # Lives 0.1.7
 
-For Apple Silicon Mac, requires macOS 13 Ventura or higher. Recommended for all users.
+For Apple Silicon Mac, requires macOS 13 Ventura or higher.
+
+Feature-identical to 0.1.6, and the first release delivered entirely through the new update chain: upgrading from 0.1.6 exercises the full "silent download → one-click restart → atomic swap → relaunch" flow on real hardware.
 
 ## Key Updates
 
-- **In-App Auto Update & One-Click Restart Fix**:
-  - Fixed an issue where clicking "Restart" did not trigger the app relaunch;
-  - Decoupled native RPC response from background atomic replacement script;
-  - Enhanced outer app bundle location resolution and safe process exit flow.
-- **Apple Developer ID Code Signing & Notarization**:
-  - Fully signed with Developer ID certificate and notarized & stapled by Apple Notary service.
+- **End-to-end verification of the new auto-update chain**:
+  - 0.1.6 users will experience the reworked chain first-hand: silent check on cold start, background download with SHA-256 verification, one-click restart with atomic swap into 0.1.7;
+  - Interrupted updates resume on next launch without re-downloading.
+- **Website sync**:
+  - Website version info and auto-update FAQ updated to 0.1.7;
+  - Restored the GitHub Pages auto-deploy pipeline (pushes to main now update the website automatically).
+
+## Notes
+
+- If a restart goes wrong, check `~/Library/Caches/com.yangbukun.lives/Updates/relaunch.log` and attach it when filing feedback.
 
 ## Checksums
 
 `Lives_0.1.7_aarch64.dmg`
 
-`dbed9e4c612108944812708ec63d79f29f0be645133f201fe558978196d144c6`
+`252682358cf2ddf6d1640beeed9a28c3ba36e5a6c80faf0886e69ff77d07f555`
