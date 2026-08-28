@@ -15,7 +15,7 @@
 
 `Lives_0.1.6_aarch64.dmg`
 
-`c66af80369e97615f3f5e463a9d033bf589115a742ebe42dc3892f60f58eaf73`
+`da48786496f7b26d9cb205a10787a06a377626f20858d9324449c292de082e54`
 
 ---
 
@@ -35,4 +35,4 @@ For Apple Silicon Mac, requires macOS 13 Ventura or higher. This release is dedi
 
 `Lives_0.1.6_aarch64.dmg`
 
-`c66af80369e97615f3f5e463a9d033bf589115a742ebe42dc3892f60f58eaf73`
+`da48786496f7b26d9cb205a10787a06a377626f20858d9324449c292de082e54`
