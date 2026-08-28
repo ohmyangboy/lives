@@ -12,14 +12,14 @@
 - **原生更新引擎升级**：
   - 基于 Swift 原生网络与系统工具链实现实时 SHA256 完整性校验、DMG 静默挂载与应用提取；
   - 优化更新进程隔离与权限处理，确保安装与重启安全可靠。
-- **Apple Developer ID 官方签名**：
-  - 完整签署官方 Developer ID 证书并完成 Hardened Runtime 代码签名与本地门禁评估。
+- **Apple Developer ID 官方签名与 Apple 官方公证**：
+  - 完整签署官方 Developer ID 证书并通过 Apple Notary 官方公证（Notarized & Stapled），在 macOS Gatekeeper 下免拦截顺畅运行。
 
 ## 文件校验
 
 `Lives_0.1.5_aarch64.dmg`
 
-`de80543afde29a29f11427583cd35986952944d2eb64e4ba3b99e73c62dbba2d`
+`688e364dafcc1e8bd5e27ebb47bd303d274301a83c31475434371a4d16f898a0`
 
 ---
 
@@ -37,12 +37,12 @@ For Apple Silicon Mac, requires macOS 13 Ventura or higher. Recommended for all 
 - **Native Update Engine Upgrade**:
   - Real-time SHA-256 integrity verification, silent DMG mounting, and staged app extraction based on native Swift toolchain;
   - Robust process replacement script ensuring smooth and secure updates.
-- **Apple Developer ID Code Signing**:
-  - Fully signed with Developer ID certificate and Hardened Runtime verification.
+- **Apple Developer ID Code Signing & Notarization**:
+  - Fully signed with Developer ID certificate and notarized & stapled by Apple Notary service.
 
 ## Checksums
 
 `Lives_0.1.5_aarch64.dmg`
 
-`de80543afde29a29f11427583cd35986952944d2eb64e4ba3b99e73c62dbba2d`
+`688e364dafcc1e8bd5e27ebb47bd303d274301a83c31475434371a4d16f898a0`
 
