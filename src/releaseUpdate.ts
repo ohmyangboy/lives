@@ -1,5 +1,6 @@
 import appPackage from '../package.json'
-import { desktopAvailable, nativeService, type UpdateStage } from './nativeBridge'
+import { desktopAvailable, exitApplication, nativeService, type UpdateStage } from './nativeBridge'
+
 
 
 export const releaseApiUrl = 'https://api.github.com/repos/ohmyangboy/lives/releases/latest'
@@ -40,7 +41,8 @@ export type UpdateState =
   | { kind: 'updateAvailable'; release: UpdateRelease }
   | { kind: 'downloading'; progress: UpdateDownloadProgress }
   | { kind: 'preparing'; preparation: UpdatePreparation }
-  | { kind: 'readyToInstall'; release: UpdateRelease; stagedAppPath: string }
+  | { kind: 'readyToInstall'; release: UpdateRelease; stagedAppPath: string; targetAppPath?: string }
+
   | { kind: 'installing'; release: UpdateRelease }
   | { kind: 'relaunching'; release: UpdateRelease }
   | { kind: 'failed'; failure: UpdateFailure }
@@ -128,8 +130,8 @@ export interface UpdaterPort {
   downloadAndPrepare(
     release: UpdateRelease,
     onProgress: (stage: 'downloading' | 'verifying' | 'preparing', progress: number) => void
-  ): Promise<{ stagedAppPath: string }>
-  installAndRelaunch(stagedAppPath: string): Promise<void>
+  ): Promise<{ stagedAppPath: string; targetAppPath?: string }>
+  installAndRelaunch(stagedAppPath: string, targetAppPath?: string): Promise<void>
 }
 
 export class DefaultUpdaterPort implements UpdaterPort {
@@ -146,7 +148,7 @@ export class DefaultUpdaterPort implements UpdaterPort {
   async downloadAndPrepare(
     release: UpdateRelease,
     onProgress: (stage: 'downloading' | 'verifying' | 'preparing', progress: number) => void
-  ): Promise<{ stagedAppPath: string }> {
+  ): Promise<{ stagedAppPath: string; targetAppPath?: string }> {
     if (!desktopAvailable()) {
       // Mock for web preview / non-Tauri dev
       for (let p = 0; p <= 1; p += 0.2) {
@@ -167,15 +169,19 @@ export class DefaultUpdaterPort implements UpdaterPort {
       }
     )
 
-    return { stagedAppPath: result.stagedAppPath }
+    return {
+      stagedAppPath: result.stagedAppPath,
+      targetAppPath: result.targetAppPath,
+    }
   }
 
-  async installAndRelaunch(stagedAppPath: string): Promise<void> {
+  async installAndRelaunch(stagedAppPath: string, targetAppPath?: string): Promise<void> {
     if (!desktopAvailable()) {
       window.location.reload()
       return
     }
-    await nativeService.installAndRelaunch(stagedAppPath)
+    await nativeService.installAndRelaunch(stagedAppPath, targetAppPath)
+    await exitApplication()
   }
 }
 
@@ -327,11 +333,12 @@ export class UpdateCoordinator {
           })
         }
       })
-      .then(({ stagedAppPath }) => {
+      .then(({ stagedAppPath, targetAppPath }) => {
         this.setState({
           kind: 'readyToInstall',
           release,
           stagedAppPath,
+          targetAppPath,
         })
       })
       .catch((error) => {
@@ -345,11 +352,11 @@ export class UpdateCoordinator {
    */
   installAndRelaunch(): void {
     if (this._state.kind !== 'readyToInstall') return
-    const { release, stagedAppPath } = this._state
+    const { release, stagedAppPath, targetAppPath } = this._state
 
     this.setState({ kind: 'installing', release })
     void this.updater
-      .installAndRelaunch(stagedAppPath)
+      .installAndRelaunch(stagedAppPath, targetAppPath)
       .then(() => {
         this.setState({ kind: 'relaunching', release })
       })
@@ -358,6 +365,7 @@ export class UpdateCoordinator {
         this.applyFailure(message)
       })
   }
+
 
   dismissFailure(): void {
     if (this._state.kind === 'failed') {

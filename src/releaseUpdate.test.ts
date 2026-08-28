@@ -115,7 +115,8 @@ describe('UpdateCoordinator state machine', () => {
 
   it('cold boot: silently checks and auto-downloads when update is available', async () => {
     let progressCallback: ((stage: 'downloading' | 'verifying' | 'preparing', progress: number) => void) | undefined
-    let resolveDownload: ((val: { stagedAppPath: string }) => void) | undefined
+    let resolveDownload: ((val: { stagedAppPath: string; targetAppPath?: string }) => void) | undefined
+
 
     const mockUpdater: UpdaterPort = {
       checkForUpdate: vi.fn().mockResolvedValue(sampleRelease),
@@ -158,21 +159,23 @@ describe('UpdateCoordinator state machine', () => {
     })
 
     // Finish preparation -> readyToInstall
-    resolveDownload?.({ stagedAppPath: '/tmp/staged/Lives.app' })
+    resolveDownload?.({ stagedAppPath: '/tmp/staged/Lives.app', targetAppPath: '/Applications/Lives.app' })
     await vi.waitFor(() => expect(coordinator.state.kind).toBe('readyToInstall'))
 
     expect(coordinator.state).toEqual({
       kind: 'readyToInstall',
       release: sampleRelease,
       stagedAppPath: '/tmp/staged/Lives.app',
+      targetAppPath: '/Applications/Lives.app',
     })
 
     // Click restart -> installs and relaunches
     coordinator.installAndRelaunch()
     expect(coordinator.state).toEqual({ kind: 'installing', release: sampleRelease })
 
-    await vi.waitFor(() => expect(mockUpdater.installAndRelaunch).toHaveBeenCalledWith('/tmp/staged/Lives.app'))
+    await vi.waitFor(() => expect(mockUpdater.installAndRelaunch).toHaveBeenCalledWith('/tmp/staged/Lives.app', '/Applications/Lives.app'))
     await vi.waitFor(() => expect(coordinator.state.kind).toBe('relaunching'))
+
   })
 
   it('cold boot: silently checks and remains silent when up to date', async () => {

@@ -201,55 +201,71 @@ enum UpdateService {
         STAGED_APP="$2"
         TARGET_APP="$3"
 
-        # Wait for the current Lives app to exit
-        if [ -n "$PARENT_PID" ]; then
+        # Wait up to 5 seconds for the parent Lives app process to exit
+        COUNT=0
+        if [ -n "$PARENT_PID" ] && [ "$PARENT_PID" -gt 1 ]; then
           while kill -0 "$PARENT_PID" 2>/dev/null; do
             sleep 0.1
+            COUNT=$((COUNT + 1))
+            if [ "$COUNT" -ge 50 ]; then
+              kill -9 "$PARENT_PID" 2>/dev/null || true
+              break
+            fi
           done
         fi
 
         sleep 0.2
 
         # Replace target app with staged app
-        rm -rf "$TARGET_APP"
-        mkdir -p "$(dirname "$TARGET_APP")"
-        cp -R "$STAGED_APP" "$TARGET_APP"
+        rm -rf "$TARGET_APP" 2>/dev/null || true
+        mkdir -p "$(dirname "$TARGET_APP")" 2>/dev/null || true
+        if ! cp -R "$STAGED_APP" "$TARGET_APP" 2>/dev/null; then
+          # Fallback to user Applications folder if target is not writable
+          USER_TARGET="$HOME/Applications/Lives.app"
+          rm -rf "$USER_TARGET" 2>/dev/null || true
+          mkdir -p "$HOME/Applications" 2>/dev/null || true
+          cp -R "$STAGED_APP" "$USER_TARGET" 2>/dev/null || true
+          TARGET_APP="$USER_TARGET"
+        fi
 
         # Clear quarantine attributes
         xattr -cr "$TARGET_APP" 2>/dev/null || true
 
         # Relaunch the new app
-        open -n "$TARGET_APP"
+        open -n "$TARGET_APP" 2>/dev/null || open "$TARGET_APP" 2>/dev/null || true
 
         # Clean staging and script
-        rm -rf "$(dirname "$STAGED_APP")"
-        rm -f "$0"
+        rm -rf "$(dirname "$STAGED_APP")" 2>/dev/null || true
+        rm -f "$0" 2>/dev/null || true
         """
 
         try scriptContent.write(to: scriptURL, atomically: true, encoding: .utf8)
         _ = runCommand("/bin/chmod", arguments: ["+x", scriptURL.path])
 
-        // Find main application PID (parent process or current process)
+        // Find main application PID (parent process)
         let pidToWait = getppid() > 1 ? getppid() : getpid()
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = [scriptURL.path, "\(pidToWait)", stagedAppPath, target]
         try process.run()
-
-        // Exit this helper process
-        exit(0)
     }
 
-    private static func locateTargetAppPath() -> String {
-        // Look for running Lives.app bundle path
+    static func locateTargetAppPath() -> String {
+        // Look for running Lives.app outer bundle path
         let executablePath = CommandLine.arguments[0]
         var current = URL(fileURLWithPath: executablePath)
+        var candidate: String? = nil
         while current.pathComponents.count > 1 {
-            if current.pathExtension == "app" && current.lastPathComponent.contains("Lives") {
-                return current.path
+            if current.pathExtension == "app" {
+                if !current.lastPathComponent.contains("Helper") {
+                    candidate = current.path
+                }
             }
             current.deleteLastPathComponent()
+        }
+        if let found = candidate {
+            return found
         }
 
         let defaultApp = "/Applications/Lives.app"
@@ -264,6 +280,7 @@ enum UpdateService {
 
         return defaultApp
     }
+
 
     private static func runCommand(_ executable: String, arguments: [String]) -> (exitCode: Int32, output: String?, error: String?) {
         let process = Process()

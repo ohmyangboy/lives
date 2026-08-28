@@ -1,5 +1,6 @@
-import { convertFileSrc, isTauri } from '@tauri-apps/api/core'
+import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { Command, type Child } from '@tauri-apps/plugin-shell'
+
 import type { RenderProject } from './domain'
 
 export interface VideoInfo {
@@ -122,3 +123,15 @@ const service = new LivePhotoService()
 export const desktopAvailable = () => isTauri()
 export const previewUrlForPath = (path: string) => isTauri() ? convertFileSrc(path) : path
 export const nativeService = service
+export const exitApplication = async () => {
+  if (!isTauri()) {
+    window.close()
+    return
+  }
+  try {
+    await invoke('exit_app')
+  } catch {
+    window.close()
+  }
+}
+
