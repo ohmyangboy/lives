@@ -5,7 +5,7 @@ const root = resolve(import.meta.dirname, '..')
 const source = resolve(root, 'src')
 const output = resolve(root, 'dist')
 const version = process.env.LIVES_VERSION || '0.1.7'
-const downloadUrl = process.env.LIVES_DOWNLOAD_URL || 'https://github.com/ohmyangboy/lives/releases/latest'
+const downloadUrl = process.env.LIVES_DOWNLOAD_URL || `https://github.com/ohmyangboy/lives/releases/download/v${version}/Lives_${version}_aarch64.dmg`
 
 
 await rm(output, { recursive: true, force: true })
