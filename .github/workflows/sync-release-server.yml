@@ -12,16 +12,9 @@ permissions:
 
 jobs:
   sync:
-    # 暂时关闭。
-    # 最后 SSH Key / Secrets 全部配置完成后，
-    # 再创建仓库变量：
-    # LIVES_RELEASE_SYNC_ENABLED=true
     if: >
-      vars.LIVES_RELEASE_SYNC_ENABLED == 'true' &&
-      (
-        github.event_name == 'workflow_dispatch' ||
-        github.event.release.prerelease == false
-      )
+      github.event_name == 'workflow_dispatch' ||
+      github.event.release.prerelease == false
 
     runs-on: ubuntu-latest
     timeout-minutes: 15
