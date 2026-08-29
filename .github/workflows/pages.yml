@@ -20,9 +20,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     defaults:
       run:
         working-directory: website
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -50,9 +52,69 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     runs-on: ubuntu-latest
     needs: build
+
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  deploy-server:
+    # 暂时保持关闭。
+    # 最后配置好 SSH Secrets 后再创建仓库变量：
+    # LIVES_SERVER_DEPLOY_ENABLED=true
+    if: ${{ vars.LIVES_SERVER_DEPLOY_ENABLED == 'true' }}
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Build website for 1leaf
+        working-directory: website
+        env:
+          LIVES_VERSION: ${{ vars.LIVES_VERSION || '0.1.7' }}
+          LIVES_DOWNLOAD_URL: https://download.1leaf.cc/Lives-latest.dmg
+        run: npm run build
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.LIVES_WEBSITE_SSH_KEY }}
+          SERVER_HOST: ${{ secrets.LIVES_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy website to 1leaf
+        env:
+          SERVER_HOST: ${{ secrets.LIVES_SERVER_HOST }}
+          SERVER_USER: ${{ secrets.LIVES_SERVER_USER }}
+        run: |
+          set -euo pipefail
+
+          tar \
+            -C website/dist \
+            -czf - \
+            . \
+          | ssh \
+              -o BatchMode=yes \
+              -o ConnectTimeout=10 \
+              "$SERVER_USER@$SERVER_HOST" \
+              "deploy-lives-website"
