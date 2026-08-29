@@ -1,0 +1,57 @@
+name: Sync Lives Release to Server
+
+on:
+  release:
+    types:
+      - published
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    # 暂时关闭。
+    # 最后 SSH Key / Secrets 全部配置完成后，
+    # 再创建仓库变量：
+    # LIVES_RELEASE_SYNC_ENABLED=true
+    if: >
+      vars.LIVES_RELEASE_SYNC_ENABLED == 'true' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        github.event.release.prerelease == false
+      )
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.LIVES_RELEASE_SSH_KEY }}
+          SERVER_HOST: ${{ secrets.LIVES_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Sync latest Lives release
+        env:
+          SERVER_HOST: ${{ secrets.LIVES_SERVER_HOST }}
+          SERVER_USER: ${{ secrets.LIVES_SERVER_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh \
+            -o BatchMode=yes \
+            -o ConnectTimeout=10 \
+            "$SERVER_USER@$SERVER_HOST" \
+            "sync-lives-release"
