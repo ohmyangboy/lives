@@ -120,12 +120,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          scp -o BatchMode=yes -o ConnectTimeout=10 \
-            /tmp/Lives-latest.dmg \
-            "$SERVER_USER@$SERVER_HOST:/tmp/Lives-latest.dmg"
-          scp -o BatchMode=yes -o ConnectTimeout=10 \
-            /tmp/Lives-latest.version \
-            "$SERVER_USER@$SERVER_HOST:/tmp/Lives-latest.version"
+          # 服务器 root 的非交互 shell 会向 stdout 打印登录提示，scp 会把它
+          # 当作协议帧而失败；改用 stdin 传输，并丢弃远端启动噪声。
+          cat /tmp/Lives-latest.dmg \
+            | ssh -o BatchMode=yes -o ConnectTimeout=10 \
+                "$SERVER_USER@$SERVER_HOST" \
+                "cat > /tmp/Lives-latest.dmg" >/dev/null
+          cat /tmp/Lives-latest.version \
+            | ssh -o BatchMode=yes -o ConnectTimeout=10 \
+                "$SERVER_USER@$SERVER_HOST" \
+                "cat > /tmp/Lives-latest.version" >/dev/null
 
           expected_sha="$(cat /tmp/Lives-latest.sha256)"
           expected_size="$(cat /tmp/Lives-latest.size)"
