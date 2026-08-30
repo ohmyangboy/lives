@@ -24,3 +24,14 @@
 ## 人工验收边界
 
 完整的 0.1.12 → 0.1.13 真机安装重启、当前 VPN 与用户自行关闭 VPN 后的网络表现、macOS 13/14、所有导出模板及 iCloud/iPhone 回归仍待验收。自动化与构建成功不代表这些场景已经完成。
+
+## 发布后验证
+
+- 实现提交：`ce5e0637eebe247a14397cabad99c630746a94f3`，正式标签 `v0.1.13`。
+- [GitHub Release](https://github.com/ohmyangboy/lives/releases/tag/v0.1.13) 为正式版，DMG 资产摘要与本地一致。
+- [下载同步 workflow](https://github.com/ohmyangboy/lives/actions/runs/33315654296) 成功。
+- [官网部署 workflow](https://github.com/ohmyangboy/lives/actions/runs/33315657562) 的 Pages 与自有服务器部署均成功。
+- `https://lives.1leaf.cc/` 和 `https://ohmyangboy.github.io/lives/` 的首页版本均为 0.1.13，更新日志均包含 4 秒淡出及普通启动不提示的说明。
+- GitHub README 已核验为 0.1.13 与新反馈说明。
+- 从自有源完整下载 `Lives-latest.dmg`，HTTP 200，`11221198` 字节，SHA-256 与本地及 GitHub 一致。当前网络一次下载耗时 22.66 秒；未切换或确认 VPN 路由，不据此推断大陆各地速度。
+- 自有更新清单已刷新为 `v0.1.13`，`updatedAt=2026-08-30T14:02:45Z`，大小与 SHA-256 均匹配正式 DMG；核验使用不带查询参数的正式接口。
