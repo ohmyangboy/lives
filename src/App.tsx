@@ -583,6 +583,7 @@ export function App() {
       startTimeMs,
       crop: { ...source.crop },
       audioEnabled: false,
+      coverTimeMs: 1500,
     }
     setSlotPlacements((current) => ({ ...current, [slotId]: placed }))
     setSelectedSlotId(slotId)
@@ -938,7 +939,7 @@ export function App() {
 
           <section className="center-panel">
             <div className="stage-heading"><div><span className="eyebrow">02 / 构图</span><h2>画布预览</h2></div></div>
-            <CollagePreview clips={slotClips} template={currentTemplate} canvasWidth={canvas.width} canvasHeight={canvas.height} selectedSlotId={selectedSlotId} selectedSourceId={selectedMaterialId} pointerDropTargetSlotId={sourceDragFeedback?.overSlotId} isSourceDragging={Boolean(sourceDragFeedback)} coverTimeMs={coverTimeMs} onCoverTimeChange={setCoverTimeMs} onSelectSlot={setSelectedSlotId} onDropSource={placeMaterialInSlot} onClearSlot={clearSlot} onAudioEnabledChange={(slotId, audioEnabled) => updateSlotClip(slotId, (clip) => ({ ...clip, audioEnabled }))} onScaleChange={(slotId, scale) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, scale } }))} onCropChange={(slotId, x, y) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, normalizedCenterX: x, normalizedCenterY: y } }))} />
+            <CollagePreview clips={slotClips} template={currentTemplate} canvasWidth={canvas.width} canvasHeight={canvas.height} selectedSlotId={selectedSlotId} selectedSourceId={selectedMaterialId} pointerDropTargetSlotId={sourceDragFeedback?.overSlotId} isSourceDragging={Boolean(sourceDragFeedback)} coverTimeMs={selectedSlotClip?.coverTimeMs ?? coverTimeMs} onCoverTimeChange={(milliseconds) => { if (selectedSlotId) updateSlotClip(selectedSlotId, (clip) => ({ ...clip, coverTimeMs: milliseconds })) }} onSelectSlot={setSelectedSlotId} onDropSource={placeMaterialInSlot} onClearSlot={clearSlot} onAudioEnabledChange={(slotId, audioEnabled) => updateSlotClip(slotId, (clip) => ({ ...clip, audioEnabled }))} onScaleChange={(slotId, scale) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, scale } }))} onCropChange={(slotId, x, y) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, normalizedCenterX: x, normalizedCenterY: y } }))} />
           </section>
 
           <aside className="right-panel">

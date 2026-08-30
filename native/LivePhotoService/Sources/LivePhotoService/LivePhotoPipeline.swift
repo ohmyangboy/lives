@@ -216,7 +216,7 @@ enum LivePhotoPipeline {
             ) { value in await progress("rendering", 0.25 + value * 0.40) }
             try await cancellations.check(project.id)
             await progress("writingMetadata", 0.68)
-            try await writeCover(from: videoURL, to: photoURL, atMilliseconds: project.coverTimeMs, contentIdentifier: contentIdentifier)
+            try await writeCover(project: preparedProject, to: photoURL, contentIdentifier: contentIdentifier)
             try await cancellations.check(project.id)
             await progress("validating", 0.75)
             try await validatePair(
@@ -245,14 +245,62 @@ enum LivePhotoPipeline {
         }
     }
 
-    private static func writeCover(from videoURL: URL, to photoURL: URL, atMilliseconds: Int, contentIdentifier: String) async throws {
-        let asset = AVURLAsset(url: videoURL)
-        let generator = AVAssetImageGenerator(asset: asset)
-        generator.appliesPreferredTrackTransform = true
-        generator.requestedTimeToleranceBefore = .zero
-        generator.requestedTimeToleranceAfter = .zero
-        let time = CMTime(value: CMTimeValue(atMilliseconds), timescale: 1000)
-        let image = try await generator.image(at: time).image
+    private static func writeCover(project: RenderProject, to photoURL: URL, contentIdentifier: String) async throws {
+        let canvasSize = CGSize(width: project.canvas.width, height: project.canvas.height)
+        guard let context = CGContext(
+            data: nil,
+            width: project.canvas.width,
+            height: project.canvas.height,
+            bitsPerComponent: 8,
+            bytesPerRow: project.canvas.width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            throw ServiceError(code: "LIVE_METADATA_FAILED", message: "无法创建 Live Photo 封面画布", recovery: "请重试")
+        }
+        context.setFillColor(NSColor.black.cgColor)
+        context.fill(CGRect(origin: .zero, size: canvasSize))
+        context.saveGState()
+        context.translateBy(x: 0, y: canvasSize.height)
+        context.scaleBy(x: 1, y: -1)
+
+        for clip in project.clips {
+            let asset = AVURLAsset(url: URL(fileURLWithPath: clip.sourcePath))
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.requestedTimeToleranceBefore = .zero
+            generator.requestedTimeToleranceAfter = .zero
+            let sourceOffset = min(clip.coverTimeMs, max(0, clip.sourceDurationMs - clip.startTimeMs - 1))
+            let sourceTime = CMTime(value: CMTimeValue(clip.startTimeMs + sourceOffset), timescale: 1000)
+            let image = try await generator.image(at: sourceTime).image
+            let target = try TemplateLayout.rect(for: clip.targetSlotId, templateId: project.templateId, canvas: canvasSize)
+            let imageAspect = CGFloat(image.width) / CGFloat(max(1, image.height))
+            let targetAspect = target.width / max(1, target.height)
+            let userScale = max(1, clip.crop.scale)
+            var cropWidth = CGFloat(image.width)
+            var cropHeight = CGFloat(image.height)
+            if imageAspect > targetAspect {
+                cropWidth = CGFloat(image.height) * targetAspect
+            } else {
+                cropHeight = CGFloat(image.width) / targetAspect
+            }
+            cropWidth = min(CGFloat(image.width), cropWidth / userScale)
+            cropHeight = min(CGFloat(image.height), cropHeight / userScale)
+            let cropRect = CGRect(
+                x: (CGFloat(image.width) - cropWidth) * min(1, max(0, clip.crop.normalizedCenterX)),
+                y: (CGFloat(image.height) - cropHeight) * min(1, max(0, clip.crop.normalizedCenterY)),
+                width: cropWidth,
+                height: cropHeight
+            ).integral
+            guard let cropped = image.cropping(to: cropRect) else {
+                throw ServiceError(code: "LIVE_METADATA_FAILED", message: "无法裁剪 Live Photo 封面", recovery: "请重试")
+            }
+            context.draw(cropped, in: target)
+        }
+        context.restoreGState()
+        guard let image = context.makeImage() else {
+            throw ServiceError(code: "LIVE_METADATA_FAILED", message: "无法生成 Live Photo 封面", recovery: "请重试")
+        }
         guard let destination = CGImageDestinationCreateWithURL(photoURL as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else {
             throw ServiceError(code: "LIVE_METADATA_FAILED", message: "无法生成 Live Photo 封面", recovery: "请重试")
         }

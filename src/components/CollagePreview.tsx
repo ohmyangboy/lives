@@ -49,7 +49,8 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const [maximumCanvasHeight, setMaximumCanvasHeight] = useState(360)
   const [dropTargetSlotId, setDropTargetSlotId] = useState<string>()
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const clipsKey = useMemo(() => clips.filter((clip): clip is SlotClip => Boolean(clip)).map((clip) => `${clip.id}:${clip.previewUrl}:${clip.startTimeMs}`).join('|'), [clips])
+  const clipsKey = useMemo(() => clips.filter((clip): clip is SlotClip => Boolean(clip)).map((clip) => `${clip.id}:${clip.previewUrl}:${clip.startTimeMs}:${clip.coverTimeMs}`).join('|'), [clips])
+  const coverTimeForClip = (clip: SlotClip) => clip.coverTimeMs ?? coverTimeMs
   const selectedClip = clips.find((clip) => clip?.targetSlotId === selectedSlotId)
   const enabledAudioCount = clips.filter((clip) => clip?.audioEnabled).length
   const slotLabel = (slotId: string) => {
@@ -93,25 +94,27 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
     video.currentTime = Math.min(clip.startTimeMs / 1000, Math.max(0, video.duration - 3))
   }
 
-  const seekToOffset = (offsetSeconds: number) => {
+  const seekToOffset = (offsetSeconds?: number) => {
     clips.forEach((clip) => {
       if (!clip) return
       const video = videosRef.current.get(clip.id)
       if (!video) return
       if (video.readyState >= 1) {
         video.pause()
-        video.currentTime = Math.min(clip.startTimeMs / 1000 + offsetSeconds, Math.max(0, video.duration - .04))
+        const offset = offsetSeconds ?? coverTimeForClip(clip) / 1000
+        video.currentTime = Math.min(clip.startTimeMs / 1000 + offset, Math.max(0, video.duration - .04))
       }
     })
   }
 
-  const seekCoverVideosToOffset = (offsetSeconds: number) => {
+  const seekCoverVideosToOffset = (offsetSeconds?: number) => {
     clips.forEach((clip) => {
       if (!clip) return
       const video = coverVideosRef.current.get(clip.id)
       if (!video || video.readyState < 1) return
       video.pause()
-      video.currentTime = Math.min(clip.startTimeMs / 1000 + offsetSeconds, Math.max(0, video.duration - .04))
+      const offset = offsetSeconds ?? coverTimeForClip(clip) / 1000
+      video.currentTime = Math.min(clip.startTimeMs / 1000 + offset, Math.max(0, video.duration - .04))
     })
   }
 
@@ -130,8 +133,8 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
     setPlaying(false)
     setSettledOnCover(true)
     setPlayhead(coverTimeMs / 3000)
-    seekToOffset(coverTimeMs / 1000)
-    seekCoverVideosToOffset(coverTimeMs / 1000)
+    seekToOffset()
+    seekCoverVideosToOffset()
   }, [selectedSlotId, clipsKey, coverTimeMs])
 
   useEffect(() => {
@@ -200,7 +203,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
         setPlaying(false)
         setSettledOnCover(false)
         setSettlingOnCover(true)
-        seekCoverVideosToOffset(coverTimeMs / 1000)
+        seekCoverVideosToOffset()
 
         const sequence = ++settleSequenceRef.current
         const duration = prefersReducedMotion ? 0 : COVER_SETTLE_DURATION_MS
@@ -218,7 +221,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
         settleTimerRef.current = window.setTimeout(() => {
           if (sequence !== settleSequenceRef.current) return
           settleTimerRef.current = undefined
-          seekToOffset(coverTimeMs / 1000)
+          seekToOffset()
           setPlayhead(to)
           setSettlingOnCover(false)
           setSettledOnCover(true)
@@ -450,7 +453,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
                 preload="auto"
                 onLoadedMetadata={(event) => {
                   event.currentTarget.pause()
-                  event.currentTarget.currentTime = Math.min(clip.startTimeMs / 1000 + coverTimeMs / 1000, Math.max(0, event.currentTarget.duration - .04))
+                  event.currentTarget.currentTime = Math.min(clip.startTimeMs / 1000 + coverTimeForClip(clip) / 1000, Math.max(0, event.currentTarget.duration - .04))
                 }}
                 style={videoStyle(clip, index)}
               />
@@ -465,7 +468,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
                 tabIndex={-1}
                 onLoadedMetadata={(event) => {
                   event.currentTarget.pause()
-                  event.currentTarget.currentTime = Math.min(clip.startTimeMs / 1000 + coverTimeMs / 1000, Math.max(0, event.currentTarget.duration - .04))
+                  event.currentTarget.currentTime = Math.min(clip.startTimeMs / 1000 + coverTimeForClip(clip) / 1000, Math.max(0, event.currentTarget.duration - .04))
                 }}
                 style={videoStyle(clip, index)}
               />

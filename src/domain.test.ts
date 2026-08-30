@@ -36,8 +36,8 @@ describe('render project', () => {
 
   it('does not let a large source library change explicitly chosen collage material', () => {
     const library = Array.from({ length: 60 }, (_, index) => clip(index + 1))
-    const top: SlotClip = { ...clip(42), id: 'chosen-top', sourceClipId: 'clip-42', targetSlotId: 'top', startTimeMs: 600, audioEnabled: true }
-    const bottom: SlotClip = { ...clip(7), id: 'chosen-bottom', sourceClipId: 'clip-7', targetSlotId: 'bottom', startTimeMs: 1800, audioEnabled: false }
+    const top: SlotClip = { ...clip(42), id: 'chosen-top', sourceClipId: 'clip-42', targetSlotId: 'top', startTimeMs: 600, audioEnabled: true, coverTimeMs: 400 }
+    const bottom: SlotClip = { ...clip(7), id: 'chosen-bottom', sourceClipId: 'clip-7', targetSlotId: 'bottom', startTimeMs: 1800, audioEnabled: false, coverTimeMs: 2200 }
 
     const project = createRenderProject(library, 'stack-2', [top, bottom])
 
@@ -45,6 +45,7 @@ describe('render project', () => {
     expect(project.clips.map((item) => item.sourcePath)).toEqual(['/tmp/clip-42.mov', '/tmp/clip-7.mov'])
     expect(project.clips.map((item) => item.startTimeMs)).toEqual([600, 1800])
     expect(project.clips.map((item) => item.audioEnabled)).toEqual([true, false])
+    expect(project.clips.map((item) => item.coverTimeMs)).toEqual([400, 2200])
   })
 
   it('maps asymmetric collage templates to their native slot identifiers', () => {
@@ -58,8 +59,8 @@ describe('render project', () => {
   })
 
   it('allows one source to be placed in multiple slots with independent edits', () => {
-    const top: SlotClip = { ...clip(1), id: 'placed-top', sourceClipId: 'clip-1', targetSlotId: 'top', startTimeMs: 400, crop: { normalizedCenterX: .25, normalizedCenterY: .5, scale: 1 }, audioEnabled: true }
-    const bottom: SlotClip = { ...clip(1), id: 'placed-bottom', sourceClipId: 'clip-1', targetSlotId: 'bottom', startTimeMs: 1700, crop: { normalizedCenterX: .75, normalizedCenterY: .5, scale: 1 }, audioEnabled: true }
+    const top: SlotClip = { ...clip(1), id: 'placed-top', sourceClipId: 'clip-1', targetSlotId: 'top', startTimeMs: 400, crop: { normalizedCenterX: .25, normalizedCenterY: .5, scale: 1 }, audioEnabled: true, coverTimeMs: 700 }
+    const bottom: SlotClip = { ...clip(1), id: 'placed-bottom', sourceClipId: 'clip-1', targetSlotId: 'bottom', startTimeMs: 1700, crop: { normalizedCenterX: .75, normalizedCenterY: .5, scale: 1 }, audioEnabled: true, coverTimeMs: 2100 }
     const project = createRenderProject([clip(1)], 'stack-2', [top, bottom])
 
     expect(project.clips.map((item) => item.id)).toEqual(['placed-top', 'placed-bottom'])
@@ -67,6 +68,7 @@ describe('render project', () => {
     expect(project.clips.map((item) => item.startTimeMs)).toEqual([400, 1700])
     expect(project.clips.map((item) => item.crop.normalizedCenterX)).toEqual([.25, .75])
     expect(project.clips.map((item) => item.audioEnabled)).toEqual([true, true])
+    expect(project.clips.map((item) => item.coverTimeMs)).toEqual([700, 2100])
   })
 
   it('applies the selected aspect ratio and export quality to the render canvas', () => {

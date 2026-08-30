@@ -84,7 +84,8 @@ final class TemplateLayoutTests: XCTestCase {
                     startTimeMs: 0,
                     crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
                     targetSlotId: "full",
-                    audioEnabled: false
+                    audioEnabled: false,
+                    coverTimeMs: 1500
                 ),
             ],
             coverTimeMs: 1_500
@@ -127,7 +128,8 @@ final class TemplateLayoutTests: XCTestCase {
                     startTimeMs: 0,
                     crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
                     targetSlotId: "full",
-                    audioEnabled: true
+                    audioEnabled: true,
+                    coverTimeMs: 1500
                 ),
             ],
             coverTimeMs: 1_500
@@ -423,7 +425,8 @@ final class TemplateLayoutTests: XCTestCase {
                     startTimeMs: 0,
                     crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
                     targetSlotId: "left",
-                    audioEnabled: false
+                    audioEnabled: false,
+                    coverTimeMs: 1500
                 ),
                 .init(
                     id: "clip-right",
@@ -432,7 +435,8 @@ final class TemplateLayoutTests: XCTestCase {
                     startTimeMs: 0,
                     crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
                     targetSlotId: "right",
-                    audioEnabled: false
+                    audioEnabled: false,
+                    coverTimeMs: 1500
                 ),
             ],
             coverTimeMs: 0
@@ -584,7 +588,8 @@ final class TemplateLayoutTests: XCTestCase {
                     startTimeMs: 0,
                     crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
                     targetSlotId: "left",
-                    audioEnabled: false
+                    audioEnabled: false,
+                    coverTimeMs: 1500
                 ),
                 .init(
                     id: "clip-right",
@@ -593,7 +598,8 @@ final class TemplateLayoutTests: XCTestCase {
                     startTimeMs: 0,
                     crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
                     targetSlotId: "right",
-                    audioEnabled: false
+                    audioEnabled: false,
+                    coverTimeMs: 1500
                 ),
             ],
             coverTimeMs: 0
@@ -744,7 +750,8 @@ final class TemplateLayoutTests: XCTestCase {
                     startTimeMs: 0,
                     crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
                     targetSlotId: "top",
-                    audioEnabled: false
+                    audioEnabled: false,
+                    coverTimeMs: 1500
                 ),
                 .init(
                     id: "clip-bottom",
@@ -753,7 +760,8 @@ final class TemplateLayoutTests: XCTestCase {
                     startTimeMs: 0,
                     crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
                     targetSlotId: "bottom",
-                    audioEnabled: false
+                    audioEnabled: false,
+                    coverTimeMs: 1500
                 ),
             ],
             coverTimeMs: 0

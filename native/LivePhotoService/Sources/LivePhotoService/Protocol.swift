@@ -74,6 +74,7 @@ struct RenderProject: Codable {
         let crop: Crop
         let targetSlotId: String
         let audioEnabled: Bool
+        let coverTimeMs: Int
     }
     let id: String
     let templateId: String
@@ -99,4 +100,3 @@ struct PreparedUpdateResult: Codable {
     let targetAppPath: String
     let version: String?
 }
-

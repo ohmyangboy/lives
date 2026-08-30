@@ -92,6 +92,8 @@ export interface SlotClip extends VideoClip {
   /** Sound is controlled by the placed cell, so one source can be silent in
    * one slot and audible in another. */
   audioEnabled?: boolean
+  /** Live Photo cover frame offset for this placed cell. */
+  coverTimeMs: number
 }
 
 export interface Slot {
@@ -123,6 +125,7 @@ export interface RenderProject {
     crop: CropPosition
     targetSlotId: string
     audioEnabled: boolean
+    coverTimeMs: number
   }>
   coverTimeMs: number
 }
@@ -221,6 +224,7 @@ export function createRenderProject(
       crop: clip.crop,
       targetSlotId: template.slots[index].id,
       audioEnabled: 'audioEnabled' in clip && clip.audioEnabled === true,
+      coverTimeMs: 'coverTimeMs' in clip ? clip.coverTimeMs : Math.max(0, Math.min(2900, Math.round(coverTimeMs / 100) * 100)),
     })),
     coverTimeMs: Math.max(0, Math.min(2900, Math.round(coverTimeMs / 100) * 100)),
   }
