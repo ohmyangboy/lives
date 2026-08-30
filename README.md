@@ -4,7 +4,7 @@
 
 Lives 是一个 macOS 本地工具：从多个 MOV/MP4/M4V 素材中截取不同的 3 秒瞬间，拼贴为一张 Live Photo，并保存到 Apple“照片”或指定文件夹。
 
-当前正式版为 [`0.1.12`](https://github.com/ohmyangboy/lives/releases/tag/v0.1.12)。本版将反馈与关于页的设备信息改为真实系统数据，并在更新重启后提供反馈入口，同时保留照片权限应用内恢复、画布自定义比例与文件夹素材库同步。完整的产品范围、实现状态、验收门槛和技术约束请从 [docs/项目文档](docs/项目文档/README.md) 开始阅读：
+当前正式版为 [`0.1.13`](https://github.com/ohmyangboy/lives/releases/tag/v0.1.13)。本版将更新重启后的反馈提示改为右上角轻量面板：显示当前版本，停留 4 秒后淡出；普通启动不弹出，手动打开不自动关闭。保留自有源优先、GitHub 备用的双源更新及原有媒体功能。完整的产品范围、实现状态、验收门槛和技术约束请从 [docs/项目文档](docs/项目文档/README.md) 开始阅读：
 
 
 
@@ -12,13 +12,13 @@ Lives 是一个 macOS 本地工具：从多个 MOV/MP4/M4V 素材中截取不同
 - [开发计划与验收清单](docs/项目文档/开发计划与验收清单.md)
 - [技术现状与架构](docs/项目文档/技术现状与架构.md)
 
-## 安装 0.1.12
+## 安装 0.1.13
 
-1. 从 [v0.1.12 发布页](https://github.com/ohmyangboy/lives/releases/tag/v0.1.12)下载 Apple Silicon DMG，核对同页的 SHA-256。
+1. 从 [v0.1.13 发布页](https://github.com/ohmyangboy/lives/releases/tag/v0.1.13)下载 Apple Silicon DMG，核对同页的 SHA-256。
 2. 退出旧版，将 Lives 拖入“应用程序”文件夹。
 3. 从“应用程序”打开 Lives，不要直接在 DMG 安装窗口运行；保存到“照片”时按提示允许“仅添加照片”。
 
-可从发布页下载安装，或通过应用内自动更新升级。详见 [本版更新说明](release/v0.1.12/release-notes.md)与[验证记录](release/v0.1.12/verification.md)。
+可从发布页下载安装，或通过应用内自动更新升级。详见 [本版更新说明](release/v0.1.13/release-notes.md)与[验证记录](release/v0.1.13/verification.md)。
 
 ## 开发运行
 
@@ -48,14 +48,15 @@ npm run tauri:build
 
 代码级自动测试不能替代平台链路验证。当前的历史验收记录在 [docs/真机验收记录.md](docs/真机验收记录.md)，新的发布检查以 [开发计划与验收清单](docs/项目文档/开发计划与验收清单.md) 为准。
 
-发布版本已配置 **Developer ID Application: Yonghao Yang (LGKLTGNTY2)** 签名，并通过 **Apple 官方公证（Notarized & Stapled）**。安装包与校验和发布于 [GitHub Releases](https://github.com/ohmyangboy/lives/releases)。官网位于 [https://ohmyangboy.github.io/lives/](https://ohmyangboy.github.io/lives/)。
+发布版本已配置 **Developer ID Application: Yonghao Yang (LGKLTGNTY2)** 签名，并通过 **Apple 官方公证（Notarized & Stapled）**。安装包与校验和发布于 [GitHub Releases](https://github.com/ohmyangboy/lives/releases)。官网：[lives.1leaf.cc](https://lives.1leaf.cc/) · [GitHub Pages 镜像](https://ohmyangboy.github.io/lives/)。
 
 ## 应用内自动更新
 
-应用内置自动更新：冷启动静默检查 GitHub 最新正式版本 → 后台流式下载 + SHA-256 校验 → 标题栏胶囊展示进度 → 一键「重启」原子换包并进入新版本。要点：
+应用内置自动更新：冷启动优先检查自有更新源（GitHub 备用）→ 后台下载并校验大小、SHA-256 与应用签名身份 → 标题栏胶囊展示进度 → 一键「重启」原子换包并进入新版本。要点：
 
 - 换包采用同卷 rename 原子替换（失败自动回滚旧版本），跨卷降级 `ditto`，主目录不可写时兜底安装到 `~/Applications`；
 - 重启后校验新进程真实运行，失败逐级降级（`open` 重试 → 直接拉起主程序）；
 - 检查/下载/退出均有看门狗超时，任何状态必然收尾，不会永久转圈；
+- 更新重启后的首次启动自动展开右上角反馈面板，4 秒后淡出；手动点击可持续显示，普通启动不打扰；
 - 更新中断自动恢复：已下载未安装的更新在下次冷启动直接提示完成安装；
 - 替换过程全程记录于 `~/Library/Caches/com.yangbukun.lives/Updates/relaunch.log`，排查「重启卡住」类问题以该日志为准。

@@ -63,6 +63,9 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .feedback-menu-anchor { position: relative; -webkit-app-region: no-drag; }
 .feedback-popover { position: absolute; z-index: 90; top: 49px; right: 0; width: 330px; max-height: calc(100vh - 92px); overflow-y: auto; overscroll-behavior: contain; padding: 16px; border: 1px solid rgba(255,255,255,.14); border-radius: 15px; background: rgba(34,32,28,.97); box-shadow: 0 24px 70px rgba(0,0,0,.55), inset 0 1px rgba(255,255,255,.06); backdrop-filter: blur(22px) saturate(125%); animation: helpPopoverIn .16s ease-out both; }
 .feedback-popover::before { content: ''; position: absolute; top: -5px; right: 27px; width: 9px; height: 9px; transform: rotate(45deg); border-left: 1px solid rgba(255,255,255,.14); border-top: 1px solid rgba(255,255,255,.14); background: #22201c; }
+.feedback-popover.feedback-popover-leaving { animation: feedbackPopoverOut .45s ease-out both; }
+@keyframes feedbackPopoverOut { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .feedback-popover.feedback-popover-leaving { animation-duration: .01s; } }
 .feedback-popover-heading { display: grid; gap: 6px; padding: 2px 2px 13px; }.feedback-popover-heading strong { font-size: 14px; }
 .feedback-channel-list { display: grid; gap: 7px; }
 .feedback-email-card { width: 100%; min-height: 58px; display: grid; grid-template-columns: 30px minmax(0,1fr) auto; align-items: center; gap: 9px; padding: 10px; border: 1px solid rgba(244,185,66,.26); border-radius: 11px; color: #ddd7cb; background: rgba(244,185,66,.065); text-align: left; cursor: pointer; transition: .16s ease; }

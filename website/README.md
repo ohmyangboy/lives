@@ -4,7 +4,7 @@
 
 Lives 是一款面向 macOS 的本地实况拼贴工具。你可以从不同视频中分别截取 3 秒片段，组合成上下、左右或多画格布局，调整关键帧后保存到 Apple“照片”。
 
-[产品官网](https://ohmyangboy.github.io/lives/) · [下载 Lives](https://github.com/ohmyangboy/lives/releases/latest) · [问题反馈](https://github.com/ohmyangboy/lives/issues)
+[产品官网](https://lives.1leaf.cc/) · [GitHub Pages 镜像](https://ohmyangboy.github.io/lives/) · [下载 Lives](https://github.com/ohmyangboy/lives/releases/latest) · [问题反馈](https://github.com/ohmyangboy/lives/issues)
 
 ![Lives 完整编辑界面：素材库、三拼画布、拼贴设置与三秒时间线](src/assets/lives-editor-home.jpg)
 
@@ -50,7 +50,7 @@ Lives 不需要账号，也不会把导入的视频上传到服务器。应用�
 
 ## 获取与支持
 
-最新正式版：[v0.1.12](https://github.com/ohmyangboy/lives/releases/tag/v0.1.12)。反馈与关于页改为真实设备信息，更新重启后提供反馈入口，并保留照片权限应用内恢复、画布自定义比例与文件夹同步，支持通过应用内自动更新升级。
+最新正式版：[v0.1.13](https://github.com/ohmyangboy/lives/releases/tag/v0.1.13)。更新重启后仅展示一次右上角反馈面板，显示当前版本并在 4 秒后淡出；手动打开不自动关闭。应用优先使用自有源更新，GitHub 作为备用。官网默认版本读取本目录 package.json，发布流水线不再依赖容易过期的 LIVES_VERSION 仓库变量。
 
 安装时将 Lives 拖入“应用程序”，退出旧版后从“应用程序”启动，不要直接运行 DMG 内的副本。首次保存到“照片”时允许仅添加照片。查看[完整更新日志](https://ohmyangboy.github.io/lives/changelog.html)。
 

@@ -1,4 +1,5 @@
 import appPackage from '../package.json'
+import { POST_UPDATE_FEEDBACK_KEY, clearPostUpdateFeedbackFlag } from './postUpdateFeedback'
 import { desktopAvailable, exitApplication, nativeService, getCurrentWindowSafely, type UpdateStage } from './nativeBridge'
 
 
@@ -500,9 +501,14 @@ export class DefaultUpdaterPort implements UpdaterPort {
       window.location.reload()
       return
     }
-    // 重启后的新实例会消费这个标记，弹出"更新完成 + 反馈提示"。
-    try { localStorage.setItem('lives.postUpdateFeedbackPending', '1') } catch { /* 忽略 */ }
-    await nativeService.installAndRelaunch(stagedAppPath, targetAppPath)
+    // 重启后的新实例消费标记，自动展开一次右上角反馈面板。
+    try { localStorage.setItem(POST_UPDATE_FEEDBACK_KEY, '1') } catch { /* 忽略 */ }
+    try {
+      await nativeService.installAndRelaunch(stagedAppPath, targetAppPath)
+    } catch (error) {
+      clearPostUpdateFeedbackFlag()
+      throw error
+    }
     await exitApplication()
     // 进程应已退出；若我们仍在运行（exit_app 未生效），安排强制退出：
     // 先重试 exit_app，最终 destroy 窗口（后台脚本会照常换包并复活）。

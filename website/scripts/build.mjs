@@ -4,7 +4,8 @@ import { resolve } from 'node:path'
 const root = resolve(import.meta.dirname, '..')
 const source = resolve(root, 'src')
 const output = resolve(root, 'dist')
-const version = process.env.LIVES_VERSION || '0.1.9'
+const websitePackage = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'))
+const version = process.env.LIVES_VERSION || websitePackage.version
 const downloadUrl = process.env.LIVES_DOWNLOAD_URL || `https://github.com/ohmyangboy/lives/releases/download/v${version}/Lives_${version}_aarch64.dmg`
 await rm(output, { recursive: true, force: true })
 await mkdir(output, { recursive: true })

@@ -1,6 +1,6 @@
 [package]
 name = "live-collage"
-version = "0.1.12"
+version = "0.1.13"
 description = "Turn one to three videos into a collage Live Photo"
 authors = ["Lives"]
 edition = "2021"
