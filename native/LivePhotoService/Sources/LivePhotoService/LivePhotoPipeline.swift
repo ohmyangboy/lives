@@ -1,62 +1,9 @@
 import AppKit
 import AVFoundation
 import ImageIO
-import Photos
 import UniformTypeIdentifiers
 
-private final class LivePhotoValidationGate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<Bool, Error>?
-    private var requestID: PHLivePhotoRequestID?
-    private var finished = false
 
-    func install(_ continuation: CheckedContinuation<Bool, Error>) {
-        lock.lock()
-        self.continuation = continuation
-        lock.unlock()
-    }
-
-    func setRequestID(_ requestID: PHLivePhotoRequestID) {
-        lock.lock()
-        let shouldCancel = finished
-        if !finished { self.requestID = requestID }
-        lock.unlock()
-        if shouldCancel { PHLivePhoto.cancelRequest(withRequestID: requestID) }
-    }
-
-    func succeed(_ value: Bool) {
-        resolve(.success(value))
-    }
-
-    func fail(_ error: Error) {
-        resolve(.failure(error))
-    }
-
-    func isFinished() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return finished
-    }
-
-    private func resolve(_ result: Result<Bool, Error>) {
-        lock.lock()
-        guard !finished else {
-            lock.unlock()
-            return
-        }
-        finished = true
-        let continuation = continuation
-        self.continuation = nil
-        let requestID = requestID
-        self.requestID = nil
-        lock.unlock()
-
-        if case .failure = result, let requestID {
-            PHLivePhoto.cancelRequest(withRequestID: requestID)
-        }
-        continuation?.resume(with: result)
-    }
-}
 
 struct SavedAssetResult: Codable {
     let localIdentifier: String
@@ -80,11 +27,15 @@ enum LivePhotoPipeline {
     }
 
     static func supportsCanvas(width: Int, height: Int) -> Bool {
-        [
-            "1080x1920", "1080x1440", "1080x1080",
-            "720x1280", "720x960", "720x720",
-            "1920x1080", "1440x1080", "1280x720", "960x720",
-        ].contains("\(width)x\(height)")
+        // 前端按「短边 = 画质（720/1080），长边按比例」生成画布；自定义比例上限 3:1（1080×3240）。
+        // 宽高必须为偶数，H.264 编码要求。
+        let shortEdge = min(width, height)
+        let longEdge = max(width, height)
+        return (shortEdge == 720 || shortEdge == 1080)
+            && longEdge >= shortEdge
+            && longEdge <= 3240
+            && width % 2 == 0
+            && height % 2 == 0
     }
 
     static func expectedClipCount(for templateId: String) -> Int {
@@ -325,49 +276,25 @@ enum LivePhotoPipeline {
         photoURL: URL,
         pairedVideoURL: URL,
         cancellations: CancellationRegistry,
-        jobId: String,
-        timeoutNanoseconds: UInt64 = 30_000_000_000
+        jobId: String
     ) async throws {
         try await cancellations.check(jobId)
-        guard let placeholder = NSImage(contentsOf: photoURL) else {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: photoURL.path),
+              let imageSource = CGImageSourceCreateWithURL(photoURL as CFURL, nil),
+              CGImageSourceGetCount(imageSource) > 0 else {
             throw ServiceError(code: "LIVE_VALIDATION_FAILED", message: "无法读取生成的封面", recovery: "请重试")
         }
-        let gate = LivePhotoValidationGate()
-        let valid = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
-            gate.install(continuation)
-            let requestID = PHLivePhoto.request(
-                withResourceFileURLs: [photoURL, pairedVideoURL],
-                placeholderImage: placeholder,
-                targetSize: CGSize(width: 540, height: 960),
-                contentMode: .aspectFit
-            ) { livePhoto, info in
-                let error = info[PHLivePhotoInfoErrorKey] as? Error
-                gate.succeed(livePhoto != nil && error == nil)
-            }
-            gate.setRequestID(requestID)
-            Task.detached {
-                var elapsed: UInt64 = 0
-                let interval: UInt64 = 100_000_000
-                while !gate.isFinished() {
-                    if await cancellations.isCancelled(jobId) {
-                        gate.fail(ServiceError.cancelled)
-                        return
-                    }
-                    if elapsed >= timeoutNanoseconds {
-                        gate.fail(ServiceError(
-                            code: "LIVE_VALIDATION_TIMEOUT",
-                            message: "Live Photo 校验超时",
-                            recovery: "本次任务已停止，请重新启动 App 后重试"
-                        ))
-                        return
-                    }
-                    try? await Task.sleep(nanoseconds: interval)
-                    elapsed += interval
-                }
-            }
+        guard fileManager.fileExists(atPath: pairedVideoURL.path) else {
+            throw ServiceError(code: "LIVE_VALIDATION_FAILED", message: "无法读取生成的视频资源", recovery: "请重试")
         }
-        guard valid else {
-            throw ServiceError(code: "LIVE_VALIDATION_FAILED", message: "生成结果未通过 Live Photo 校验", recovery: "不会写入图库，请重试")
+        let asset = AVURLAsset(url: pairedVideoURL)
+        guard let _ = try await asset.loadTracks(withMediaType: .video).first else {
+            throw ServiceError(code: "LIVE_VALIDATION_FAILED", message: "生成的视频缺少视频轨道", recovery: "请重试")
+        }
+        let duration = try await asset.load(.duration)
+        guard CMTimeCompare(duration, .zero) > 0 else {
+            throw ServiceError(code: "LIVE_VALIDATION_FAILED", message: "生成的视频时长异常", recovery: "请重试")
         }
     }
 

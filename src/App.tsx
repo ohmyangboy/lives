@@ -6,9 +6,9 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { CollagePreview } from './components/CollagePreview'
 import { Timeline, TimelineEmpty } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
-import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, createRenderProject, formatDuration, MINIMUM_SOURCE_DURATION_MS, templates, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
+import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, createRenderProject, formatDuration, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, planFolderSync, templates, videoExtensionPattern, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
-import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, UpdateIcon, ChevronDownIcon, GithubIcon } from './icons'
+import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, RefreshIcon, UpdateIcon, ChevronDownIcon, GithubIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
 import { currentAppVersion, defaultUpdateCoordinator } from './releaseUpdate'
 import { UpdateCapsule } from './components/UpdateCapsule'
@@ -55,7 +55,28 @@ const defaultProjectId = 'direct-imports'
 const libraryStorageKey = 'lives.project-media.v2'
 const legacyLibraryStorageKey = 'lives.project-media.v1'
 const onboardingStorageKey = 'lives.onboarding.import-guide.v1'
+// 渐进降级：连续在系统弹窗中选择"不允许"达到阈值后，恢复卡片主按钮改为"改存到文件夹"。
+// 阈值常量定义在 ExportOverlay（PHOTO_DENY_DOWNGRADE_THRESHOLD）。
+const PHOTO_DENY_COUNT_KEY = 'lives.photosDenyCount'
 const createDefaultProject = (): MediaProject => ({ id: defaultProjectId, name: '已导入', kind: 'direct', clipIds: [] })
+
+const readStoredPhotoDenyCount = () => {
+  try {
+    const parsed = Number.parseInt(localStorage.getItem(PHOTO_DENY_COUNT_KEY) ?? '', 10)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+  } catch {
+    return 0
+  }
+}
+
+const storePhotoDenyCount = (count: number) => {
+  try {
+    if (count > 0) localStorage.setItem(PHOTO_DENY_COUNT_KEY, String(count))
+    else localStorage.removeItem(PHOTO_DENY_COUNT_KEY)
+  } catch {
+    // 存储不可用时降级为仅本次会话内计数
+  }
+}
 
 const shouldShowFirstRunGuide = () => {
   try {
@@ -253,6 +274,7 @@ export function App() {
   const [activeProjectId, setActiveProjectId] = useState(restoredMedia.activeProjectId)
   const [templateId, setTemplateId] = useState<TemplateId>('single')
   const [aspectRatio, setAspectRatio] = useState<AspectRatioId>('9:16')
+  const [customRatio, setCustomRatio] = useState({ width: 9, height: 16 })
   const [canvasOrientation, setCanvasOrientation] = useState<CanvasOrientation>('portrait')
   const [exportQuality, setExportQuality] = useState<ExportQuality>('1080p')
   const [coverTimeMs, setCoverTimeMs] = useState(1500)
@@ -265,6 +287,11 @@ export function App() {
   const [exportDestination, setExportDestination] = useState<ExportDestination>('photos')
   const [pickerDestination, setPickerDestination] = useState<ExportDestination>('photos')
   const [exportFolder, setExportFolder] = useState<string>()
+  // 照片授权恢复流程：deny 计数驱动渐进降级；token 丢弃被取消流程的残留回调，
+  // resetJobId 让原生侧轮询可被"取消恢复"中止（防止旧轮询占住串行队列）。
+  const [photoDenyCount, setPhotoDenyCount] = useState(() => readStoredPhotoDenyCount())
+  const photoFlowTokenRef = useRef(0)
+  const photoResetJobIdRef = useRef<string | undefined>(undefined)
   const [slotPlacements, setSlotPlacements] = useState<SlotPlacements>({})
   const [destinationPickerVisible, setDestinationPickerVisible] = useState(false)
   const [importProgress, setImportProgress] = useState<{ done: number; total: number }>()
@@ -276,6 +303,17 @@ export function App() {
   const [aboutModalOpen, setAboutModalOpen] = useState(false)
 
   const [materialContextMenu, setMaterialContextMenu] = useState<{ x: number; y: number; clip: VideoClip }>()
+  // 文件夹同步在 await 扫描之后才计算差异，这里用 ref 读取最新状态，避免闭包快照导致重复导入或误删。
+  const clipsRef = useRef(clips)
+  const mediaProjectsRef = useRef(mediaProjects)
+  const importProgressRef = useRef(importProgress)
+  clipsRef.current = clips
+  mediaProjectsRef.current = mediaProjects
+  importProgressRef.current = importProgress
+  const isSyncingFoldersRef = useRef(false)
+  const lastFolderSyncAtRef = useRef(new Map<string, number>())
+  const startupFolderSyncDoneRef = useRef(false)
+  const [isSyncingFolders, setIsSyncingFolders] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const firstRunDialogRef = useRef<HTMLDivElement>(null)
   const firstRunPrimaryRef = useRef<HTMLButtonElement>(null)
@@ -290,7 +328,11 @@ export function App() {
   const currentTemplate = templates.find((template) => template.id === templateId)!
   const visibleAspectRatios = (canvasOrientation === 'portrait' ? ['9:16', '3:4', '1:1'] : ['16:9', '4:3', '1:1'])
     .map((id) => aspectRatioOptions.find((option) => option.id === id as AspectRatioId)!)
-  const canvas = canvasDimensions({ aspectRatio, quality: exportQuality })
+  // 自定义比例下方向由实际宽高决定，避免「画布方向」选中态与画布矛盾
+  const effectiveOrientation: CanvasOrientation = aspectRatio === 'custom'
+    ? (customRatio.width >= customRatio.height ? 'landscape' : 'portrait')
+    : canvasOrientation
+  const canvas = canvasDimensions({ aspectRatio, quality: exportQuality, customRatio })
   const slotClips = currentTemplate.slots.map((slot) => slotPlacements[slot.id])
   const selectedSlotClip = selectedSlotId ? slotPlacements[selectedSlotId] : undefined
   const activeClips = slotClips.filter((clip): clip is SlotClip => Boolean(clip))
@@ -403,10 +445,10 @@ export function App() {
     if (clips.length && !sourceQuality.supports1080p && exportQuality === '1080p') setExportQuality('720p')
   }, [clips.length, exportQuality, sourceQuality.supports1080p])
 
-  const importPaths = useCallback(async (paths: string[], target: Omit<MediaProject, 'clipIds'> = createDefaultProject()) => {
-    const existingByPath = new Map(clips.filter((clip) => clip.sourcePath).map((clip) => [clip.sourcePath, clip]))
-    const supported = [...new Set(paths.filter((path) => /\.(mov|mp4|m4v)$/i.test(path)))]
-    if (!supported.length) { setNotice('请选择 MOV、MP4 或 M4V 视频'); return }
+  const importPaths = useCallback(async (paths: string[], target: Omit<MediaProject, 'clipIds'> = createDefaultProject(), options: { activate?: boolean } = {}): Promise<{ added: number; failed: number; projectClipIds: string[] }> => {
+    const existingByPath = new Map(clipsRef.current.filter((clip) => clip.sourcePath).map((clip) => [clip.sourcePath, clip]))
+    const supported = [...new Set(paths.filter((path) => videoExtensionPattern.test(path)))]
+    if (!supported.length) { setNotice('请选择 MOV、MP4 或 M4V 视频'); return { added: 0, failed: 0, projectClipIds: [] } }
     const accepted = supported.filter((path) => !existingByPath.has(path))
     setNotice(undefined)
     if (accepted.length) setImportProgress({ done: 0, total: accepted.length })
@@ -453,19 +495,95 @@ export function App() {
           ? { ...project, ...target, clipIds: [...new Set([...project.clipIds, ...projectClipIds])] }
           : project)
       })
-      setActiveProjectId(target.id)
-      setSelectedMaterialId(projectClipIds[0])
+      // 后台文件夹同步传 activate: false，不打断用户当前所在的项目和选中素材。
+      if (options.activate !== false) {
+        setActiveProjectId(target.id)
+        setSelectedMaterialId(projectClipIds[0])
+      }
     }
     if (failed) {
       const reason = [...new Set(failureMessages)].slice(0, 2).join('；')
       setNotice(successful.length ? `已添加 ${successful.length} 段视频；${failed} 段未添加：${reason}` : reason)
     }
-  }, [clips])
+    return { added: successful.length, failed, projectClipIds }
+  }, [])
+
+  // 文件夹项目同步：镜像文件夹的最新内容（新文件加入、已消失的移除）。
+  // 扫描失败（外置盘未挂载、文件夹被移走）时绝不删除，防止误清空整个项目。
+  const syncFolderProjects = useCallback(async (targets: MediaProject[], options: { silent?: boolean } = {}) => {
+    if (!desktopAvailable() || isSyncingFoldersRef.current || importProgressRef.current) return
+    const folderProjects = targets.filter((project) => project.kind === 'folder' && project.folderPath)
+    if (!folderProjects.length) return
+    isSyncingFoldersRef.current = true
+    setIsSyncingFolders(true)
+    let addedTotal = 0
+    let removedTotal = 0
+    const failures: string[] = []
+    try {
+      for (const project of folderProjects) {
+        const folderPath = project.folderPath
+        if (!folderPath) continue
+        lastFolderSyncAtRef.current.set(project.id, Date.now())
+        setImportProgress({ done: 0, total: 1 })
+        let scanPaths: string[]
+        try {
+          scanPaths = await nativeService.scanFolder(folderPath)
+        } catch (error) {
+          setImportProgress(undefined)
+          if (!options.silent) failures.push(error instanceof Error ? error.message : '无法读取这个文件夹')
+          continue
+        }
+        const plan = planFolderSync(scanPaths, clipsRef.current, project, mediaProjectsRef.current)
+        const missingIds = new Set(plan.missingClipIds)
+        const removeIds = new Set(plan.removeClipIds)
+        if (missingIds.size) {
+          setClips((current) => current.filter((clip) => !removeIds.has(clip.id)))
+          setMediaProjects((current) => current.map((item) => item.id === project.id
+            ? { ...item, clipIds: item.clipIds.filter((id) => !missingIds.has(id)) }
+            : { ...item, clipIds: item.clipIds.filter((id) => !removeIds.has(id)) }))
+          setSlotPlacements((current) => Object.fromEntries(Object.entries(current).filter(([, placement]) => !placement || !removeIds.has(placement.sourceClipId))))
+          setSelectedMaterialId((current) => current && removeIds.has(current) ? undefined : current)
+          removedTotal += missingIds.size
+        }
+        if (plan.toAdd.length) {
+          const result = await importPaths(plan.toAdd, { id: project.id, name: project.name, kind: 'folder', folderPath }, { activate: false })
+          addedTotal += result.added
+          if (result.failed) failures.push(`${result.failed} 段视频无法读取`)
+        } else {
+          setImportProgress(undefined)
+        }
+      }
+    } finally {
+      isSyncingFoldersRef.current = false
+      setIsSyncingFolders(false)
+    }
+    const parts: string[] = []
+    if (addedTotal) parts.push(`新增 ${addedTotal} 段视频`)
+    if (removedTotal) parts.push(`移除 ${removedTotal} 段已不在文件夹中的视频`)
+    if (failures.length) parts.push(failures[0])
+    if (parts.length) setNotice(parts.join('，'))
+    else if (!options.silent) setNotice('文件夹内容已是最新')
+  }, [importPaths])
+
+  // 启动后静默同步所有文件夹项目；切到某个文件夹项目时静默同步该项目（3 秒内不重复）。
+  useEffect(() => {
+    if (startupPhase !== 'hidden' || startupFolderSyncDoneRef.current) return
+    startupFolderSyncDoneRef.current = true
+    if (!desktopAvailable()) return
+    void syncFolderProjects(mediaProjectsRef.current.filter((project) => project.kind === 'folder'), { silent: true })
+  }, [startupPhase, syncFolderProjects])
+
+  useEffect(() => {
+    const project = mediaProjectsRef.current.find((item) => item.id === activeProjectId)
+    if (!project?.folderPath) return
+    if (Date.now() - (lastFolderSyncAtRef.current.get(project.id) ?? 0) < 3000) return
+    void syncFolderProjects([project], { silent: true })
+  }, [activeProjectId, mediaProjects, syncFolderProjects])
 
   const importBrowserFiles = async (files: FileList) => {
     const next: VideoClip[] = []
     for (const file of Array.from(files)) {
-      if (!/\.(mov|mp4|m4v)$/i.test(file.name)) continue
+      if (!videoExtensionPattern.test(file.name)) continue
       const url = URL.createObjectURL(file)
       const metadata = await new Promise<{ durationMs: number; width: number; height: number }>((resolve, reject) => {
         const video = document.createElement('video')
@@ -768,12 +886,15 @@ export function App() {
       destinationFolder = await chooseExportFolder()
       if (!destinationFolder) return
     }
-    const project = createRenderProject(clips, templateId, slotClips, { aspectRatio, quality: exportQuality }, coverTimeMs)
+    const project = createRenderProject(clips, templateId, slotClips, { aspectRatio, quality: exportQuality, customRatio }, coverTimeMs)
     setExportState({ visible: true, state: 'running', stage: 'inspecting', progress: 0, jobId: project.id })
     try {
       const onProgress = (stage: NativeStage, progress: number) => setExportState((current) => ({ ...current, stage, progress }))
       if (destination === 'photos') {
         await nativeService.renderAndSave(project, onProgress)
+        // 保存成功说明授权链路完全恢复，清空渐进降级计数
+        setPhotoDenyCount(0)
+        storePhotoDenyCount(0)
         setExportState((current) => ({ ...current, state: 'success', stage: 'completed', progress: 1 }))
       } else {
         const result = await nativeService.renderAndExport(project, destinationFolder!, onProgress)
@@ -781,8 +902,50 @@ export function App() {
       }
     } catch (error) {
       const typed = (error instanceof Error ? error : new Error(String(error))) as Error & { code?: string; recovery?: string }
+      if (destination === 'photos' && (typed.code === 'PHOTO_PERMISSION_DENIED' || typed.code === 'PHOTO_PERMISSION_PROMPT_SUPPRESSED')) {
+        // 记录用户在系统弹窗中的拒绝次数，用于恢复卡片的渐进降级
+        setPhotoDenyCount((current) => {
+          const next = current + 1
+          storePhotoDenyCount(next)
+          return next
+        })
+      }
       setExportState((current) => ({ ...current, state: 'error', message: typed.message, recovery: typed.recovery, errorCode: typed.code }))
     }
+  }
+
+  const resetAndRetryExport = async () => {
+    // token 使被取消/关闭的旧流程的残留回调失效，防止双重导出保存
+    const token = ++photoFlowTokenRef.current
+    const jobId = crypto.randomUUID()
+    photoResetJobIdRef.current = jobId
+    setExportState((current) => ({ ...current, visible: true, state: 'running', stage: 'resettingPhotoPermission', progress: 0.05 }))
+    if (desktopAvailable()) {
+      try {
+        await nativeService.resetPhotoAuthorization(jobId)
+      } catch (error) {
+        if (photoFlowTokenRef.current !== token) return
+        // 重置失败时给出带手动命令的错误卡片，而不是静默继续导出后再次撞上同一个权限墙
+        const typed = (error instanceof Error ? error : new Error(String(error))) as Error & { code?: string; recovery?: string }
+        setExportState((current) => ({ ...current, state: 'error', message: typed.message, recovery: typed.recovery, errorCode: typed.code }))
+        return
+      } finally {
+        if (photoResetJobIdRef.current === jobId) photoResetJobIdRef.current = undefined
+      }
+    }
+    if (photoFlowTokenRef.current !== token) return
+    await exportProject()
+  }
+
+  const closeExportOverlay = (cancelActiveJobs: boolean) => {
+    photoFlowTokenRef.current++
+    const resetJobId = photoResetJobIdRef.current
+    if (resetJobId) {
+      photoResetJobIdRef.current = undefined
+      void nativeService.cancel(resetJobId).catch(() => undefined)
+    }
+    if (cancelActiveJobs && exportState.jobId) void nativeService.cancel(exportState.jobId)
+    setExportState(initialExport)
   }
 
   const exportToFolderInstead = async () => {
@@ -805,11 +968,32 @@ export function App() {
 
   const changeCanvasOrientation = (orientation: CanvasOrientation) => {
     setCanvasOrientation(orientation)
+    if (aspectRatio === 'custom') {
+      // 自定义比例没有预设映射，方向变化时直接交换宽高；已是目标方向则为空操作
+      const currentOrientation: CanvasOrientation = customRatio.width >= customRatio.height ? 'landscape' : 'portrait'
+      if (currentOrientation !== orientation) setCustomRatio((current) => ({ width: current.height, height: current.width }))
+      return
+    }
     setAspectRatio((current) => {
       if (orientation === 'portrait') return current === '4:3' ? '3:4' : current === '16:9' ? '9:16' : current === '1:1' ? '9:16' : current
       return current === '3:4' ? '4:3' : current === '9:16' ? '16:9' : current === '1:1' ? '16:9' : current
     })
   }
+
+  const selectCustomRatio = () => {
+    if (aspectRatio === 'custom') return
+    const preset = aspectRatioOptions.find((option) => option.id === aspectRatio)
+    if (preset) setCustomRatio({ width: preset.width, height: preset.height })
+    setAspectRatio('custom')
+  }
+
+  const updateCustomRatio = (side: 'width' | 'height', raw: string) => {
+    const value = Math.round(Number(raw))
+    if (!Number.isFinite(value)) return
+    setCustomRatio((current) => ({ ...current, [side]: Math.max(1, Math.min(99, value)) }))
+  }
+
+  const clampCustomRatio = () => setCustomRatio((current) => normalizeCustomRatio(current))
 
   const toggleWindowZoom = () => {
     if (desktopAvailable()) void getCurrentWindow().toggleMaximize()
@@ -908,17 +1092,19 @@ export function App() {
 
       <div className="workspace has-timeline">
           <aside className="left-panel">
-            <div className="panel-heading material-panel-heading"><span className="eyebrow">01 / 素材</span><div className="panel-title-row"><h2>视频素材库</h2><div ref={libraryHelpRef} className="context-help-anchor">
+            <div className="panel-heading material-panel-heading"><span className="eyebrow">01 / 素材</span><div className="panel-title-row"><h2>视频素材库</h2><div className="panel-title-actions">
+              {activeMediaProject.kind === 'folder' && activeMediaProject.folderPath && <button className={isSyncingFolders ? 'context-help-button library-sync-button syncing' : 'context-help-button library-sync-button'} aria-label="重新扫描文件夹，同步最新视频" title="重新扫描文件夹，同步最新视频" disabled={isSyncingFolders || Boolean(importProgress)} onClick={() => void syncFolderProjects([activeMediaProject], { silent: false })}><RefreshIcon /></button>}
+              <div ref={libraryHelpRef} className="context-help-anchor">
               <button className="context-help-button" aria-label="查看素材库使用说明" aria-expanded={openHelpPopover === 'library'} aria-controls="library-help-popover" onClick={() => setOpenHelpPopover((current) => current === 'library' ? undefined : 'library')}><InfoIcon /></button>
               {openHelpPopover === 'library' && <div id="library-help-popover" className="context-help-popover library-help-popover">
                 <div><FilmIcon /><p><strong>拖入画格</strong><span>同一素材可以重复使用，每个画格分别截取 3 秒片段。</span></p></div>
                 <div><FolderIcon /><p><strong>只引用原文件</strong><span>不会复制、上传或修改视频。</span></p></div>
               </div>}
-            </div></div></div>
+            </div></div></div></div>
             <div className="media-project-tabs" role="tablist" aria-label="素材项目">
               {mediaProjects.map((project) => <div key={project.id} className={project.id === activeProjectId ? 'media-project-tab selected' : 'media-project-tab'} title={project.folderPath ?? project.name}>
                 <button role="tab" aria-selected={project.id === activeProjectId} className="media-project-select" onClick={() => { setActiveProjectId(project.id); setSelectedMaterialId(undefined) }}><span>{project.name}</span><b>{project.clipIds.length}</b></button>
-                {project.clipIds.length > 0 && <button className="media-project-close" aria-label={`关闭项目 ${project.name}`} onClick={() => closeMediaProject(project.id)}><CloseIcon /></button>}
+                <button className="media-project-close" aria-label={`关闭项目 ${project.name}`} onClick={() => closeMediaProject(project.id)}><CloseIcon /></button>
               </div>)}
             </div>
             {importProgress && <div className="material-import-status" role="progressbar" aria-label="导入视频" aria-valuemin={0} aria-valuemax={importProgress.total} aria-valuenow={importProgress.done}><i style={{ width: `${importProgress.total ? importProgress.done / importProgress.total * 100 : 0}%` }} /><span>正在导入 {importProgress.done} / {importProgress.total}</span></div>}
@@ -932,22 +1118,54 @@ export function App() {
                   <button className="remove-clip" aria-label={`移除 ${clip.name}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => removeClip(clip.id)}><CloseIcon /></button>
                 </div>
               })}
-              {!activeProjectClips.length && <div className="project-empty"><FilmIcon /><strong>这个项目还没有视频</strong><span>{activeMediaProject.kind === 'folder' ? '重新导入文件夹，或切换其他项目。' : '添加视频后会显示在这里。'}</span></div>}
+              {!activeProjectClips.length && <div className="project-empty"><FilmIcon /><strong>这个项目还没有视频</strong><span>{activeMediaProject.kind === 'folder' ? '文件夹里的最新视频会同步到这里。' : '添加视频后会显示在这里。'}</span>{activeMediaProject.kind === 'folder' && activeMediaProject.folderPath && <button className="project-empty-action" disabled={isSyncingFolders || Boolean(importProgress)} onClick={() => void syncFolderProjects([activeMediaProject], { silent: false })}><RefreshIcon />重新扫描文件夹</button>}</div>}
             </div>
             <div className="material-import-actions"><button onClick={() => void chooseVideos()}><PlusIcon />添加视频</button><button onClick={() => void chooseSourceFolder()}><FolderIcon />导入文件夹</button></div>
           </aside>
 
           <section className="center-panel">
             <div className="stage-heading"><div><span className="eyebrow">02 / 构图</span><h2>画布预览</h2></div></div>
-            <CollagePreview clips={slotClips} template={currentTemplate} canvasWidth={canvas.width} canvasHeight={canvas.height} selectedSlotId={selectedSlotId} selectedSourceId={selectedMaterialId} pointerDropTargetSlotId={sourceDragFeedback?.overSlotId} isSourceDragging={Boolean(sourceDragFeedback)} coverTimeMs={selectedSlotClip?.coverTimeMs ?? coverTimeMs} onCoverTimeChange={(milliseconds) => { if (selectedSlotId) updateSlotClip(selectedSlotId, (clip) => ({ ...clip, coverTimeMs: milliseconds })) }} onSelectSlot={setSelectedSlotId} onDropSource={placeMaterialInSlot} onClearSlot={clearSlot} onAudioEnabledChange={(slotId, audioEnabled) => updateSlotClip(slotId, (clip) => ({ ...clip, audioEnabled }))} onScaleChange={(slotId, scale) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, scale } }))} onCropChange={(slotId, x, y) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, normalizedCenterX: x, normalizedCenterY: y } }))} />
+            <CollagePreview
+              clips={slotClips}
+              template={currentTemplate}
+              canvasWidth={canvas.width}
+              canvasHeight={canvas.height}
+              selectedSlotId={selectedSlotId}
+              selectedSourceId={selectedMaterialId}
+              pointerDropTargetSlotId={sourceDragFeedback?.overSlotId}
+              isSourceDragging={Boolean(sourceDragFeedback)}
+              coverTimeMs={selectedSlotClip?.coverTimeMs ?? coverTimeMs}
+              customRatio={customRatio}
+              onCanvasRatioChange={aspectRatio === 'custom' ? (ratio) => setCustomRatio(normalizeCustomRatio(ratio)) : undefined}
+              onCoverTimeChange={(milliseconds) => {
+                if (selectedSlotId) {
+                  updateSlotClip(selectedSlotId, (clip) => ({ ...clip, coverTimeMs: milliseconds }))
+                } else {
+                  const firstFilledSlotId = currentTemplate.slots.find((slot) => slotPlacements[slot.id])?.id
+                  if (firstFilledSlotId) {
+                    setSelectedSlotId(firstFilledSlotId)
+                    updateSlotClip(firstFilledSlotId, (clip) => ({ ...clip, coverTimeMs: milliseconds }))
+                  } else {
+                    setCoverTimeMs(milliseconds)
+                  }
+                }
+              }}
+              onSelectSlot={setSelectedSlotId}
+              onDropSource={placeMaterialInSlot}
+              onClearSlot={clearSlot}
+              onAudioEnabledChange={(slotId, audioEnabled) => updateSlotClip(slotId, (clip) => ({ ...clip, audioEnabled }))}
+              onScaleChange={(slotId, scale) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, scale } }))}
+              onCropChange={(slotId, x, y) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, normalizedCenterX: x, normalizedCenterY: y } }))}
+            />
           </section>
 
           <aside className="right-panel">
             <div className="panel-heading"><span className="eyebrow">03 / 配置</span><h2>拼贴设置</h2></div>
             <div className="video-settings aspect-settings">
               <span className="eyebrow">画面比例</span>
-              <div className="setting-row"><span><strong>画布方向</strong><small>横竖屏即时切换</small></span><div className="segmented compact" role="group" aria-label="画布方向"><button aria-pressed={canvasOrientation === 'portrait'} className={canvasOrientation === 'portrait' ? 'selected' : ''} onClick={() => changeCanvasOrientation('portrait')}>竖屏</button><button aria-pressed={canvasOrientation === 'landscape'} className={canvasOrientation === 'landscape' ? 'selected' : ''} onClick={() => changeCanvasOrientation('landscape')}>横屏</button></div></div>
-              <div className="setting-row"><span><strong>场景比例</strong><small>同步调整预览与导出</small></span><div className="segmented compact" role="group" aria-label="场景比例">{visibleAspectRatios.map((option) => <button key={option.id} aria-pressed={aspectRatio === option.id} className={aspectRatio === option.id ? 'selected' : ''} onClick={() => setAspectRatio(option.id)}>{option.label}</button>)}</div></div>
+              <div className="setting-row"><span><strong>画布方向</strong><small>横竖屏即时切换</small></span><div className="segmented compact" role="group" aria-label="画布方向"><button aria-pressed={effectiveOrientation === 'portrait'} className={effectiveOrientation === 'portrait' ? 'selected' : ''} onClick={() => changeCanvasOrientation('portrait')}>竖屏</button><button aria-pressed={effectiveOrientation === 'landscape'} className={effectiveOrientation === 'landscape' ? 'selected' : ''} onClick={() => changeCanvasOrientation('landscape')}>横屏</button></div></div>
+              <div className="setting-row"><span><strong>场景比例</strong><small>同步调整预览与导出</small></span><div className="segmented compact" role="group" aria-label="场景比例">{visibleAspectRatios.map((option) => <button key={option.id} aria-pressed={aspectRatio === option.id} className={aspectRatio === option.id ? 'selected' : ''} onClick={() => setAspectRatio(option.id)}>{option.label}</button>)}<button aria-pressed={aspectRatio === 'custom'} className={aspectRatio === 'custom' ? 'selected' : ''} onClick={selectCustomRatio}>自定义</button></div></div>
+              {aspectRatio === 'custom' && <div className="setting-row custom-ratio-row"><span><strong>自定义比例</strong><small>宽高 1:3 – 3:1 · 导出 {canvas.width} × {canvas.height}</small></span><div className="custom-ratio-inputs"><input type="number" inputMode="numeric" min={1} max={99} value={customRatio.width} aria-label="自定义比例宽度" onChange={(event) => updateCustomRatio('width', event.target.value)} onBlur={clampCustomRatio} /><span className="custom-ratio-divider">:</span><input type="number" inputMode="numeric" min={1} max={99} value={customRatio.height} aria-label="自定义比例高度" onChange={(event) => updateCustomRatio('height', event.target.value)} onBlur={clampCustomRatio} /><button type="button" className="custom-ratio-swap" onClick={() => setCustomRatio((current) => ({ width: current.height, height: current.width }))} aria-label="交换宽高" title="交换宽高">⇄</button></div></div>}
             </div>
             <div className="template-list config-templates">
               <div className="section-label-with-help"><span className="eyebrow">拼贴模板</span><div ref={templateHelpRef} className="context-help-anchor">
@@ -992,8 +1210,8 @@ export function App() {
       </div>}
       {isDragging && <div className="drag-overlay"><PlusIcon /><strong>放下视频，加入素材库</strong><span>使用原文件，可一次添加多段视频</span></div>}
       <input ref={fileInputRef} hidden type="file" multiple accept="video/quicktime,video/mp4,.m4v" onChange={(event) => event.target.files && void importBrowserFiles(event.target.files)} />
-      {destinationPickerVisible && <ExportDestinationPicker aspectRatio={aspectRatio} quality={exportQuality} sourceQuality={sourceQuality} cropUpscaleRisk={cropUpscaleRisk} destination={pickerDestination} onQualityChange={setExportQuality} onDestinationChange={setPickerDestination} onExport={() => void exportFromPicker()} onClose={() => setDestinationPickerVisible(false)} />}
-      {exportState.visible && <ExportOverlay {...exportState} destination={exportDestination} onClose={() => setExportState(initialExport)} onCancel={() => { if (exportState.jobId) void nativeService.cancel(exportState.jobId); setExportState(initialExport) }} onRetry={() => void exportProject()} onOpenPrivacySettings={() => void nativeService.openPhotoPrivacySettings()} onFallbackToFolder={() => void exportToFolderInstead()} onRevealResult={() => exportDestination === 'photos' ? void nativeService.openPhotos() : exportState.outputPath ? void nativeService.revealInFinder(exportState.outputPath) : undefined} />}
+      {destinationPickerVisible && <ExportDestinationPicker aspectRatio={aspectRatio} customRatio={customRatio} quality={exportQuality} sourceQuality={sourceQuality} cropUpscaleRisk={cropUpscaleRisk} destination={pickerDestination} onQualityChange={setExportQuality} onDestinationChange={setPickerDestination} onExport={() => void exportFromPicker()} onClose={() => setDestinationPickerVisible(false)} />}
+      {exportState.visible && <ExportOverlay {...exportState} destination={exportDestination} photoDenyCount={photoDenyCount} onClose={() => closeExportOverlay(false)} onCancel={() => closeExportOverlay(true)} onRetry={() => void exportProject()} onResetAndRetry={() => void resetAndRetryExport()} onCopyRepairCommands={() => void nativeService.copyRepairCommands().catch(() => undefined)} onOpenPrivacySettings={() => void nativeService.openPhotoPrivacySettings()} onFallbackToFolder={() => void exportToFolderInstead()} onRevealResult={() => exportDestination === 'photos' ? void nativeService.openPhotos() : exportState.outputPath ? void nativeService.revealInFinder(exportState.outputPath) : undefined} />}
       {materialContextMenu && (
         <div
           className="material-context-menu"

@@ -52,9 +52,36 @@ actor CancellationRegistry {
     func finish(_ jobId: String) { cancelled.remove(jobId) }
 }
 
+// 重置动作串行化：并发触发的重置依次执行，避免多组 tccutil + 轮询循环互相干扰
+// （诊断日志显示曾出现 11 秒内两次并发重置、各自拉起轮询）。
+actor PhotoResetGate {
+    private var running = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func waitTurn() async {
+        if !running {
+            running = true
+            return
+        }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            waiters.append(continuation)
+        }
+    }
+
+    func finishTurn() {
+        if let next = waiters.first {
+            waiters.removeFirst()
+            next.resume()
+        } else {
+            running = false
+        }
+    }
+}
+
 final class ServiceRuntime {
     private let writer = ResponseWriter()
     private let cancellations = CancellationRegistry()
+    private let photoResetGate = PhotoResetGate()
 
     func submit(_ request: ServiceRequest) {
         Task.detached { [self] in await handle(request) }
@@ -116,6 +143,22 @@ final class ServiceRuntime {
                       NSWorkspace.shared.open(url) else {
                     throw ServiceError(code: "SETTINGS_UNAVAILABLE", message: "无法打开照片权限设置", recovery: "请手动打开“系统设置 → 隐私与安全性 → 照片”")
                 }
+                await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: .null))
+            case "resetPhotoAuthorization":
+                let envelope = try request.payload.decode(ResetEnvelope.self)
+                await photoResetGate.waitTurn()
+                do {
+                    try await PhotoAuthorization.resetDeniedAuthorization(cancellations: cancellations, jobId: envelope.jobId)
+                } catch {
+                    await photoResetGate.finishTurn()
+                    throw error
+                }
+                await photoResetGate.finishTurn()
+                await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: .null))
+            case "copyRepairCommands":
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(PhotoAuthorization.repairCommandLines.joined(separator: "\n"), forType: .string)
                 await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: .null))
             case "revealInFinder":
                 let envelope = try request.payload.decode(PathEnvelope.self)

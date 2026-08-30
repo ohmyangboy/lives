@@ -5,11 +5,20 @@ import Photos
 private struct PhotoWorkerResponse: Codable {
     var authorized: Bool?
     var identifier: String?
+    var statusCode: Int?
     var error: ServiceError?
 }
 
 enum PhotoLibraryWorker {
     static func runIfRequested(arguments: [String]) async -> Bool {
+        if let modeIndex = arguments.firstIndex(of: "photo-status"), arguments.indices.contains(modeIndex + 1) {
+            let responseURL = URL(fileURLWithPath: arguments[modeIndex + 1])
+            await prepareApplicationForPhotoKit()
+            let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+            write(PhotoWorkerResponse(authorized: status == .authorized, identifier: nil, statusCode: status.rawValue, error: nil), to: responseURL)
+            return true
+        }
+
         if let modeIndex = arguments.firstIndex(of: "photo-authorize"), arguments.indices.contains(modeIndex + 1) {
             let responseURL = URL(fileURLWithPath: arguments[modeIndex + 1])
             do {
@@ -19,9 +28,9 @@ enum PhotoLibraryWorker {
                 return true
             }
             await prepareApplicationForPhotoKit()
-            let status = await requestAddOnlyAuthorizationDirect()
-            let authorized = status == .authorized
-            let error = PhotoAuthorization.error(for: status)
+            let outcome = await requestAddOnlyAuthorizationDirect()
+            let authorized = outcome.status == .authorized
+            let error = outcome.promptSuppressed ? PhotoAuthorization.promptSuppressedError : PhotoAuthorization.error(for: outcome.status)
             write(PhotoWorkerResponse(authorized: authorized, identifier: nil, error: error), to: responseURL)
             return true
         }
@@ -33,10 +42,13 @@ enum PhotoLibraryWorker {
             let videoURL = URL(fileURLWithPath: arguments[modeIndex + 3])
             do {
                 let identifier = try await savePairDirect(photoURL: photoURL, pairedVideoURL: videoURL)
+                PhotoAuthorization.appendDiagnosticsLog("photo-save: ok")
                 write(PhotoWorkerResponse(authorized: true, identifier: identifier, error: nil), to: responseURL)
             } catch let error as ServiceError {
+                PhotoAuthorization.appendDiagnosticsLog("photo-save: failed code=\(error.code)")
                 write(PhotoWorkerResponse(authorized: true, identifier: nil, error: error), to: responseURL)
             } catch {
+                PhotoAuthorization.appendDiagnosticsLog("photo-save: failed code=UNMAPPED")
                 write(PhotoWorkerResponse(authorized: true, identifier: nil, error: ErrorMapper.map(error)), to: responseURL)
             }
             return true
@@ -49,14 +61,25 @@ enum PhotoLibraryWorker {
         let application = NSApplication.shared
         application.setActivationPolicy(.accessory)
         application.finishLaunching()
-        application.activate(ignoringOtherApps: false)
+        application.activate(ignoringOtherApps: true)
+    }
+
+    struct AuthorizationOutcome {
+        var status: PHAuthorizationStatus
+        // 系统没有真正弹窗而是自动拒绝的特征：人工在 2 秒内看到并点击"不允许"
+        // 几乎不可能。这种拒绝会把 TCC 记录重新写回 denied，必须走终端命令路径。
+        var promptSuppressed: Bool
     }
 
     @MainActor
-    private static func requestAddOnlyAuthorizationDirect() -> PHAuthorizationStatus {
-        var status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+    private static func requestAddOnlyAuthorizationDirect() -> AuthorizationOutcome {
+        let entryStatus = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+        PhotoAuthorization.appendDiagnosticsLog("photo-authorize: enter, status=\(entryStatus.rawValue)")
+        var status = entryStatus
+        var promptSuppressed = false
         if status == .notDetermined {
             var completed = false
+            let requestedAt = Date()
             PHPhotoLibrary.requestAuthorization(for: .addOnly) { requestedStatus in
                 status = requestedStatus
                 completed = true
@@ -64,8 +87,13 @@ enum PhotoLibraryWorker {
             while !completed {
                 RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.05))
             }
+            let elapsed = Date().timeIntervalSince(requestedAt)
+            promptSuppressed = elapsed < 2.0 && status == .denied
+            PhotoAuthorization.appendDiagnosticsLog("photo-authorize: handler after \(Int(elapsed * 1000))ms, status=\(status.rawValue), promptSuppressed=\(promptSuppressed)")
+        } else {
+            PhotoAuthorization.appendDiagnosticsLog("photo-authorize: skipped prompt, status=\(status.rawValue)")
         }
-        return status
+        return AuthorizationOutcome(status: status, promptSuppressed: promptSuppressed)
     }
 
     private static func savePairDirect(photoURL: URL, pairedVideoURL: URL) async throws -> String {
@@ -95,11 +123,20 @@ enum PhotoLibraryWorker {
 }
 
 enum PhotoLibraryWorkerClient {
+    // 常驻 serve 进程内的 PhotoKit 状态可能滞后；需要权威状态时
+    // 启动全新 helper 进程读取（与授权弹窗同一身份通道）。
+    static func readAuthorizationStatus() async -> PHAuthorizationStatus? {
+        guard let response = try? await launch(mode: "photo-status", resourcePaths: []),
+              let rawValue = response.statusCode,
+              let status = PHAuthorizationStatus(rawValue: rawValue) else { return nil }
+        return status
+    }
+
     static func requestAuthorization() async throws {
         let response = try await launch(mode: "photo-authorize", resourcePaths: [])
         if let error = response.error { throw error }
         guard response.authorized == true else {
-            throw ServiceError(code: "PHOTO_PERMISSION_DENIED", message: "没有照片写入权限", recovery: "请在“系统设置 → 隐私与安全性 → 照片”中允许 Lives 添加照片；也可以改为导出到文件夹")
+            throw ServiceError(code: "PHOTO_PERMISSION_DENIED", message: "没有照片写入权限", recovery: "请点击“重新授权并保存”唤起系统授权框并允许添加照片；也可以改为导出到文件夹")
         }
     }
 

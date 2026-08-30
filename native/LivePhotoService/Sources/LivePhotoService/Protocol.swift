@@ -87,6 +87,7 @@ struct RenderEnvelope: Codable { let project: RenderProject }
 struct FolderExportEnvelope: Codable { let project: RenderProject; let directoryPath: String }
 struct PathEnvelope: Codable { let path: String }
 struct CancelEnvelope: Codable { let jobId: String }
+struct ResetEnvelope: Codable { let jobId: String }
 struct DownloadUpdateEnvelope: Codable {
     let dmgUrl: String
     let expectedSha256: String?

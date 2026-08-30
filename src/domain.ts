@@ -1,10 +1,11 @@
 export type TemplateId = 'single' | 'stack-2' | 'side-2' | 'stack-3' | 'side-3' | 'hero-left' | 'hero-top' | 'weighted-3'
-export type AspectRatioId = '9:16' | '3:4' | '1:1' | '4:3' | '16:9'
+export type AspectRatioId = '9:16' | '3:4' | '1:1' | '4:3' | '16:9' | 'custom'
 export type ExportQuality = '1080p' | '720p'
 
 export interface CanvasSettings {
   aspectRatio: AspectRatioId
   quality: ExportQuality
+  customRatio?: { width: number; height: number }
 }
 
 export interface SourceQualityAnalysis {
@@ -24,12 +25,41 @@ export const aspectRatioOptions: Array<{ id: AspectRatioId; label: string; width
   { id: '16:9', label: '16:9', width: 16, height: 9 },
 ]
 
-export const canvasDimensions = ({ aspectRatio, quality }: CanvasSettings) => {
-  const ratio = aspectRatioOptions.find((option) => option.id === aspectRatio)!
+/** 自定义比例边界（1:3 – 3:1），长边换算后不超出 H.264 编码安全范围 */
+export const CUSTOM_RATIO_BOUNDS = { min: 1 / 3, max: 3 }
+
+export const normalizeCustomRatio = ({ width, height }: { width: number; height: number }) => {
+  const toEdge = (value: number) => (Number.isFinite(value) ? Math.max(1, Math.round(value)) : 1)
+  const w = toEdge(width)
+  const h = toEdge(height)
+  if (w > h * CUSTOM_RATIO_BOUNDS.max) return { width: Math.round(h * CUSTOM_RATIO_BOUNDS.max), height: h }
+  if (w < h * CUSTOM_RATIO_BOUNDS.min) return { width: w, height: Math.round(w / CUSTOM_RATIO_BOUNDS.min) }
+  return { width: w, height: h }
+}
+
+/** 最大公约数约分（56:100 → 14:25），用于画布角柄拖拽时保持比例值不变、表示最简 */
+export const simplifyRatio = ({ width, height }: { width: number; height: number }) => {
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b))
+  const w = Math.max(1, Math.round(width))
+  const h = Math.max(1, Math.round(height))
+  const divisor = gcd(w, h)
+  return { width: w / divisor, height: h / divisor }
+}
+
+const evenEdge = (edge: number) => (edge % 2 === 0 ? edge : edge - 1)
+
+export const canvasDimensions = ({ aspectRatio, quality, customRatio }: CanvasSettings) => {
   const shortEdge = quality === '1080p' ? 1080 : 720
+  const ratio = aspectRatio === 'custom'
+    ? normalizeCustomRatio(customRatio ?? { width: 9, height: 16 })
+    : aspectRatioOptions.find((option) => option.id === aspectRatio)!
+  const longEdge = evenEdge(Math.min(
+    Math.round(shortEdge * Math.max(ratio.width, ratio.height) / Math.min(ratio.width, ratio.height)),
+    shortEdge * 3,
+  ))
   return ratio.width <= ratio.height
-    ? { width: shortEdge, height: Math.round(shortEdge * ratio.height / ratio.width) }
-    : { width: Math.round(shortEdge * ratio.width / ratio.height), height: shortEdge }
+    ? { width: shortEdge, height: longEdge }
+    : { width: longEdge, height: shortEdge }
 }
 
 export function analyzeSourceQuality(
@@ -132,6 +162,49 @@ export interface RenderProject {
 
 export const OUTPUT_DURATION_MS = 3000
 export const MINIMUM_SOURCE_DURATION_MS = 2500
+export const videoExtensionPattern = /\.(mov|mp4|m4v)$/i
+
+/** Structural view of a media project for sync planning; App keeps richer fields. */
+export interface FolderSyncProjectView {
+  id: string
+  clipIds: string[]
+}
+
+export interface FolderSyncPlan {
+  /** Paths present in the folder scan but not yet in the media library. */
+  toAdd: string[]
+  /** Clips this project references whose files no longer appear in the folder. */
+  missingClipIds: string[]
+  /** The subset of missing clips that no other project references, so the whole library can drop them. */
+  removeClipIds: string[]
+}
+
+/** Plans a folder rescan against the current library: mirror the folder by adding
+ * new files and dropping clips whose files are gone. Pure so the removal guard
+ * (a failed scan never reaches this function) stays testable. */
+export function planFolderSync(
+  scanPaths: string[],
+  clips: Array<Pick<VideoClip, 'id' | 'sourcePath'>>,
+  project: FolderSyncProjectView,
+  allProjects: FolderSyncProjectView[],
+): FolderSyncPlan {
+  const libraryPaths = new Set(clips.filter((clip) => clip.sourcePath).map((clip) => clip.sourcePath))
+  const toAdd: string[] = []
+  for (const path of scanPaths) {
+    if (!videoExtensionPattern.test(path) || libraryPaths.has(path)) continue
+    libraryPaths.add(path)
+    toAdd.push(path)
+  }
+  const scannedPaths = new Set(scanPaths)
+  const sourcePathById = new Map(clips.map((clip) => [clip.id, clip.sourcePath]))
+  const missingClipIds = project.clipIds.filter((id) => {
+    const sourcePath = sourcePathById.get(id)
+    return Boolean(sourcePath) && !scannedPaths.has(sourcePath!)
+  })
+  const referencedElsewhere = new Set(allProjects.filter((item) => item.id !== project.id).flatMap((item) => item.clipIds))
+  const removeClipIds = missingClipIds.filter((id) => !referencedElsewhere.has(id))
+  return { toAdd, missingClipIds, removeClipIds }
+}
 
 export const sourceContentDurationMs = (sourceDurationMs: number, startTimeMs = 0) =>
   Math.min(OUTPUT_DURATION_MS, Math.max(0, sourceDurationMs - startTimeMs))

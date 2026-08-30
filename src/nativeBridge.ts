@@ -12,7 +12,7 @@ export interface VideoInfo {
   codec: string
 }
 
-export type NativeStage = 'inspecting' | 'transcoding' | 'rendering' | 'writingMetadata' | 'validating' | 'requestingPhotoPermission' | 'saving' | 'exportingFiles' | 'verifyingSavedAsset' | 'completed'
+export type NativeStage = 'inspecting' | 'transcoding' | 'rendering' | 'writingMetadata' | 'validating' | 'requestingPhotoPermission' | 'resettingPhotoPermission' | 'saving' | 'exportingFiles' | 'verifyingSavedAsset' | 'completed'
 
 export type UpdateStage = 'downloading' | 'verifying' | 'preparing' | 'completed'
 
@@ -109,6 +109,8 @@ class LivePhotoService {
   cancel(jobId: string) { return this.request<void>('cancel', { jobId }) }
   openPhotos() { return this.request<void>('openPhotos', {}) }
   openPhotoPrivacySettings() { return this.request<void>('openPhotoPrivacySettings', {}) }
+  resetPhotoAuthorization(jobId: string) { return this.request<void>('resetPhotoAuthorization', { jobId }) }
+  copyRepairCommands() { return this.request<void>('copyRepairCommands', {}) }
   revealInFinder(path: string) { return this.request<void>('revealInFinder', { path }) }
   downloadAndPrepareUpdate(dmgUrl: string, expectedSha256?: string, onProgress?: PendingRequest['onProgress']) {
     const requestId = crypto.randomUUID()

@@ -6,6 +6,7 @@ export type ExportDestinationChoice = 'photos' | 'folder'
 
 interface Props {
   aspectRatio: AspectRatioId
+  customRatio?: { width: number; height: number }
   quality: ExportQuality
   sourceQuality: SourceQualityAnalysis
   cropUpscaleRisk: boolean
@@ -21,9 +22,9 @@ const exportLabels: Record<ExportDestinationChoice, string> = {
   folder: '选择文件夹并导出',
 }
 
-export function ExportDestinationPicker({ aspectRatio, quality, sourceQuality, cropUpscaleRisk, destination, onQualityChange, onDestinationChange, onExport, onClose }: Props) {
-  const high = canvasDimensions({ aspectRatio, quality: '1080p' })
-  const compact = canvasDimensions({ aspectRatio, quality: '720p' })
+export function ExportDestinationPicker({ aspectRatio, customRatio, quality, sourceQuality, cropUpscaleRisk, destination, onQualityChange, onDestinationChange, onExport, onClose }: Props) {
+  const high = canvasDimensions({ aspectRatio, quality: '1080p', customRatio })
+  const compact = canvasDimensions({ aspectRatio, quality: '720p', customRatio })
   const modalRef = useModalFocus(onClose)
 
   return <div ref={modalRef} className="overlay destination-overlay" role="dialog" aria-modal="true" aria-labelledby="export-destination-title">
@@ -46,7 +47,7 @@ export function ExportDestinationPicker({ aspectRatio, quality, sourceQuality, c
         <button role="radio" aria-checked={destination === 'folder'} className={destination === 'folder' ? 'selected' : ''} onClick={() => onDestinationChange('folder')}><FolderIcon /><span><strong>保存到文件夹</strong><small>导出 JPG + MOV 配对文件，可自行归档</small></span></button>
       </div>
       <button className="primary-button wide destination-export" onClick={onExport}>{exportLabels[destination]}</button>
-      <small className="destination-privacy">视频始终只在这台 Mac 上处理，不会上传。</small>
+      <small className="destination-privacy">视频始终只在这台 Mac 上处理，不会上传。首次保存到“照片”会弹出系统授权框，请选择“允许”；若误点“不允许”，之后仍可在导出界面点击“重新授权并保存”恢复。</small>
     </div>
   </div>
 }

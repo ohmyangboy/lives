@@ -50,7 +50,7 @@ Lives 不需要账号，也不会把导入的视频上传到服务器。应用�
 
 ## 获取与支持
 
-最新正式版：[v0.1.9](https://github.com/ohmyangboy/lives/releases/tag/v0.1.9)。修复封面照片方向，支持多画格独立关键帧，并保留照片授权、安装指引和预发布版到正式版的修复，支持通过应用内自动更新升级。
+最新正式版：[v0.1.10](https://github.com/ohmyangboy/lives/releases/tag/v0.1.10)。修复照片权限拒绝后无法恢复的问题，新增画布自定义比例拖拽与文件夹素材库同步，支持通过应用内自动更新升级。
 
 安装时将 Lives 拖入“应用程序”，退出旧版后从“应用程序”启动，不要直接运行 DMG 内的副本。首次保存到“照片”时允许仅添加照片。查看[完整更新日志](https://ohmyangboy.github.io/lives/changelog.html)。
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
-import type { CollageTemplate, SlotClip } from '../domain'
+import { CUSTOM_RATIO_BOUNDS, simplifyRatio, type CollageTemplate, type SlotClip } from '../domain'
 import { CloseIcon, CollapseIcon, ExpandIcon, LiveIcon, PauseIcon, PlayIcon, PlusIcon, SoundIcon } from '../icons'
 
 interface Props {
@@ -12,6 +12,8 @@ interface Props {
   pointerDropTargetSlotId?: string
   isSourceDragging?: boolean
   coverTimeMs: number
+  customRatio?: { width: number; height: number }
+  onCanvasRatioChange?: (ratio: { width: number; height: number }) => void
   onSelectSlot: (slotId: string | undefined) => void
   onCropChange: (slotId: string, x: number, y: number) => void
   onScaleChange: (slotId: string, scale: number) => void
@@ -25,7 +27,16 @@ const MIN_SCALE = 1
 const MAX_SCALE = 3
 const COVER_SETTLE_DURATION_MS = 380
 
-export function CollagePreview({ clips, template, canvasWidth, canvasHeight, selectedSlotId, selectedSourceId, pointerDropTargetSlotId, isSourceDragging, coverTimeMs, onSelectSlot, onCropChange, onScaleChange, onClearSlot, onAudioEnabledChange, onDropSource, onCoverTimeChange }: Props) {
+// 四角比例手柄：18px 圆点跨在画布角上（配合 .canvas-shell.ratio-editable 放开裁切）
+const RATIO_HANDLE_CORNERS = ['nw', 'ne', 'sw', 'se'] as const
+const ratioHandleStyle: Record<(typeof RATIO_HANDLE_CORNERS)[number], CSSProperties> = {
+  nw: { top: -9, left: -9 },
+  ne: { top: -9, right: -9 },
+  sw: { bottom: -9, left: -9 },
+  se: { bottom: -9, right: -9 },
+}
+
+export function CollagePreview({ clips, template, canvasWidth, canvasHeight, selectedSlotId, selectedSourceId, pointerDropTargetSlotId, isSourceDragging, coverTimeMs, customRatio, onCanvasRatioChange, onSelectSlot, onCropChange, onScaleChange, onClearSlot, onAudioEnabledChange, onDropSource, onCoverTimeChange }: Props) {
   const videosRef = useRef<Map<string, HTMLVideoElement>>(new Map())
   const coverVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map())
   const stageRef = useRef<HTMLDivElement>(null)
@@ -40,6 +51,8 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const dragRef = useRef<{ slotId: string; x: number; y: number; cropX: number; cropY: number } | undefined>(undefined)
   const keyframeTimelineRef = useRef<HTMLDivElement>(null)
   const coverFrameDragRef = useRef<{ pointerId: number; grabOffsetX: number; lastValue: number } | undefined>(undefined)
+  const canvasShellRef = useRef<HTMLDivElement>(null)
+  const ratioDragRef = useRef<{ pointerId: number; centerX: number; centerY: number; ratio0: number; dx0: number; dy0: number } | undefined>(undefined)
   const [playing, setPlaying] = useState(false)
   const [playhead, setPlayhead] = useState(0)
   const [settledOnCover, setSettledOnCover] = useState(true)
@@ -48,9 +61,10 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const [isCoverFrameDragging, setIsCoverFrameDragging] = useState(false)
   const [maximumCanvasHeight, setMaximumCanvasHeight] = useState(360)
   const [dropTargetSlotId, setDropTargetSlotId] = useState<string>()
+  const [isRatioDragging, setIsRatioDragging] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const clipsKey = useMemo(() => clips.filter((clip): clip is SlotClip => Boolean(clip)).map((clip) => `${clip.id}:${clip.previewUrl}:${clip.startTimeMs}:${clip.coverTimeMs}`).join('|'), [clips])
-  const coverTimeForClip = (clip: SlotClip) => clip.coverTimeMs ?? coverTimeMs
+  const coverTimeForClip = (clip: SlotClip) => clip.coverTimeMs ?? 1500
   const selectedClip = clips.find((clip) => clip?.targetSlotId === selectedSlotId)
   const enabledAudioCount = clips.filter((clip) => clip?.audioEnabled).length
   const slotLabel = (slotId: string) => {
@@ -94,26 +108,30 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
     video.currentTime = Math.min(clip.startTimeMs / 1000, Math.max(0, video.duration - 3))
   }
 
-  const seekToOffset = (offsetSeconds?: number) => {
+  const seekToOffset = (offsetSeconds?: number, targetSlotId?: string) => {
     clips.forEach((clip) => {
       if (!clip) return
       const video = videosRef.current.get(clip.id)
       if (!video) return
       if (video.readyState >= 1) {
         video.pause()
-        const offset = offsetSeconds ?? coverTimeForClip(clip) / 1000
+        const offset = offsetSeconds !== undefined
+          ? (targetSlotId ? (clip.targetSlotId === targetSlotId ? offsetSeconds : coverTimeForClip(clip) / 1000) : offsetSeconds)
+          : coverTimeForClip(clip) / 1000
         video.currentTime = Math.min(clip.startTimeMs / 1000 + offset, Math.max(0, video.duration - .04))
       }
     })
   }
 
-  const seekCoverVideosToOffset = (offsetSeconds?: number) => {
+  const seekCoverVideosToOffset = (offsetSeconds?: number, targetSlotId?: string) => {
     clips.forEach((clip) => {
       if (!clip) return
       const video = coverVideosRef.current.get(clip.id)
       if (!video || video.readyState < 1) return
       video.pause()
-      const offset = offsetSeconds ?? coverTimeForClip(clip) / 1000
+      const offset = offsetSeconds !== undefined
+        ? (targetSlotId ? (clip.targetSlotId === targetSlotId ? offsetSeconds : coverTimeForClip(clip) / 1000) : offsetSeconds)
+        : coverTimeForClip(clip) / 1000
       video.currentTime = Math.min(clip.startTimeMs / 1000 + offset, Math.max(0, video.duration - .04))
     })
   }
@@ -252,12 +270,14 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
 
   const setCoverFrame = (milliseconds: number) => {
     const next = Math.max(0, Math.min(2900, Math.round(milliseconds / 100) * 100))
+    const effectiveSlotId = selectedSlotId ?? clips.find(Boolean)?.targetSlotId
+    if (!selectedSlotId && effectiveSlotId) onSelectSlot(effectiveSlotId)
     cancelCoverSettle()
     setPlaying(false)
     setSettledOnCover(true)
     setPlayhead(next / 3000)
-    seekToOffset(next / 1000)
-    seekCoverVideosToOffset(next / 1000)
+    seekToOffset(next / 1000, effectiveSlotId)
+    seekCoverVideosToOffset(next / 1000, effectiveSlotId)
     onCoverTimeChange(next)
   }
 
@@ -299,6 +319,47 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
     coverFrameDragRef.current = undefined
     setIsCoverFrameDragging(false)
+  }
+
+  const canEditCanvasRatio = Boolean(onCanvasRatioChange && customRatio)
+
+  const beginRatioDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    if (!canEditCanvasRatio || !event.isPrimary || event.button !== 0) return
+    const rect = canvasShellRef.current?.getBoundingClientRect()
+    if (!rect || rect.width <= 0 || rect.height <= 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    const centerX = rect.left + rect.width / 2
+    const centerY = rect.top + rect.height / 2
+    event.currentTarget.setPointerCapture(event.pointerId)
+    ratioDragRef.current = {
+      pointerId: event.pointerId,
+      centerX,
+      centerY,
+      ratio0: customRatio!.width / customRatio!.height,
+      dx0: Math.max(10, Math.abs(event.clientX - centerX)),
+      dy0: Math.max(10, Math.abs(event.clientY - centerY)),
+    }
+    setIsRatioDragging(true)
+  }
+
+  const moveRatioDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const drag = ratioDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId || !onCanvasRatioChange) return
+    event.preventDefault()
+    // 以画布中心为锚的增量式换算：横向拉伸变宽、纵向拉伸变高，起拖瞬间增量为 1，比例连续无跳变
+    const stretchX = Math.abs(event.clientX - drag.centerX) / drag.dx0
+    const stretchY = Math.max(.12, Math.abs(event.clientY - drag.centerY) / drag.dy0)
+    const ratio = Math.max(CUSTOM_RATIO_BOUNDS.min, Math.min(CUSTOM_RATIO_BOUNDS.max, drag.ratio0 * stretchX / stretchY))
+    onCanvasRatioChange(simplifyRatio({ width: Math.round(ratio * 100), height: 100 }))
+  }
+
+  const endRatioDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const drag = ratioDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    ratioDragRef.current = undefined
+    setIsRatioDragging(false)
   }
 
   useEffect(() => {
@@ -392,7 +453,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
           <button className="preview-fullscreen-button" aria-label={isFullscreen ? '退出全屏预览' : '全屏预览'} aria-pressed={isFullscreen} title={isFullscreen ? '退出全屏预览（Esc）' : '全屏预览'} onClick={() => setIsFullscreen((current) => !current)}>{isFullscreen ? <CollapseIcon /> : <ExpandIcon />}</button>
         </div>
       </div>
-      <div className="canvas-shell" style={{ aspectRatio: `${canvasWidth} / ${canvasHeight}`, width: `min(88%, ${isFullscreen ? 1100 : 500}px, ${(maximumCanvasHeight * canvasWidth / canvasHeight).toFixed(1)}px)` }}>
+      <div ref={canvasShellRef} className={`canvas-shell${canEditCanvasRatio ? ' ratio-editable' : ''}${isRatioDragging ? ' ratio-dragging' : ''}`} style={{ aspectRatio: `${canvasWidth} / ${canvasHeight}`, width: `min(88%, ${isFullscreen ? 1100 : 500}px, ${(maximumCanvasHeight * canvasWidth / canvasHeight).toFixed(1)}px)` }}>
         <div className="collage-canvas" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={() => { dragRef.current = undefined }} onPointerCancel={() => { dragRef.current = undefined }} onWheel={handleWheel}>
           {template.slots.map((slot, index) => {
             const clip = clips[index]
@@ -484,6 +545,20 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
         </div>
         <div className="live-badge"><LiveIcon /> LIVE</div>
         <div className="cover-mark"><span /> {playing ? '同步播放' : settlingOnCover ? '正在回到关键帧' : settledOnCover ? `Live 关键帧 ${(coverTimeMs / 1000).toFixed(1)}s` : '预览已暂停'}</div>
+        {canEditCanvasRatio && <>
+          {RATIO_HANDLE_CORNERS.map((corner) => <span
+            key={corner}
+            className={`canvas-ratio-handle ${corner}${isRatioDragging ? ' active' : ''}`}
+            style={ratioHandleStyle[corner]}
+            aria-hidden="true"
+            onPointerDown={beginRatioDrag}
+            onPointerMove={moveRatioDrag}
+            onPointerUp={endRatioDrag}
+            onPointerCancel={endRatioDrag}
+            onLostPointerCapture={endRatioDrag}
+          />)}
+          {isRatioDragging && customRatio && <output className="canvas-ratio-badge">{customRatio.width} : {customRatio.height}</output>}
+        </>}
       </div>
       <div ref={previewControlsRef} className="preview-controls">
         <button className="round-button" onClick={togglePlayback} aria-label={playing ? '暂停预览' : '播放预览'}>

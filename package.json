@@ -1,7 +1,7 @@
 {
   "name": "live-collage",
   "private": true,
-  "version": "0.1.9",
+  "version": "0.1.10",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,7 @@
     "build:sidecar": "bash scripts/build-sidecar.sh",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build && python3 scripts/verify-photo-permissions.py src-tauri/target/release/bundle/macos/Lives.app"
+    "tauri:build": "tauri build && python3 scripts/verify-photo-permissions.py src-tauri/target/release/bundle/macos/Lives.app && python3 scripts/build-dmg.py src-tauri/target/release/bundle/macos/Lives.app src-tauri/target/release/bundle/dmg/Lives_0.1.10_aarch64.dmg"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1",

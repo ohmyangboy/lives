@@ -37,6 +37,23 @@ final class TemplateLayoutTests: XCTestCase {
         XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 640, height: 480))
     }
 
+    func testSupportedCanvasAcceptsCustomRatiosWithinEncoderLimits() {
+        // 自定义比例：短边仍锁定画质档位，长边 ≤ 3240（3:1 @1080p）且宽高为偶数
+        XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 720, height: 1008))
+        XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 1080, height: 2160))
+        XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 1080, height: 1696))
+        XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 2160, height: 720))
+        XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 3240, height: 1080))
+        // 奇数边（H.264 要求偶数）
+        XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 1080, height: 1697))
+        // 超出 3:1 长边上限
+        XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 1080, height: 4320))
+        XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 4320, height: 1080))
+        XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 1080, height: 3840))
+        // 短边不符合画质档位
+        XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 480, height: 1080))
+    }
+
     func testCoverContextRectPreservesTopToBottomImageOrientation() {
         let top = CGRect(x: 0, y: 0, width: 1080, height: 960)
         let bottom = LivePhotoPipeline.coverContextRect(for: top, canvasHeight: 1920)
@@ -239,8 +256,7 @@ final class TemplateLayoutTests: XCTestCase {
             photoURL: URL(fileURLWithPath: photoPath),
             pairedVideoURL: URL(fileURLWithPath: videoPath),
             cancellations: registry,
-            jobId: "fixture-validation",
-            timeoutNanoseconds: 5_000_000_000
+            jobId: "fixture-validation"
         )
     }
 
