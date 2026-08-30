@@ -91,6 +91,23 @@ struct ResetEnvelope: Codable { let jobId: String }
 struct DownloadUpdateEnvelope: Codable {
     let dmgUrl: String
     let expectedSha256: String?
+    let expectedSize: Int64?
+    let expectedVersion: String?
+    let expectedSource: String?
+    let releaseNotes: String?
+    let htmlUrl: String?
+    let publishedAt: String?
+    let isCritical: Bool?
+}
+struct UpdateMetadataEnvelope: Codable {
+    let source: String
+    let version: String?
+}
+struct UpdateMetadataResponse: Codable {
+    let status: Int
+    let body: String
+    let retryAfter: Int?
+    let rateLimitReset: Int?
 }
 struct InstallUpdateEnvelope: Codable {
     let stagedAppPath: String
@@ -100,4 +117,12 @@ struct PreparedUpdateResult: Codable {
     let stagedAppPath: String
     let targetAppPath: String
     let version: String?
+    let dmgUrl: String?
+    let sha256: String?
+    let size: Int64?
+    let source: String?
+    let releaseNotes: String?
+    let htmlUrl: String?
+    let publishedAt: String?
+    let isCritical: Bool?
 }

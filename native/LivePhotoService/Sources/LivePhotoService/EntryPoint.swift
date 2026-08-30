@@ -44,12 +44,26 @@ actor ResponseWriter {
 
 actor CancellationRegistry {
     private var cancelled = Set<String>()
-    func cancel(_ jobId: String) { cancelled.insert(jobId) }
+    private var cancelHandlers: [String: @Sendable () -> Void] = [:]
+    func registerCancellation(_ jobId: String, handler: @escaping @Sendable () -> Void) {
+        if cancelled.contains(jobId) {
+            handler()
+        } else {
+            cancelHandlers[jobId] = handler
+        }
+    }
+    func cancel(_ jobId: String) {
+        cancelled.insert(jobId)
+        cancelHandlers[jobId]?()
+    }
     func isCancelled(_ jobId: String) -> Bool { cancelled.contains(jobId) }
     func check(_ jobId: String, throwing error: ServiceError = .cancelled) throws {
         if cancelled.contains(jobId) { throw error }
     }
-    func finish(_ jobId: String) { cancelled.remove(jobId) }
+    func finish(_ jobId: String) {
+        cancelled.remove(jobId)
+        cancelHandlers.removeValue(forKey: jobId)
+    }
 }
 
 // 重置动作串行化：并发触发的重置依次执行，避免多组 tccutil + 轮询循环互相干扰
@@ -132,6 +146,15 @@ final class ServiceRuntime {
                 let envelope = try request.payload.decode(CancelEnvelope.self)
                 await cancellations.cancel(envelope.jobId)
                 await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: .null))
+            case "fetchUpdateMetadata":
+                let envelope = try request.payload.decode(UpdateMetadataEnvelope.self)
+                let result = try await UpdateService.fetchMetadata(
+                    source: envelope.source,
+                    version: envelope.version,
+                    cancellations: cancellations,
+                    requestId: request.requestId
+                )
+                await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: try encodeValue(result)))
             case "openPhotos":
                 guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Photos") else {
                     throw ServiceError(code: "PHOTO_APP_UNAVAILABLE", message: "无法打开“照片”", recovery: "请从程序坞或应用程序文件夹打开“照片”")
@@ -172,6 +195,13 @@ final class ServiceRuntime {
                 let result = try await UpdateService.downloadAndPrepare(
                     dmgURLString: envelope.dmgUrl,
                     expectedSHA256: envelope.expectedSha256,
+                    expectedSize: envelope.expectedSize,
+                    expectedVersion: envelope.expectedVersion,
+                    expectedSource: envelope.expectedSource,
+                    releaseNotes: envelope.releaseNotes,
+                    htmlURL: envelope.htmlUrl,
+                    publishedAt: envelope.publishedAt,
+                    isCritical: envelope.isCritical,
                     cancellations: cancellations,
                     requestId: request.requestId
                 ) { [writer] stage, progress in
@@ -201,7 +231,14 @@ final class ServiceRuntime {
             await writer.send(ServiceResponse(requestId: request.requestId, type: "error", error: error))
         } catch {
             FileHandle.standardError.write(Data("[LivePhotoService] \(String(reflecting: error))\n".utf8))
-            let mapped = ErrorMapper.map(error)
+            let mapped: ServiceError
+            if request.action == "fetchUpdateMetadata" {
+                mapped = ServiceError(code: "UPDATE_METADATA_FAILED", message: "更新源请求失败：\(error.localizedDescription)", recovery: "请检查网络后重试；应用会在源恢复后再次检查")
+            } else if request.action == "downloadAndPrepareUpdate" {
+                mapped = ServiceError(code: "UPDATE_DOWNLOAD_FAILED", message: "下载更新失败：\(error.localizedDescription)", recovery: "请检查网络后重试；当前应用不会被替换")
+            } else {
+                mapped = ErrorMapper.map(error)
+            }
             await writer.send(ServiceResponse(requestId: request.requestId, type: "error", error: mapped))
         }
     }
@@ -214,6 +251,22 @@ final class ServiceRuntime {
 
 enum ErrorMapper {
     static func map(_ error: Error) -> ServiceError {
+        if let updateError = error as? UpdateServiceError {
+            let code: String
+            switch updateError {
+            case .invalidURL: code = "UPDATE_INVALID_URL"
+            case .downloadFailed: code = "UPDATE_DOWNLOAD_FAILED"
+            case .missingIntegrity: code = "UPDATE_MISSING_INTEGRITY"
+            case .sizeMismatch: code = "UPDATE_SIZE_MISMATCH"
+            case .sha256Mismatch: code = "UPDATE_SHA256_MISMATCH"
+            case .dmgMountFailed: code = "UPDATE_DMG_MOUNT_FAILED"
+            case .appNotFoundInDMG: code = "UPDATE_APP_NOT_FOUND"
+            case .stagingFailed: code = "UPDATE_STAGING_FAILED"
+            case .invalidStagedApp: code = "UPDATE_INVALID_STAGED_APP"
+            case .signatureValidationFailed: code = "UPDATE_SIGNATURE_FAILED"
+            }
+            return ServiceError(code: code, message: updateError.localizedDescription, recovery: "请确认网络和更新源后重试；当前应用不会被替换")
+        }
         let nsError = error as NSError
         if nsError.domain == AVFoundationErrorDomain {
             return ServiceError(code: "RENDER_FAILED", message: "视频生成失败", recovery: "请确认素材可正常播放后重试")

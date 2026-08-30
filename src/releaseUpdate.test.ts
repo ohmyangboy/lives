@@ -2,8 +2,12 @@ import { describe, expect, it, vi, afterEach } from 'vitest'
 import {
   compareVersions,
   currentAppVersion,
+  DefaultUpdaterPort,
   fetchLatestRelease,
+  ownUpdateDownloadUrl,
+  ownUpdateMetadataUrl,
   UpdateCoordinator,
+  UpdateCheckError,
   type UpdaterPort,
   type UpdateRelease,
   type UpdateState,
@@ -36,7 +40,8 @@ describe('release update checks & version comparisons', () => {
         {
           name: 'Lives_0.9.9_aarch64.dmg',
           browser_download_url: 'https://github.com/ohmyangboy/lives/releases/download/v0.9.9/Lives_0.9.9_aarch64.dmg',
-          digest: 'sha256:abcd1234ef567890',
+          digest: 'sha256:abcd1234ef567890abcd1234ef567890abcd1234ef567890abcd1234ef567890',
+          size: 11145814,
         },
       ],
     }
@@ -52,10 +57,32 @@ describe('release update checks & version comparisons', () => {
       displayVersion: 'v0.9.9',
       releaseNotes: 'Bug fixes and performance improvements',
       dmgUrl: 'https://github.com/ohmyangboy/lives/releases/download/v0.9.9/Lives_0.9.9_aarch64.dmg',
-      sha256: 'abcd1234ef567890',
+      sha256: 'abcd1234ef567890abcd1234ef567890abcd1234ef567890abcd1234ef567890',
+      size: 11145814,
       htmlUrl: 'https://github.com/ohmyangboy/lives/releases/tag/v0.9.9',
       isCritical: false,
       publishedAt: '2026-08-28T00:00:00Z',
+      source: 'github',
+    })
+  })
+
+  it('chooses the Apple Silicon DMG when a release also contains an Intel DMG', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        tag_name: 'v9.9.9',
+        html_url: 'https://github.com/ohmyangboy/lives/releases/tag/v9.9.9',
+        assets: [
+          { name: 'Lives_9.9.9_x64.dmg', browser_download_url: 'https://example.test/intel.dmg', digest: `sha256:${'1'.repeat(64)}`, size: 2 * 1024 * 1024 },
+          { name: 'Lives_9.9.9_aarch64.dmg', browser_download_url: 'https://example.test/arm.dmg', digest: `sha256:${'2'.repeat(64)}`, size: 3 * 1024 * 1024 },
+        ],
+      }),
+    })
+    await expect(fetchLatestRelease(fetcher)).resolves.toMatchObject({
+      dmgUrl: 'https://example.test/arm.dmg',
+      sha256: '2'.repeat(64),
+      size: 3 * 1024 * 1024,
     })
   })
 
@@ -105,8 +132,57 @@ describe('release update checks & version comparisons', () => {
 
     // Fetch error
     await expect(
-      fetchLatestRelease(vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }))
-    ).resolves.toBeUndefined()
+      fetchLatestRelease(vi.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({}) }))
+    ).rejects.toMatchObject({ name: 'UpdateCheckError', status: 403, source: 'github' })
+  })
+
+  it('accepts the self-hosted metadata and does not query GitHub when current', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        schemaVersion: 1,
+        currentVersion: `v${currentAppVersion}`,
+        downloadUrl: 'https://download.1leaf.cc/Lives-latest.dmg',
+        sha256: 'e2d24497a0ed7fa4c9ee6e681e236ef81ec3efcd22f0495b0405b35e72c1bb3b',
+        size: 11145814,
+      }),
+    })
+    const updater = new DefaultUpdaterPort(fetcher)
+    await expect(updater.checkForUpdate()).resolves.toBeUndefined()
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(fetcher).toHaveBeenCalledWith(ownUpdateMetadataUrl, expect.anything())
+  })
+
+  it('falls back to GitHub when the self-hosted metadata is rate limited', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 429, headers: { get: () => '60' }, json: async () => ({}) })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          tag_name: 'v0.9.9',
+          html_url: 'https://github.com/ohmyangboy/lives/releases/tag/v0.9.9',
+          assets: [{ name: 'Lives_0.9.9_aarch64.dmg', browser_download_url: 'https://example.test/Lives.dmg', digest: 'sha256:abcd1234ef567890abcd1234ef567890abcd1234ef567890abcd1234ef567890', size: 11145814 }],
+        }),
+      })
+    const updater = new DefaultUpdaterPort(fetcher)
+    await expect(updater.checkForUpdate()).resolves.toMatchObject({ source: 'github', version: '0.9.9' })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects prerelease self-hosted metadata instead of treating it as current', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({
+        schemaVersion: 1,
+        currentVersion: 'v9.0.0-beta.1',
+        downloadUrl: ownUpdateDownloadUrl,
+        sha256: 'a'.repeat(64),
+        size: 10_485_760,
+      }) })
+      .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({}) })
+    await expect(new DefaultUpdaterPort(fetcher).checkForUpdate()).rejects.toMatchObject({ source: 'github', status: 503 })
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -155,7 +231,7 @@ describe('UpdateCoordinator state machine', () => {
 
     // Cold start：先做暂存恢复探测（异步），随后静默检查并自动下载
     coordinator.start()
-    await vi.waitFor(() => expect(mockUpdater.downloadAndPrepare).toHaveBeenCalledWith(sampleRelease, expect.any(Function)))
+    await vi.waitFor(() => expect(mockUpdater.downloadAndPrepare).toHaveBeenCalledWith(sampleRelease, expect.any(Function), expect.any(AbortSignal)))
     expect(coordinator.state.kind).toBe('downloading')
     // 状态迁移确实经过静默检查与发现更新
     expect(states.map((s) => s.kind)).toEqual(expect.arrayContaining(['idle', 'checkingSilently', 'updateAvailable', 'downloading']))
@@ -164,7 +240,7 @@ describe('UpdateCoordinator state machine', () => {
     await vi.waitFor(() => expect(mockUpdater.checkForUpdate).toHaveBeenCalled())
     await vi.waitFor(() => expect(coordinator.state.kind).toBe('downloading'))
 
-    expect(mockUpdater.downloadAndPrepare).toHaveBeenCalledWith(sampleRelease, expect.any(Function))
+    expect(mockUpdater.downloadAndPrepare).toHaveBeenCalledWith(sampleRelease, expect.any(Function), expect.any(AbortSignal))
 
     // Stream progress
     progressCallback?.('downloading', 0.5)
@@ -224,6 +300,20 @@ describe('UpdateCoordinator state machine', () => {
     await vi.waitFor(() => expect(coordinator.state.kind).toBe('upToDate'))
     expect(coordinator.state).toEqual({ kind: 'upToDate', checkedAt: fixedNow })
     expect(coordinator.lastUpToDateNoticeAt).toEqual(fixedNow)
+  })
+
+  it('honors Retry-After and does not immediately repeat a rate-limited check', async () => {
+    const fixedNow = new Date('2026-08-28T11:00:00Z')
+    const checkForUpdate = vi.fn().mockRejectedValue(new UpdateCheckError('GitHub 请求受到限流（HTTP 429）', 429, '60', 'github'))
+    const mockUpdater = makeUpdater({ checkForUpdate })
+    const coordinator = new UpdateCoordinator(mockUpdater, 'https://fallback.test', () => fixedNow)
+
+    coordinator.checkForUpdates(true)
+    await vi.waitFor(() => expect(coordinator.state.kind).toBe('failed'))
+    coordinator.checkForUpdates(true)
+
+    expect(checkForUpdate).toHaveBeenCalledTimes(1)
+    expect(coordinator.state).toMatchObject({ kind: 'failed', failure: { message: expect.stringContaining('稍后重试') } })
   })
 
   it('handles download failure with error message, retry, and dismiss', async () => {
@@ -306,6 +396,20 @@ describe('UpdateCoordinator state machine', () => {
 
     // 之后到达的下载错误（取消引起）不会覆盖 failed 态文案
     expect(coordinator.state).toMatchObject({ kind: 'failed', failure: { message: expect.stringContaining('下载停滞') } })
+  })
+
+  it('manual download cancellation returns to idle and cancels the native task', async () => {
+    const mockUpdater = makeUpdater({
+      checkForUpdate: vi.fn().mockResolvedValue(sampleRelease),
+      downloadAndPrepare: vi.fn().mockImplementation(() => new Promise(() => {})),
+    })
+    const coordinator = new UpdateCoordinator(mockUpdater)
+    coordinator.checkForUpdates(true)
+    await vi.waitFor(() => expect(coordinator.state.kind).toBe('downloading'))
+
+    coordinator.cancelDownload()
+    expect(coordinator.state).toEqual({ kind: 'idle' })
+    expect(mockUpdater.cancelActiveDownload).toHaveBeenCalledTimes(1)
   })
 
   // ---- 中断恢复（Sparkle stage: .downloaded 语义）----

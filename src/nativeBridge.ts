@@ -26,6 +26,14 @@ export interface PreparedUpdateInfo {
   stagedAppPath: string
   targetAppPath: string
   version?: string
+  dmgUrl?: string
+  sha256?: string
+  size?: number
+  source?: 'oneleaf' | 'github'
+  releaseNotes?: string
+  htmlUrl?: string
+  publishedAt?: string
+  isCritical?: boolean
 }
 
 export interface NativeSystemDiagnostics {
@@ -54,6 +62,7 @@ type PendingRequest = {
   resolve: (value: unknown) => void
   reject: (reason: Error) => void
   onProgress?: (stage: any, progress: number) => void
+  abortCleanup?: () => void
 }
 
 
@@ -72,7 +81,10 @@ class LivePhotoService {
       command.stderr.on('data', (line) => console.warn('[LivePhotoService]', line))
       command.on('close', () => {
         this.child = undefined
-        for (const pending of this.pending.values()) pending.reject(new Error('原生媒体服务已停止'))
+        for (const pending of this.pending.values()) {
+          pending.abortCleanup?.()
+          pending.reject(new Error('原生媒体服务已停止'))
+        }
         this.pending.clear()
       })
       this.child = await command.spawn()
@@ -90,6 +102,7 @@ class LivePhotoService {
       return
     }
     this.pending.delete(message.requestId)
+    pending.abortCleanup?.()
     if (message.type === 'error') {
       const error = new Error(message.error?.message ?? '操作失败')
       Object.assign(error, { code: message.error?.code, recovery: message.error?.recovery })
@@ -99,12 +112,29 @@ class LivePhotoService {
     }
   }
 
-  private async request<T>(action: string, payload: unknown, onProgress?: PendingRequest['onProgress'], requestId: string = crypto.randomUUID()): Promise<T> {
+  private async request<T>(action: string, payload: unknown, onProgress?: PendingRequest['onProgress'], requestId: string = crypto.randomUUID(), signal?: AbortSignal): Promise<T> {
     await this.start()
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(requestId, { resolve: resolve as (value: unknown) => void, reject, onProgress })
-      this.child!.write(`${JSON.stringify({ requestId, action, payload })}\n`).catch((error) => {
+      if (signal?.aborted) {
+        reject(new DOMException('请求已取消', 'AbortError'))
+        return
+      }
+      const abort = () => {
         this.pending.delete(requestId)
+        reject(new DOMException('请求已取消', 'AbortError'))
+        void this.cancel(requestId)
+      }
+      signal?.addEventListener('abort', abort, { once: true })
+      this.pending.set(requestId, {
+        resolve: resolve as (value: unknown) => void,
+        reject,
+        onProgress,
+        abortCleanup: signal ? () => signal.removeEventListener('abort', abort) : undefined,
+      })
+      this.child!.write(`${JSON.stringify({ requestId, action, payload })}\n`).catch((error) => {
+        const pending = this.pending.get(requestId)
+        this.pending.delete(requestId)
+        pending?.abortCleanup?.()
         reject(error)
       })
     })
@@ -126,10 +156,40 @@ class LivePhotoService {
   copyRepairCommands() { return this.request<void>('copyRepairCommands', {}) }
   systemDiagnostics() { return this.request<NativeSystemDiagnostics>('systemDiagnostics', {}) }
   revealInFinder(path: string) { return this.request<void>('revealInFinder', { path }) }
-  downloadAndPrepareUpdate(dmgUrl: string, expectedSha256?: string, onProgress?: PendingRequest['onProgress']) {
+  fetchUpdateMetadata(source: 'oneleaf' | 'github', version?: string, signal?: AbortSignal) {
+    // The sidecar owns the allowlist and URL construction. The abort signal
+    // sends the same request id to the sidecar's cancellation registry.
+    const requestId = crypto.randomUUID()
+    return this.request<{ status: number; body: string; retryAfter?: number; rateLimitReset?: number }>(
+      'fetchUpdateMetadata',
+      { source, version },
+      undefined,
+      requestId,
+      signal,
+    )
+  }
+  downloadAndPrepareUpdate(
+    dmgUrl: string,
+    expectedSha256?: string,
+    expectedSize?: number,
+    expectedVersion?: string,
+    onProgress?: PendingRequest['onProgress'],
+    signal?: AbortSignal,
+    candidate?: Omit<PreparedUpdateInfo, 'stagedAppPath' | 'targetAppPath' | 'version' | 'sha256' | 'size'>,
+  ) {
     const requestId = crypto.randomUUID()
     this.activeDownloadRequestId = requestId
-    return this.request<PreparedUpdateInfo>('downloadAndPrepareUpdate', { dmgUrl, expectedSha256 }, onProgress, requestId)
+    return this.request<PreparedUpdateInfo>('downloadAndPrepareUpdate', {
+      dmgUrl,
+      expectedSha256,
+      expectedSize,
+      expectedVersion,
+      expectedSource: candidate?.source,
+      releaseNotes: candidate?.releaseNotes,
+      htmlUrl: candidate?.htmlUrl,
+      publishedAt: candidate?.publishedAt,
+      isCritical: candidate?.isCritical,
+    }, onProgress, requestId, signal)
       .finally(() => {
         if (this.activeDownloadRequestId === requestId) this.activeDownloadRequestId = undefined
       })
@@ -175,4 +235,3 @@ export const exitApplication = async () => {
     window.close()
   }
 }
-

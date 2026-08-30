@@ -96,6 +96,14 @@ export function UpdateCapsule({ coordinator }: UpdateCapsuleProps) {
               <span>下载中...</span>
             </>
           )}
+          <button
+            className="update-dismiss-btn"
+            aria-label="取消更新下载"
+            onClick={() => coordinator.cancelDownload()}
+            title="取消更新下载"
+          >
+            <CloseIcon />
+          </button>
         </div>
       )
     }
@@ -108,6 +116,14 @@ export function UpdateCapsule({ coordinator }: UpdateCapsuleProps) {
             <div className="update-progress-fill" style={{ width: `${percent}%` }} />
           </div>
           <span>准备中...</span>
+          <button
+            className="update-dismiss-btn"
+            aria-label="取消更新准备"
+            onClick={() => coordinator.cancelDownload()}
+            title="取消更新准备"
+          >
+            <CloseIcon />
+          </button>
         </div>
       )
     }

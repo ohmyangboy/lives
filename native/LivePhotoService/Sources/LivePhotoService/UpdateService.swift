@@ -5,11 +5,14 @@ import Foundation
 enum UpdateServiceError: LocalizedError {
     case invalidURL(String)
     case downloadFailed(String)
+    case missingIntegrity
+    case sizeMismatch(expected: Int64, actual: Int64)
     case sha256Mismatch(expected: String, actual: String)
     case dmgMountFailed(String)
     case appNotFoundInDMG
     case stagingFailed(String)
     case invalidStagedApp(String)
+    case signatureValidationFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -17,6 +20,10 @@ enum UpdateServiceError: LocalizedError {
             return "无效的更新下载地址：\(url)"
         case let .downloadFailed(reason):
             return "下载更新失败：\(reason)"
+        case .missingIntegrity:
+            return "更新源没有提供完整性校验信息，已停止安装"
+        case let .sizeMismatch(expected, actual):
+            return "更新包大小不匹配（预期：\(expected)，实际：\(actual)）"
         case let .sha256Mismatch(expected, actual):
             return "更新包校验失败（SHA256 不匹配，预期：\(expected)，实际：\(actual)）"
         case let .dmgMountFailed(reason):
@@ -27,6 +34,8 @@ enum UpdateServiceError: LocalizedError {
             return "解压暂存更新文件失败：\(reason)"
         case let .invalidStagedApp(path):
             return "暂存的更新应用损坏或不完整：\(path)"
+        case let .signatureValidationFailed(reason):
+            return "更新应用签名校验失败：\(reason)"
         }
     }
 }
@@ -36,8 +45,103 @@ struct StagedUpdateManifest: Codable {
     let version: String
     let stagedAppPath: String
     let targetAppPath: String
+    let dmgUrl: String?
     let sha256: String?
+    let size: Int64?
+    let source: String?
+    let releaseNotes: String?
+    let htmlUrl: String?
+    let publishedAt: String?
+    let isCritical: Bool?
     let downloadedAt: Date
+}
+
+private final class UpdateDownloadDelegate: NSObject, URLSessionDownloadDelegate {
+    private let destination: URL
+    private let onProgress: (Double) -> Void
+    private var continuation: CheckedContinuation<URL, Error>?
+    private var completedURL: URL?
+    private var finishError: Error?
+
+    init(destination: URL, onProgress: @escaping (Double) -> Void) {
+        self.destination = destination
+        self.onProgress = onProgress
+    }
+
+    func start(_ task: URLSessionDownloadTask, continuation: CheckedContinuation<URL, Error>) {
+        self.continuation = continuation
+        task.resume()
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                    didWriteData bytesWritten: Int64, totalBytesWritten: Int64,
+                    totalBytesExpectedToWrite: Int64) {
+        if totalBytesExpectedToWrite > 0 {
+            onProgress(min(max(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite), 0), 1))
+        } else {
+            // 没有 Content-Length 时无法给出百分比，但每个回调仍会刷新上层停滞计时。
+            onProgress(0)
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        // 只接受自有域名或 GitHub 官方下载跳转，避免下载清单被篡改后跟随任意外链。
+        let redirectURL = request.url
+        let allowed = redirectURL?.scheme == "https" && (
+            (redirectURL?.host == "download.1leaf.cc" && redirectURL?.path == "/Lives-latest.dmg")
+                || ["github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"].contains(redirectURL?.host ?? "")
+        )
+        completionHandler(allowed ? request : nil)
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                    didFinishDownloadingTo location: URL) {
+        if let response = downloadTask.response as? HTTPURLResponse,
+           !(200...299).contains(response.statusCode) {
+            finishError = UpdateServiceError.downloadFailed("HTTP 状态码 \(response.statusCode)")
+            return
+        }
+        do {
+            try? FileManager.default.removeItem(at: destination)
+            try FileManager.default.copyItem(at: location, to: destination)
+            completedURL = destination
+        } catch {
+            finishError = UpdateServiceError.downloadFailed("无法保存下载文件：\(error.localizedDescription)")
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let continuation else { return }
+        self.continuation = nil
+        if let error {
+            continuation.resume(throwing: error)
+        } else if let finishError {
+            continuation.resume(throwing: finishError)
+        } else if let completedURL {
+            continuation.resume(returning: completedURL)
+        } else {
+            continuation.resume(throwing: UpdateServiceError.downloadFailed("下载任务未产生文件"))
+        }
+        session.invalidateAndCancel()
+    }
+}
+
+private final class UpdateMetadataDelegate: NSObject, URLSessionDataDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        guard let url = request.url, url.scheme == "https" else {
+            completionHandler(nil)
+            return
+        }
+        let allowed = (url.host == "download.1leaf.cc" && url.path == "/lives-download-stats.json")
+            || (url.host == "api.github.com" && url.path.hasPrefix("/repos/ohmyangboy/lives/releases"))
+        completionHandler(allowed ? request : nil)
+    }
 }
 
 enum UpdateService {
@@ -61,11 +165,95 @@ enum UpdateService {
         updatesDirectory.appendingPathComponent("relaunch.log")
     }
 
+    private static let ownMetadataURL = URL(string: "https://download.1leaf.cc/lives-download-stats.json")!
+    private static let ownDownloadURL = URL(string: "https://download.1leaf.cc/Lives-latest.dmg")!
+    private static let githubMetadataBase = "https://api.github.com/repos/ohmyangboy/lives/releases"
+
+    /// 获取受限的更新元数据。URL 由 source/version 构造，调用方不能传入任意地址。
+    static func fetchMetadata(
+        source: String,
+        version: String?,
+        cancellations: CancellationRegistry,
+        requestId: String
+    ) async throws -> UpdateMetadataResponse {
+        let url: URL
+        switch source {
+        case "oneleaf":
+            guard version == nil else { throw UpdateServiceError.invalidURL("自有源不接受版本参数") }
+            url = ownMetadataURL
+        case "github":
+            if let version {
+                let trimmed = version.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "^v", with: "", options: .regularExpression)
+                guard trimmed.range(of: #"^[0-9]+\.[0-9]+\.[0-9]+$"#, options: .regularExpression) != nil else {
+                    throw UpdateServiceError.invalidURL("无效的 GitHub 版本")
+                }
+                url = URL(string: "\(githubMetadataBase)/tags/v\(trimmed)")!
+            } else {
+                url = URL(string: "\(githubMetadataBase)/latest")!
+            }
+        default:
+            throw UpdateServiceError.invalidURL("不支持的更新源")
+        }
+
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.timeoutInterval = 6
+        request.setValue(source == "github" ? "application/vnd.github+json" : "application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Lives-Updater/1", forHTTPHeaderField: "User-Agent")
+
+        let configuration = URLSessionConfiguration.default
+        configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        configuration.timeoutIntervalForRequest = 6
+        configuration.waitsForConnectivity = false
+        let session = URLSession(configuration: configuration, delegate: UpdateMetadataDelegate(), delegateQueue: nil)
+
+        defer { Task { await cancellations.finish(requestId) } }
+        let result: (Data, URLResponse) = try await withTaskCancellationHandler(operation: { () -> (Data, URLResponse) in
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(Data, URLResponse), Error>) in
+                let task = session.dataTask(with: request) { data, response, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else if let data, let response {
+                        continuation.resume(returning: (data, response))
+                    } else {
+                        continuation.resume(throwing: UpdateServiceError.downloadFailed("更新源没有返回内容"))
+                    }
+                }
+                Task {
+                    await cancellations.registerCancellation(requestId) { task.cancel() }
+                }
+                task.resume()
+            }
+        }, onCancel: {
+            Task { await cancellations.cancel(requestId) }
+        })
+        session.invalidateAndCancel()
+
+        let (data, response) = result
+        guard data.count <= 2 * 1024 * 1024 else {
+            throw UpdateServiceError.downloadFailed("更新元数据超过 2 MiB，已停止处理")
+        }
+        let http = response as? HTTPURLResponse
+        return UpdateMetadataResponse(
+            status: http?.statusCode ?? -1,
+            body: String(decoding: data, as: UTF8.self),
+            retryAfter: Int(http?.value(forHTTPHeaderField: "Retry-After") ?? ""),
+            rateLimitReset: Int(http?.value(forHTTPHeaderField: "X-RateLimit-Reset") ?? "")
+        )
+    }
+
     // MARK: - 下载与暂存
 
     static func downloadAndPrepare(
         dmgURLString: String,
         expectedSHA256: String?,
+        expectedSize: Int64?,
+        expectedVersion: String?,
+        expectedSource: String?,
+        releaseNotes: String?,
+        htmlURL: String?,
+        publishedAt: String?,
+        isCritical: Bool?,
         cancellations: CancellationRegistry? = nil,
         requestId: String? = nil,
         onProgress: @escaping (String, Double) -> Void
@@ -73,88 +261,87 @@ enum UpdateService {
         guard let url = URL(string: dmgURLString) else {
             throw UpdateServiceError.invalidURL(dmgURLString)
         }
+        guard url == ownDownloadURL ||
+                (url.scheme == "https" && url.host == "github.com" && url.path.hasPrefix("/ohmyangboy/lives/releases/download/")) else {
+            throw UpdateServiceError.invalidURL(dmgURLString)
+        }
+        let source = expectedSource ?? (url == ownDownloadURL ? "oneleaf" : "github")
+        guard source == "oneleaf" || source == "github" else {
+            throw UpdateServiceError.invalidURL("不支持的更新来源")
+        }
 
         let updateDir = updatesDirectory
         let dmgPath = updateDir.appendingPathComponent("update-\(UUID().uuidString).dmg")
+        var stagedReady = false
         defer {
             try? FileManager.default.removeItem(at: dmgPath)
+            if !stagedReady {
+                try? FileManager.default.removeItem(at: stagedDirectory)
+                try? FileManager.default.removeItem(at: stagedManifestURL)
+            }
             if let cancellations, let requestId {
                 Task { await cancellations.finish(requestId) }
             }
         }
 
-        // 1. Download
-        onProgress("downloading", 0.0)
-        var hasher = SHA256()
+        guard let expectedSHA256, expectedSHA256.range(of: #"^[a-fA-F0-9]{64}$"#, options: .regularExpression) != nil,
+              let expectedSize, expectedSize > 0,
+              let expectedVersion, expectedVersion.range(of: #"^[0-9]+\.[0-9]+\.[0-9]+$"#, options: .regularExpression) != nil else {
+            throw UpdateServiceError.missingIntegrity
+        }
 
+        // 1. Download: URLSessionDownloadTask 从头开始，不复用旧临时文件，也不发送 Range。
+        onProgress("downloading", 0.0)
         let configuration = URLSessionConfiguration.default
         configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         configuration.timeoutIntervalForRequest = 60
-        let session = URLSession(configuration: configuration)
-
-        let (asyncBytes, response) = try await session.bytes(from: url)
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
-            throw UpdateServiceError.downloadFailed("HTTP 状态码 \(status)")
+        configuration.waitsForConnectivity = false
+        let delegate = UpdateDownloadDelegate(destination: dmgPath) { progress in
+            onProgress("downloading", progress)
         }
-
-        let expectedLength = response.expectedContentLength
-        FileManager.default.createFile(atPath: dmgPath.path, contents: nil)
-        guard let fileHandle = try? FileHandle(forWritingTo: dmgPath) else {
-            throw UpdateServiceError.downloadFailed("无法创建本地更新缓存文件")
+        let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
+        let task = session.downloadTask(with: url)
+        if let cancellations, let requestId {
+            await cancellations.registerCancellation(requestId) { task.cancel() }
         }
+        _ = try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { continuation in
+                delegate.start(task, continuation: continuation)
+            }
+        }, onCancel: {
+            task.cancel()
+        })
+        session.invalidateAndCancel()
 
-        // 停滞保护：URLSession 的 timeoutIntervalForRequest 是空闲计时器，
-        // 数据传输阶段同样生效（每次收到数据重置），静默超过 60s 会原生抛出超时。
-
+        if let cancellations, let requestId {
+            try await cancellations.check(requestId, throwing: .updateCancelled)
+        }
+        var hasher = SHA256()
         var receivedBytes: Int64 = 0
-        var buffer = Data()
-        buffer.reserveCapacity(64 * 1024)
-
-        var lastReportedFraction: Double = 0.0
-
-        for try await byte in asyncBytes {
+        onProgress("downloading", 1.0)
+        guard let fileHandle = try? FileHandle(forReadingFrom: dmgPath) else {
+            throw UpdateServiceError.downloadFailed("无法读取本地更新缓存文件")
+        }
+        defer { try? fileHandle.close() }
+        while let chunk = try? fileHandle.read(upToCount: 1024 * 1024), !chunk.isEmpty {
             if let cancellations, let requestId {
                 try await cancellations.check(requestId, throwing: .updateCancelled)
             }
-            buffer.append(byte)
-            if buffer.count >= 64 * 1024 {
-                hasher.update(data: buffer)
-                fileHandle.write(buffer)
-                receivedBytes += Int64(buffer.count)
-                buffer.removeAll(keepingCapacity: true)
-
-                if expectedLength > 0 {
-                    let fraction = min(max(Double(receivedBytes) / Double(expectedLength), 0.0), 1.0)
-                    if fraction - lastReportedFraction >= 0.02 || fraction >= 0.99 {
-                        lastReportedFraction = fraction
-                        onProgress("downloading", fraction)
-                    }
-                }
-            }
+            hasher.update(data: chunk)
+            receivedBytes += Int64(chunk.count)
+        }
+        guard receivedBytes == expectedSize else {
+            throw UpdateServiceError.sizeMismatch(expected: expectedSize, actual: receivedBytes)
         }
 
-        if !buffer.isEmpty {
-            hasher.update(data: buffer)
-            fileHandle.write(buffer)
-            receivedBytes += Int64(buffer.count)
-        }
-        try? fileHandle.close()
-
-        onProgress("downloading", 1.0)
-
-        // 2. Verify SHA-256 if provided
+        // 2. Verify SHA-256
+        onProgress("verifying", 0.0)
         let digest = hasher.finalize()
         let computedHex = digest.map { String(format: "%02x", $0) }.joined()
-
-        if let expected = expectedSHA256?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-           !expected.isEmpty {
-            onProgress("verifying", 0.0)
-            if computedHex.lowercased() != expected {
-                throw UpdateServiceError.sha256Mismatch(expected: expected, actual: computedHex)
-            }
-            onProgress("verifying", 1.0)
+        if computedHex.lowercased() != expectedSHA256.lowercased() {
+            throw UpdateServiceError.sha256Mismatch(expected: expectedSHA256, actual: computedHex)
         }
+        onProgress("verifying", 1.0)
 
         // 3. Mount DMG and extract Lives.app
         if let cancellations, let requestId {
@@ -196,6 +383,9 @@ enum UpdateService {
         try? FileManager.default.createDirectory(at: stagedDir, withIntermediateDirectories: true)
 
         let destinationAppURL = stagedDir.appendingPathComponent(appBundleURL.lastPathComponent)
+        if let cancellations, let requestId {
+            try await cancellations.check(requestId, throwing: .updateCancelled)
+        }
         do {
             try FileManager.default.copyItem(at: appBundleURL, to: destinationAppURL)
         } catch {
@@ -213,30 +403,82 @@ enum UpdateService {
 
         let targetAppPath = locateTargetAppPath()
 
-        onProgress("preparing", 1.0)
-
         // 4. 写入恢复清单：下次冷启动若发现未安装的更新，可直接进入 readyToInstall。
+        guard stagedVersion == expectedVersion else {
+            throw UpdateServiceError.invalidStagedApp("版本不匹配：预期 v\(expectedVersion)，实际 \(stagedVersion ?? "未知")")
+        }
+        try validateStagedBundle(destinationAppURL, expectedVersion: expectedVersion)
+
         if let stagedVersion, !stagedVersion.isEmpty {
             let manifest = StagedUpdateManifest(
                 version: stagedVersion,
                 stagedAppPath: destinationAppURL.path,
                 targetAppPath: targetAppPath,
-                sha256: expectedSHA256,
+                dmgUrl: dmgURLString,
+                sha256: expectedSHA256.lowercased(),
+                size: expectedSize,
+                source: source,
+                releaseNotes: releaseNotes,
+                htmlUrl: htmlURL,
+                publishedAt: publishedAt,
+                isCritical: isCritical,
                 downloadedAt: Date()
             )
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = [.prettyPrinted]
-            if let data = try? encoder.encode(manifest) {
-                try? data.write(to: stagedManifestURL, options: .atomic)
-            }
+            let data = try encoder.encode(manifest)
+            try data.write(to: stagedManifestURL, options: .atomic)
         }
+        onProgress("preparing", 1.0)
+        stagedReady = true
 
         return PreparedUpdateResult(
             stagedAppPath: destinationAppURL.path,
             targetAppPath: targetAppPath,
-            version: stagedVersion
+            version: stagedVersion,
+            dmgUrl: dmgURLString,
+            sha256: expectedSHA256.lowercased(),
+            size: expectedSize,
+            source: source,
+            releaseNotes: releaseNotes,
+            htmlUrl: htmlURL,
+            publishedAt: publishedAt,
+            isCritical: isCritical
         )
+    }
+
+    /// 安装前的最低身份边界：Bundle ID、候选版本、arm64 和公证/Developer ID 签名。
+    private static func validateStagedBundle(_ bundleURL: URL, expectedVersion: String) throws {
+        let infoURL = bundleURL.appendingPathComponent("Contents/Info.plist")
+        guard let info = NSDictionary(contentsOf: infoURL),
+              info["CFBundleIdentifier"] as? String == "com.yangbukun.lives",
+              info["CFBundleShortVersionString"] as? String == expectedVersion,
+              let executableName = info["CFBundleExecutable"] as? String else {
+            throw UpdateServiceError.invalidStagedApp("Bundle ID 或版本不匹配")
+        }
+        let executableURL = bundleURL.appendingPathComponent("Contents/MacOS").appendingPathComponent(executableName)
+        guard FileManager.default.isExecutableFile(atPath: executableURL.path) else {
+            throw UpdateServiceError.invalidStagedApp("主可执行文件不存在")
+        }
+
+        let architecture = runCommand("/usr/bin/lipo", arguments: ["-archs", executableURL.path])
+        guard architecture.exitCode == 0,
+              architecture.output?.split(whereSeparator: { $0 == " " || $0 == "\n" }).contains("arm64") == true else {
+            throw UpdateServiceError.invalidStagedApp("更新包不是 Apple Silicon arm64 架构")
+        }
+
+        let verification = runCommand("/usr/bin/codesign", arguments: ["--verify", "--deep", "--strict", bundleURL.path])
+        guard verification.exitCode == 0 else {
+            throw UpdateServiceError.signatureValidationFailed(verification.error ?? "codesign verify 失败")
+        }
+        let details = runCommand("/usr/bin/codesign", arguments: ["-dv", "--verbose=4", bundleURL.path])
+        let signatureText = (details.output ?? "") + (details.error ?? "")
+        guard details.exitCode == 0,
+              signatureText.contains("TeamIdentifier=LGKLTGNTY2"),
+              signatureText.contains("Authority=Developer ID Application") else {
+            throw UpdateServiceError.signatureValidationFailed("不是预期的 Developer ID Team（LGKLTGNTY2）")
+        }
     }
 
     // MARK: - 中断恢复（Sparkle 的 stage: .downloaded 语义）
@@ -246,6 +488,10 @@ enum UpdateService {
         let fileManager = FileManager.default
         guard let data = try? Data(contentsOf: stagedManifestURL),
               let manifest = try? JSONDecoder.makeWithISODate().decode(StagedUpdateManifest.self, from: data),
+              manifest.sha256?.range(of: #"^[a-fA-F0-9]{64}$"#, options: .regularExpression) != nil,
+              (manifest.size ?? 0) > 0,
+              manifest.dmgUrl != nil,
+              manifest.source == "oneleaf" || manifest.source == "github",
               fileManager.fileExists(atPath: manifest.stagedAppPath),
               fileManager.fileExists(atPath: (manifest.stagedAppPath as NSString).appendingPathComponent("Contents/MacOS"))
         else {
@@ -260,10 +506,23 @@ enum UpdateService {
             return nil
         }
 
+        guard (try? validateStagedBundle(URL(fileURLWithPath: manifest.stagedAppPath), expectedVersion: manifest.version)) != nil else {
+            cleanupStaleStaging()
+            return nil
+        }
+
         return PreparedUpdateResult(
             stagedAppPath: manifest.stagedAppPath,
             targetAppPath: manifest.targetAppPath,
-            version: manifest.version
+            version: manifest.version,
+            dmgUrl: manifest.dmgUrl,
+            sha256: manifest.sha256,
+            size: manifest.size,
+            source: manifest.source,
+            releaseNotes: manifest.releaseNotes,
+            htmlUrl: manifest.htmlUrl,
+            publishedAt: manifest.publishedAt,
+            isCritical: manifest.isCritical
         )
     }
 
@@ -280,6 +539,21 @@ enum UpdateService {
               FileManager.default.fileExists(atPath: stagedURL.appendingPathComponent("Contents/MacOS").path) else {
             throw UpdateServiceError.invalidStagedApp(stagedAppPath)
         }
+        guard let info = NSDictionary(contentsOf: stagedURL.appendingPathComponent("Contents/Info.plist")),
+              let stagedVersion = info["CFBundleShortVersionString"] as? String else {
+            throw UpdateServiceError.invalidStagedApp(stagedAppPath)
+        }
+        guard let manifestData = try? Data(contentsOf: stagedManifestURL),
+              let manifest = try? JSONDecoder.makeWithISODate().decode(StagedUpdateManifest.self, from: manifestData),
+              manifest.stagedAppPath == stagedAppPath,
+              manifest.version == stagedVersion,
+              manifest.sha256?.range(of: #"^[a-fA-F0-9]{64}$"#, options: .regularExpression) != nil,
+              (manifest.size ?? 0) > 0,
+              manifest.dmgUrl != nil,
+              manifest.source == "oneleaf" || manifest.source == "github" else {
+            throw UpdateServiceError.invalidStagedApp("暂存清单与更新应用不匹配")
+        }
+        try validateStagedBundle(stagedURL, expectedVersion: stagedVersion)
 
         let target = targetAppPath ?? locateTargetAppPath()
         let updateDir = updatesDirectory
