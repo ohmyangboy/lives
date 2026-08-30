@@ -6,6 +6,12 @@ on:
       - published
 
   workflow_dispatch:
+    inputs:
+      force_asset_sync:
+        description: "强制同步最新正式版资产，即使服务器版本号相同"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -13,8 +19,13 @@ permissions:
 jobs:
   sync:
     if: >
-      github.event_name == 'workflow_dispatch' ||
-      github.event.release.prerelease == false
+      (
+        github.event_name == 'release' &&
+        github.event.release.prerelease == false
+      ) || (
+        github.event_name == 'workflow_dispatch' &&
+        inputs.force_asset_sync != true
+      )
 
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -48,3 +59,111 @@ jobs:
             -o ConnectTimeout=10 \
             "$SERVER_USER@$SERVER_HOST" \
             "sync-lives-release"
+
+  force-sync:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.force_asset_sync == true }}
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.LIVES_RELEASE_SSH_KEY }}
+          SERVER_HOST: ${{ secrets.LIVES_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Download latest release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          release_json="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest")"
+          version="$(jq -r '.tag_name' <<<"$release_json")"
+          asset="$(jq -c '[.assets[] | select(.name | test("_aarch64\\.dmg$|_arm64\\.dmg$"))] | first' <<<"$release_json")"
+          asset_url="$(jq -r '.browser_download_url // empty' <<<"$asset")"
+          expected_sha="$(jq -r '.digest // empty' <<<"$asset" | sed -E 's/^sha256://')"
+          expected_size="$(jq -r '.size // empty' <<<"$asset")"
+
+          [[ "$version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$asset_url" == https://github.com/*/releases/download/*/*.dmg ]]
+          [[ "$expected_sha" =~ ^[0-9a-fA-F]{64}$ ]]
+          [[ "$expected_size" =~ ^[0-9]+$ ]]
+
+          curl --fail --location --retry 3 \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --output /tmp/Lives-latest.dmg \
+            "$asset_url"
+          printf '%s  %s\n' "$expected_sha" /tmp/Lives-latest.dmg | sha256sum -c -
+          test "$(stat -c '%s' /tmp/Lives-latest.dmg)" = "$expected_size"
+
+          printf '%s\n' "$version" > /tmp/Lives-latest.version
+          printf '%s\n' "$expected_sha" > /tmp/Lives-latest.sha256
+          printf '%s\n' "$expected_size" > /tmp/Lives-latest.size
+
+      - name: Upload and atomically replace same-version asset
+        env:
+          SERVER_HOST: ${{ secrets.LIVES_SERVER_HOST }}
+          SERVER_USER: ${{ secrets.LIVES_SERVER_USER }}
+        run: |
+          set -euo pipefail
+
+          scp -o BatchMode=yes -o ConnectTimeout=10 \
+            /tmp/Lives-latest.dmg \
+            "$SERVER_USER@$SERVER_HOST:/tmp/Lives-latest.dmg"
+          scp -o BatchMode=yes -o ConnectTimeout=10 \
+            /tmp/Lives-latest.version \
+            "$SERVER_USER@$SERVER_HOST:/tmp/Lives-latest.version"
+
+          expected_sha="$(cat /tmp/Lives-latest.sha256)"
+          expected_size="$(cat /tmp/Lives-latest.size)"
+          version="$(cat /tmp/Lives-latest.version)"
+
+          ssh -o BatchMode=yes -o ConnectTimeout=10 "$SERVER_USER@$SERVER_HOST" \
+            "LIVES_VERSION='$version' EXPECTED_SHA='$expected_sha' EXPECTED_SIZE='$expected_size' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          target=/var/www/lives-download
+          backup=/root/lives-update-backups/force-$(date +%Y%m%d-%H%M%S)
+          mkdir -p "$backup"
+          chmod 700 "$backup"
+          cp -p "$target/Lives-latest.dmg" "$backup/" 2>/dev/null || true
+          cp -p "$target/.version" "$backup/" 2>/dev/null || true
+          cp -p "$target/lives-download-stats.json" "$backup/" 2>/dev/null || true
+
+          timer_state=$(systemctl is-active lives-download-stats.timer || true)
+          restore_timer() {
+            if [ "$timer_state" = active ]; then
+              systemctl start lives-download-stats.timer
+            fi
+          }
+          trap restore_timer EXIT
+
+          systemctl stop lives-download-stats.timer || true
+          systemctl stop lives-download-stats.service || true
+
+          install -m 0644 /tmp/Lives-latest.dmg "$target/.Lives-latest.dmg.new"
+          printf '%s  %s\n' "$EXPECTED_SHA" "$target/.Lives-latest.dmg.new" | sha256sum -c -
+          test "$(stat -c '%s' "$target/.Lives-latest.dmg.new")" = "$EXPECTED_SIZE"
+          mv -f "$target/.Lives-latest.dmg.new" "$target/Lives-latest.dmg"
+
+          printf '%s\n' "$LIVES_VERSION" > "$target/.version.new"
+          chmod 0644 "$target/.version.new"
+          mv -f "$target/.version.new" "$target/.version"
+
+          systemctl start lives-download-stats.service
+          cat "$target/lives-download-stats.json"
+          rm -f /tmp/Lives-latest.dmg /tmp/Lives-latest.version
+          REMOTE
