@@ -28,6 +28,19 @@ export interface PreparedUpdateInfo {
   version?: string
 }
 
+export interface NativeSystemDiagnostics {
+  osVersion: string
+  osBuild?: string
+  deviceModel?: string
+  chipName?: string
+  architecture?: string
+  processorCount: number
+  physicalMemoryBytes?: number
+  locale: string
+  displayResolution?: string
+  displayScale?: number
+}
+
 interface NativeEnvelope {
   requestId: string
   type: 'result' | 'progress' | 'error'
@@ -111,6 +124,7 @@ class LivePhotoService {
   openPhotoPrivacySettings() { return this.request<void>('openPhotoPrivacySettings', {}) }
   resetPhotoAuthorization(jobId: string) { return this.request<void>('resetPhotoAuthorization', { jobId }) }
   copyRepairCommands() { return this.request<void>('copyRepairCommands', {}) }
+  systemDiagnostics() { return this.request<NativeSystemDiagnostics>('systemDiagnostics', {}) }
   revealInFinder(path: string) { return this.request<void>('revealInFinder', { path }) }
   downloadAndPrepareUpdate(dmgUrl: string, expectedSha256?: string, onProgress?: PendingRequest['onProgress']) {
     const requestId = crypto.randomUUID()

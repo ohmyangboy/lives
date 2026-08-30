@@ -227,6 +227,8 @@ export class DefaultUpdaterPort implements UpdaterPort {
       window.location.reload()
       return
     }
+    // 重启后的新实例会消费这个标记，弹出"更新完成 + 反馈提示"。
+    try { localStorage.setItem('lives.postUpdateFeedbackPending', '1') } catch { /* 忽略 */ }
     await nativeService.installAndRelaunch(stagedAppPath, targetAppPath)
     await exitApplication()
     // 进程应已退出；若我们仍在运行（exit_app 未生效），安排强制退出：

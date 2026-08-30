@@ -160,6 +160,9 @@ final class ServiceRuntime {
                 pasteboard.clearContents()
                 pasteboard.setString(PhotoAuthorization.repairCommandLines.joined(separator: "\n"), forType: .string)
                 await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: .null))
+            case "systemDiagnostics":
+                // 反馈邮件里的设备信息必须取自本机 API；WebView 的 platform/UA 是假数据。
+                await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: try encodeValue(SystemDiagnostics.collect())))
             case "revealInFinder":
                 let envelope = try request.payload.decode(PathEnvelope.self)
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: envelope.path)])

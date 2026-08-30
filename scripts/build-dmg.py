@@ -21,6 +21,28 @@ def eject_create_dmg_mounts() -> None:
         subprocess.run(["hdiutil", "detach", device, "-force"], check=False)
 
 
+def eject_conflicting_volumes() -> None:
+    """构建前清理会干扰 create-dmg 的挂载卷。
+
+    create-dmg 通过 AppleScript 驱动 Finder 操作名为 "Lives" 的卷；若用户手动
+    挂载过任何 Lives DMG（卷名同为 "Lives"，例如安装/查看旧版本），脚本会定位
+    到错误的卷而以 exit 16 失败。这些卷只可能是本应用自己的镜像，可安全弹出。
+    """
+    volumes = Path("/Volumes")
+    if not volumes.is_dir():
+        return
+    for volume in volumes.iterdir():
+        if volume.name == "Lives" or volume.name.startswith(("Lives ", "dmg.", "rw.")):
+            device = subprocess.run(
+                ["hdiutil", "info"], capture_output=True, text=True, check=False
+            ).stdout
+            for line in device.splitlines():
+                if str(volume) in line and line.split() and line.split()[0].startswith("/dev/"):
+                    subprocess.run(["hdiutil", "detach", line.split()[0], "-force"], check=False)
+            # 按卷名直接弹出（覆盖无法回溯设备节点的情况）
+            subprocess.run(["hdiutil", "detach", str(volume), "-force"], check=False)
+
+
 def main() -> None:
     if len(sys.argv) != 3:
         raise SystemExit("用法：python3 scripts/build-dmg.py <Lives.app> <输出.dmg>")
@@ -38,6 +60,7 @@ def main() -> None:
     if not background.is_file():
         raise SystemExit("缺少安装背景，请运行 swift scripts/render-dmg-background.swift")
     subprocess.run([sys.executable, str(ROOT / "scripts/verify-photo-permissions.py"), str(app)], check=True)
+    eject_conflicting_volumes()
     output.parent.mkdir(parents=True, exist_ok=True)
     workspace = Path(tempfile.mkdtemp(prefix="lives-dmg-", dir=output.parent))
     try:

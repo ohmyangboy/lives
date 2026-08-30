@@ -13,8 +13,9 @@ import { ExportDestinationPicker, type ExportDestinationChoice } from './compone
 import { currentAppVersion, defaultUpdateCoordinator } from './releaseUpdate'
 import { UpdateCapsule } from './components/UpdateCapsule'
 import { AboutModal } from './components/AboutModal'
+import { PostUpdateFeedbackCard, clearPostUpdateFeedbackFlag, consumePostUpdateFeedbackFlag } from './components/PostUpdateFeedbackCard'
 
-import { getSystemDiagnosticInfo, formatSystemInfoText } from './systemInfo'
+import { loadSystemDiagnosticText } from './systemInfo'
 import xiaohongshuContactImage from './assets/xiaohongshu-contact.jpg'
 import wechatSponsorImage from './assets/wechat-sponsor.jpg'
 
@@ -292,6 +293,8 @@ export function App() {
   const [photoDenyCount, setPhotoDenyCount] = useState(() => readStoredPhotoDenyCount())
   const photoFlowTokenRef = useRef(0)
   const photoResetJobIdRef = useRef<string | undefined>(undefined)
+  // 自动更新重启后的首次启动：提示反馈（标记在更新安装时写入，展示后即清除）
+  const [postUpdateNoticeVisible, setPostUpdateNoticeVisible] = useState(() => consumePostUpdateFeedbackFlag())
   const [slotPlacements, setSlotPlacements] = useState<SlotPlacements>({})
   const [destinationPickerVisible, setDestinationPickerVisible] = useState(false)
   const [importProgress, setImportProgress] = useState<{ done: number; total: number }>()
@@ -408,8 +411,7 @@ export function App() {
 
 
   const openFeedback = useCallback(async () => {
-    const diagInfo = getSystemDiagnosticInfo(true)
-    const formattedDiag = formatSystemInfoText(diagInfo)
+    const formattedDiag = await loadSystemDiagnosticText(true)
     const subject = encodeURIComponent(`[Lives v${currentAppVersion}] 反馈`)
     const body = encodeURIComponent(`请描述你遇到的问题或功能建议：\n\n复现步骤：\n1. \n2. \n\n预期结果：\n\n实际结果：\n\n----------------------------------------\n设备与环境信息：\n${formattedDiag}\n----------------------------------------`)
     try {
@@ -421,8 +423,7 @@ export function App() {
   }, [])
 
   const openIssueFeedback = useCallback(async () => {
-    const diagInfo = getSystemDiagnosticInfo(true)
-    const formattedDiag = formatSystemInfoText(diagInfo)
+    const formattedDiag = await loadSystemDiagnosticText(true)
     const issueTitle = encodeURIComponent(`[反馈] Lives v${currentAppVersion}`)
     const issueBody = encodeURIComponent(`### 问题描述 / 建议\n\n\n### 复现步骤\n1. \n2. \n\n### 预期效果与实际结果\n\n\n---\n### 设备与环境诊断信息\n\`\`\`text\n${formattedDiag}\n\`\`\``)
     try {
@@ -444,6 +445,15 @@ export function App() {
   useEffect(() => {
     if (clips.length && !sourceQuality.supports1080p && exportQuality === '1080p') setExportQuality('720p')
   }, [clips.length, exportQuality, sourceQuality.supports1080p])
+
+  useEffect(() => {
+    if (postUpdateNoticeVisible) clearPostUpdateFeedbackFlag()
+  }, [])
+
+  const handlePostUpdateFeedback = () => {
+    setPostUpdateNoticeVisible(false)
+    void openFeedback()
+  }
 
   const importPaths = useCallback(async (paths: string[], target: Omit<MediaProject, 'clipIds'> = createDefaultProject(), options: { activate?: boolean } = {}): Promise<{ added: number; failed: number; projectClipIds: string[] }> => {
     const existingByPath = new Map(clipsRef.current.filter((clip) => clip.sourcePath).map((clip) => [clip.sourcePath, clip]))
@@ -1239,6 +1249,7 @@ export function App() {
         </div>
       )}
       {aboutModalOpen && <AboutModal onClose={() => setAboutModalOpen(false)} onNotice={setNotice} />}
+      {postUpdateNoticeVisible && <PostUpdateFeedbackCard version={currentAppVersion} onSendFeedback={handlePostUpdateFeedback} onClose={() => setPostUpdateNoticeVisible(false)} />}
     </main>
   )
 }
