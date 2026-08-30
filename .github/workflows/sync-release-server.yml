@@ -119,55 +119,6 @@ jobs:
           SERVER_USER: ${{ secrets.LIVES_SERVER_USER }}
         run: |
           set -euo pipefail
-
-          # 服务器 root 的非交互 shell 会向 stdout 打印登录提示，scp 会把它
-          # 当作协议帧而失败；改用 stdin 传输，并丢弃远端启动噪声。
-          cat /tmp/Lives-latest.dmg \
-            | ssh -o BatchMode=yes -o ConnectTimeout=10 \
-                "$SERVER_USER@$SERVER_HOST" \
-                "cat > /tmp/Lives-latest.dmg" >/dev/null
-          cat /tmp/Lives-latest.version \
-            | ssh -o BatchMode=yes -o ConnectTimeout=10 \
-                "$SERVER_USER@$SERVER_HOST" \
-                "cat > /tmp/Lives-latest.version" >/dev/null
-
-          expected_sha="$(cat /tmp/Lives-latest.sha256)"
-          expected_size="$(cat /tmp/Lives-latest.size)"
-          version="$(cat /tmp/Lives-latest.version)"
-
-          ssh -o BatchMode=yes -o ConnectTimeout=10 "$SERVER_USER@$SERVER_HOST" \
-            "LIVES_VERSION='$version' EXPECTED_SHA='$expected_sha' EXPECTED_SIZE='$expected_size' bash -s" <<'REMOTE'
-          set -euo pipefail
-
-          target=/var/www/lives-download
-          backup=/root/lives-update-backups/force-$(date +%Y%m%d-%H%M%S)
-          mkdir -p "$backup"
-          chmod 700 "$backup"
-          cp -p "$target/Lives-latest.dmg" "$backup/" 2>/dev/null || true
-          cp -p "$target/.version" "$backup/" 2>/dev/null || true
-          cp -p "$target/lives-download-stats.json" "$backup/" 2>/dev/null || true
-
-          timer_state=$(systemctl is-active lives-download-stats.timer || true)
-          restore_timer() {
-            if [ "$timer_state" = active ]; then
-              systemctl start lives-download-stats.timer
-            fi
-          }
-          trap restore_timer EXIT
-
-          systemctl stop lives-download-stats.timer || true
-          systemctl stop lives-download-stats.service || true
-
-          install -m 0644 /tmp/Lives-latest.dmg "$target/.Lives-latest.dmg.new"
-          printf '%s  %s\n' "$EXPECTED_SHA" "$target/.Lives-latest.dmg.new" | sha256sum -c -
-          test "$(stat -c '%s' "$target/.Lives-latest.dmg.new")" = "$EXPECTED_SIZE"
-          mv -f "$target/.Lives-latest.dmg.new" "$target/Lives-latest.dmg"
-
-          printf '%s\n' "$LIVES_VERSION" > "$target/.version.new"
-          chmod 0644 "$target/.version.new"
-          mv -f "$target/.version.new" "$target/.version"
-
-          systemctl start lives-download-stats.service
-          cat "$target/lives-download-stats.json"
-          rm -f /tmp/Lives-latest.dmg /tmp/Lives-latest.version
-          REMOTE
+          ssh -o BatchMode=yes -o ConnectTimeout=10 \
+            "$SERVER_USER@$SERVER_HOST" \
+            "sync-lives-release --help"
