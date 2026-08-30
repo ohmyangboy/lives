@@ -8,6 +8,7 @@
 - `npm run build`、官网 `npm run build`：通过。
 - 原生 `swift test`：26 项，0 失败，3 项因缺少外部素材跳过；包括照片错误分类、beta 到正式版的版本比较及渲染回归。
 - `bash scripts/test-photo-signing.sh`：真实签名探针通过；缺少照片 entitlement 时被拦截，包含时通过，不调用图库授权。
+- 多画格独立关键帧回归：前端 `src/domain.test.ts` 验证每个画格携带不同关键帧，原生封面合成按每个画格的时间取帧。
 - 所有应用版本配置统一为 `0.1.8`；稳定版下载与自动更新使用 GitHub 正式 Release。
 
 ## 本轮真机证据与边界
@@ -19,8 +20,8 @@
 ## 冻结安装包
 
 - 最终 DMG：`Lives_0.1.8_aarch64.dmg`
-- SHA-256：`c8520c8c3507956b7613a96d0fe2e7ac7bfe449ee926b4966c3e9acb8005f762`
-- Apple 公证：App `f3afca51-3fd7-459f-bd1b-ef6003d6759a`，DMG `792306f5-91e4-4c33-9e78-d1b89dd3f508`，均为 `Accepted`，并已钉入票据。
+- SHA-256：`f01ddfeb3797fb262165a080472e5fbe4c6ba36852caf56bb5cf737e6ff9bc37`
+- Apple 公证：App `c038e188-aa93-4fc7-a885-7163a53cb3bd`，DMG `df551538-b979-43b1-b63c-89d6b09f6066`，均为 `Accepted`，并已钉入票据。
 - 构建脚本中的 PASS 7 已通过 `spctl`，结果为 `accepted / source=Notarized Developer ID`。
-- 重新挂载后的本地复核发现签名状态异常，未将该次复核当作通过证据；发布资产仍以 Apple 公证结果和构建阶段 PASS 3/7 为准，发布后继续观察下载包。
+- 本次构建阶段签名、公证和 Gatekeeper 验证均通过，发布资产以本次 Apple 公证结果和构建阶段 PASS 3/7 为准。
 - 隔离导出冒烟测试在当前 macOS 环境因 AVFoundation 缺少音频编码器返回 `Cannot Encode`，未写入图库；不据此宣称完整导出链路通过。
