@@ -75,6 +75,10 @@ struct ExportedPairResult: Codable {
 }
 
 enum LivePhotoPipeline {
+    static func coverContextRect(for target: CGRect, canvasHeight: CGFloat) -> CGRect {
+        CGRect(x: target.minX, y: canvasHeight - target.maxY, width: target.width, height: target.height)
+    }
+
     static func supportsCanvas(width: Int, height: Int) -> Bool {
         [
             "1080x1920", "1080x1440", "1080x1080",
@@ -260,10 +264,6 @@ enum LivePhotoPipeline {
         }
         context.setFillColor(NSColor.black.cgColor)
         context.fill(CGRect(origin: .zero, size: canvasSize))
-        context.saveGState()
-        context.translateBy(x: 0, y: canvasSize.height)
-        context.scaleBy(x: 1, y: -1)
-
         for clip in project.clips {
             let asset = AVURLAsset(url: URL(fileURLWithPath: clip.sourcePath))
             let generator = AVAssetImageGenerator(asset: asset)
@@ -295,9 +295,13 @@ enum LivePhotoPipeline {
             guard let cropped = image.cropping(to: cropRect) else {
                 throw ServiceError(code: "LIVE_METADATA_FAILED", message: "无法裁剪 Live Photo 封面", recovery: "请重试")
             }
-            context.draw(cropped, in: target)
+            // CGImage bitmap rows are already top-to-bottom. CGContext uses a
+            // bottom-left coordinate system, so convert only the destination
+            // rectangle instead of flipping the entire image (which would
+            // reverse the generated cover).
+            let contextTarget = coverContextRect(for: target, canvasHeight: canvasSize.height)
+            context.draw(cropped, in: contextTarget)
         }
-        context.restoreGState()
         guard let image = context.makeImage() else {
             throw ServiceError(code: "LIVE_METADATA_FAILED", message: "无法生成 Live Photo 封面", recovery: "请重试")
         }

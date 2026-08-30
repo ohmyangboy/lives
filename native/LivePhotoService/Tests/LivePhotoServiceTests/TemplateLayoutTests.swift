@@ -37,6 +37,13 @@ final class TemplateLayoutTests: XCTestCase {
         XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 640, height: 480))
     }
 
+    func testCoverContextRectPreservesTopToBottomImageOrientation() {
+        let top = CGRect(x: 0, y: 0, width: 1080, height: 960)
+        let bottom = LivePhotoPipeline.coverContextRect(for: top, canvasHeight: 1920)
+
+        XCTAssertEqual(bottom, CGRect(x: 0, y: 960, width: 1080, height: 960))
+    }
+
     func testBitRateAdaptsToOutputFrameSize() {
         XCTAssertEqual(VideoRenderer.adaptiveBitRate(width: 1080, height: 1920), 12_000_000)
         XCTAssertEqual(VideoRenderer.adaptiveBitRate(width: 720, height: 1280), 5_333_333)

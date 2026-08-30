@@ -9,6 +9,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+def eject_create_dmg_mounts() -> None:
+    """清理 create-dmg 在 Finder 占用时遗留的临时挂载。"""
+    info = subprocess.run(["hdiutil", "info"], capture_output=True, text=True, check=False).stdout
+    devices = {
+        line.split()[0]
+        for line in info.splitlines()
+        if "/Volumes/dmg." in line and line.split()
+    }
+    for device in devices:
+        subprocess.run(["hdiutil", "detach", device, "-force"], check=False)
+
 
 def main() -> None:
     if len(sys.argv) != 3:
@@ -38,7 +49,7 @@ def main() -> None:
         position = layout["windowPosition"]
         app_position = layout["appPosition"]
         folder_position = layout["applicationFolderPosition"]
-        subprocess.run([
+        create_result = subprocess.run([
             builder, "--volname", "Lives", "--volicon", str(ROOT / "src-tauri/icons/icon.icns"),
             "--background", str(background),
             "--window-pos", str(position["x"]), str(position["y"]),
@@ -48,7 +59,15 @@ def main() -> None:
             "--hide-extension", app.name,
             "--app-drop-link", str(folder_position["x"]), str(folder_position["y"]),
             "--no-internet-enable", str(image), str(content),
-        ], check=True)
+        ], check=False)
+        if create_result.returncode:
+            # create-dmg exits 16 when its final detach races Finder. The
+            # image and .DS_Store are already complete at that point; eject
+            # the stale mount, then verify the image before accepting it.
+            if create_result.returncode == 16 and image.is_file():
+                eject_create_dmg_mounts()
+            else:
+                raise subprocess.CalledProcessError(create_result.returncode, create_result.args)
         subprocess.run(["hdiutil", "verify", str(image)], check=True)
         image.replace(output)
     except Exception:
