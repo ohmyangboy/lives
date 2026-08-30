@@ -10,6 +10,13 @@ import {
 } from './releaseUpdate'
 
 describe('release update checks & version comparisons', () => {
+  it('orders beta versions below the matching stable release', () => {
+    expect(compareVersions('0.1.8', '0.1.8-beta.1')).toBeGreaterThan(0)
+    expect(compareVersions('0.1.8-beta.1', '0.1.8')).toBeLessThan(0)
+    expect(compareVersions('0.1.8-beta.10', '0.1.8-beta.2')).toBeGreaterThan(0)
+    expect(compareVersions('0.1.8-beta.1', '0.1.7')).toBeGreaterThan(0)
+    expect(compareVersions('0.1.8+build.2', '0.1.8+build.1')).toBe(0)
+  })
   it('compares numeric versions accurately', () => {
     expect(compareVersions('v0.1.10', '0.1.2')).toBeGreaterThan(0)
     expect(compareVersions('0.1.2', '0.1.2')).toBe(0)

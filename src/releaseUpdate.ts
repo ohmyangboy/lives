@@ -89,9 +89,9 @@ interface GitHubRelease {
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Pick<Response, 'ok' | 'json' | 'status'>>
 
 const numericVersion = (value: string) => {
-  const match = value.trim().match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-.*)?$/i)
+  const match = value.trim().match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/i)
   if (!match) return undefined
-  return [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)]
+  return { core: [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)], prerelease: match[4]?.split('.') ?? [] }
 }
 
 /** Returns a positive number only when `candidate` is newer than `current`. */
@@ -99,8 +99,21 @@ export const compareVersions = (candidate: string, current: string) => {
   const candidateParts = numericVersion(candidate)
   const currentParts = numericVersion(current)
   if (!candidateParts || !currentParts) return undefined
-  for (let index = 0; index < candidateParts.length; index += 1) {
-    if (candidateParts[index] !== currentParts[index]) return candidateParts[index] - currentParts[index]
+  for (let index = 0; index < candidateParts.core.length; index += 1) {
+    if (candidateParts.core[index] !== currentParts.core[index]) return candidateParts.core[index] - currentParts.core[index]
+  }
+  const left = candidateParts.prerelease
+  const right = currentParts.prerelease
+  if (!left.length || !right.length) return Number(!left.length) - Number(!right.length)
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const a = left[index], b = right[index]
+    if (a === undefined) return -1
+    if (b === undefined) return 1
+    if (a === b) continue
+    const aNumeric = /^\d+$/.test(a), bNumeric = /^\d+$/.test(b)
+    if (aNumeric && bNumeric) return Number(a) - Number(b)
+    if (aNumeric !== bNumeric) return aNumeric ? -1 : 1
+    return a < b ? -1 : 1
   }
   return 0
 }

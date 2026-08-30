@@ -547,24 +547,39 @@ enum UpdateService {
     /// 返回 a 是否比 b 新；无法解析时返回 nil。
     static func isVersion(_ a: String, newerThan b: String) -> Bool? {
         guard let pa = versionParts(a), let pb = versionParts(b) else { return nil }
-        for index in 0..<max(pa.count, pb.count) {
-            let left = index < pa.count ? pa[index] : 0
-            let right = index < pb.count ? pb[index] : 0
+        for index in 0..<3 {
+            let left = pa.core[index]
+            let right = pb.core[index]
             if left != right { return left > right }
+        }
+        if pa.prerelease.isEmpty || pb.prerelease.isEmpty {
+            return pa.prerelease.isEmpty && !pb.prerelease.isEmpty
+        }
+        for index in 0..<max(pa.prerelease.count, pb.prerelease.count) {
+            guard index < pa.prerelease.count else { return false }
+            guard index < pb.prerelease.count else { return true }
+            let left = pa.prerelease[index], right = pb.prerelease[index]
+            if left == right { continue }
+            if let a = Int(left), let b = Int(right) { return a > b }
+            if Int(left) != nil { return false }
+            if Int(right) != nil { return true }
+            return left > right
         }
         return false
     }
 
-    private static func versionParts(_ value: String) -> [Int]? {
-        var trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("v") || trimmed.hasPrefix("V") {
-            trimmed = String(trimmed.dropFirst())
+    private static func versionParts(_ value: String) -> (core: [Int], prerelease: [String])? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"^[vV]?([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)) else { return nil }
+        func group(_ index: Int) -> String? {
+            guard let range = Range(match.range(at: index), in: trimmed) else { return nil }
+            return String(trimmed[range])
         }
-        let components = trimmed.split(whereSeparator: { $0 == "." || $0 == "-" })
-        guard !components.isEmpty else { return nil }
-        let parts = components.compactMap { Int($0) }
-        guard parts.count == components.count else { return nil }
-        return parts
+        let core = (1...3).compactMap { Int(group($0) ?? "0") }
+        guard core.count == 3 else { return nil }
+        return (core, group(4)?.components(separatedBy: ".") ?? [])
     }
 
     private static func runCommand(_ executable: String, arguments: [String]) -> (exitCode: Int32, output: String?, error: String?) {

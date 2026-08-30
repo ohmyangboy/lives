@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Lives",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "identifier": "com.yangbukun.lives",
   "build": {
     "beforeDevCommand": "npm run build:sidecar && npm run dev:web",
@@ -28,13 +28,20 @@
       "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost https://api.github.com; img-src 'self' asset: http://asset.localhost data: blob:; media-src 'self' asset: http://asset.localhost blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$HOME/**", "/Volumes/**", "$TEMP/**"]
+        "scope": [
+          "$HOME/**",
+          "/Volumes/**",
+          "$TEMP/**"
+        ]
       }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -42,7 +49,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/live-photo-service"],
+    "externalBin": [
+      "binaries/live-photo-service"
+    ],
     "resources": {
       "resources/LiveCollagePhotosHelper.app": "LiveCollagePhotosHelper.app"
     },
@@ -53,7 +62,27 @@
       "minimumSystemVersion": "13.0",
       "entitlements": "Entitlements.plist",
       "infoPlist": "Info.plist",
-      "signingIdentity": "Developer ID Application: Yonghao Yang (LGKLTGNTY2)"
+      "dmg": {
+        "background": "dmg/background.png",
+        "windowSize": {
+          "width": 640,
+          "height": 440
+        },
+        "windowPosition": {
+          "x": 240,
+          "y": 160
+        },
+        "appPosition": {
+          "x": 180,
+          "y": 190
+        },
+        "applicationFolderPosition": {
+          "x": 460,
+          "y": 190
+        }
+      },
+      "signingIdentity": "Developer ID Application: Yonghao Yang (LGKLTGNTY2)",
+      "bundleVersion": "0.1.8"
     }
   }
 }

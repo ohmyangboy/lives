@@ -39,7 +39,7 @@ jobs:
 
       - name: Build website
         env:
-          LIVES_VERSION: ${{ vars.LIVES_VERSION || '0.1.7' }}
+          LIVES_VERSION: ${{ vars.LIVES_VERSION || '0.1.8' }}
           LIVES_DOWNLOAD_URL: ${{ vars.LIVES_DOWNLOAD_URL || 'https://github.com/ohmyangboy/lives/releases/latest' }}
         run: npm run build
 
@@ -82,7 +82,7 @@ jobs:
       - name: Build website for 1leaf
         working-directory: website
         env:
-          LIVES_VERSION: ${{ vars.LIVES_VERSION || '0.1.7' }}
+          LIVES_VERSION: ${{ vars.LIVES_VERSION || '0.1.8' }}
           LIVES_DOWNLOAD_URL: https://download.1leaf.cc/Lives-latest.dmg
         run: npm run build
 

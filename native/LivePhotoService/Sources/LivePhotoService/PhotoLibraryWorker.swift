@@ -11,15 +11,17 @@ private struct PhotoWorkerResponse: Codable {
 enum PhotoLibraryWorker {
     static func runIfRequested(arguments: [String]) async -> Bool {
         if let modeIndex = arguments.firstIndex(of: "photo-authorize"), arguments.indices.contains(modeIndex + 1) {
-            await prepareApplicationForPhotoKit()
             let responseURL = URL(fileURLWithPath: arguments[modeIndex + 1])
+            do {
+                try PhotoAuthorization.validateSigningConfiguration()
+            } catch {
+                write(PhotoWorkerResponse(authorized: false, identifier: nil, error: PhotoAuthorization.configurationError), to: responseURL)
+                return true
+            }
+            await prepareApplicationForPhotoKit()
             let status = await requestAddOnlyAuthorizationDirect()
             let authorized = status == .authorized
-            let error = authorized ? nil : ServiceError(
-                code: "PHOTO_PERMISSION_DENIED",
-                message: "没有照片写入权限",
-                recovery: "请在“系统设置 → 隐私与安全性 → 照片”中允许 Lives 添加照片；也可以改为导出到文件夹"
-            )
+            let error = PhotoAuthorization.error(for: status)
             write(PhotoWorkerResponse(authorized: authorized, identifier: nil, error: error), to: responseURL)
             return true
         }

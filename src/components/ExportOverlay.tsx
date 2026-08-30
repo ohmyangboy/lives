@@ -63,6 +63,7 @@ export function ExportOverlay({ state, stage, progress, message, recovery, error
           <h2 id="export-status-title">{message ?? '生成 Live Photo 失败'}</h2>
           <p>{recovery ?? '项目仍然保留，你可以检查素材后重试。'}</p>
           <button className="primary-button wide" onClick={onRetry}>重新尝试</button>
+          {destination === 'photos' && errorCode?.startsWith('PHOTO_PERMISSION_') && <button className="secondary-button wide" onClick={onFallbackToFolder}><FolderIcon />改存到文件夹</button>}
           <button className="text-button" onClick={onClose}>返回编辑</button>
         </>}
       </div>

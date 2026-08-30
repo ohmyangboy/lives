@@ -23,6 +23,7 @@ step "[GATE 0] 环境与证书预检"
 command -v xcrun >/dev/null 2>&1 || fail "缺少 xcrun"
 command -v codesign >/dev/null 2>&1 || fail "缺少 codesign"
 command -v spctl >/dev/null 2>&1 || fail "缺少 spctl"
+command -v create-dmg >/dev/null 2>&1 || fail "缺少 create-dmg，无法生成带安装提示的镜像"
 
 security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application" \
   || fail "钥匙串中没有 Developer ID Application 证书"
@@ -94,7 +95,7 @@ sign_binary "$HELPER/Contents/MacOS/live-photo-service"
 sign_binary "$HELPER" "$ENTITLEMENTS"
 
 # 5. 签署主 App 内的二进制
-sign_binary "$APP_PATH/Contents/MacOS/live-photo-service"
+sign_binary "$APP_PATH/Contents/MacOS/live-photo-service" "$ENTITLEMENTS"
 sign_binary "$APP_PATH/Contents/MacOS/live-collage"
 
 # 6. 签署主 App Bundle
@@ -102,6 +103,8 @@ sign_binary "$APP_PATH" "$ENTITLEMENTS"
 
 # 7. 严格门禁验证
 codesign --verify --deep --strict --verbose=4 "$APP_PATH" || fail "codesign --verify --deep --strict 失败"
+python3 "$ROOT_DIR/scripts/verify-photo-permissions.py" "$APP_PATH" \
+  || fail "照片签名权限缺失，停止打包"
 CODESIGN_DVV=$(codesign -dvv "$APP_PATH" 2>&1)
 echo "$CODESIGN_DVV" | grep -Eq 'flags=0x[0-9a-f]+\(runtime\)|^Runtime[= ]' \
   || fail "未启用 Hardened Runtime"
@@ -140,14 +143,7 @@ step "[PASS 6] 生成 DMG、签名与打包"
 RELEASE_DIR="$ROOT_DIR/release/$TAG"
 mkdir -p "$RELEASE_DIR"
 FINAL_DMG="$RELEASE_DIR/Lives_${VERSION}_aarch64.dmg"
-rm -f "$FINAL_DMG"
-
-TMP_DMG_VOL="$TMP_DIR/Lives_DMG_Content"
-mkdir -p "$TMP_DMG_VOL"
-cp -a "$APP_PATH" "$TMP_DMG_VOL/"
-ln -s /Applications "$TMP_DMG_VOL/Applications"
-
-hdiutil create -volname "Lives" -srcfolder "$TMP_DMG_VOL" -ov -format UDZO "$FINAL_DMG"
+python3 "$ROOT_DIR/scripts/build-dmg.py" "$APP_PATH" "$FINAL_DMG"
 codesign --force --sign "$SIGNING_IDENTITY" --timestamp "$FINAL_DMG"
 codesign --verify --verbose=2 "$FINAL_DMG" || fail "DMG 签名校验失败"
 

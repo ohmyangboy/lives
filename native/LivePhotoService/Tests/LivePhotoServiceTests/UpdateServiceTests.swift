@@ -49,6 +49,13 @@ final class UpdateServiceTests: XCTestCase {
     }
 
     // MARK: - 版本比较
+    func testBetaCanUpgradeToMatchingStableWithoutDowngrading() {
+        XCTAssertEqual(UpdateService.isVersion("0.1.8", newerThan: "0.1.8-beta.1"), true)
+        XCTAssertEqual(UpdateService.isVersion("0.1.8-beta.1", newerThan: "0.1.8"), false)
+        XCTAssertEqual(UpdateService.isVersion("0.1.8-beta.10", newerThan: "0.1.8-beta.2"), true)
+        XCTAssertEqual(UpdateService.isVersion("0.1.7", newerThan: "0.1.8-beta.1"), false)
+        XCTAssertEqual(UpdateService.isVersion("0.1.8+build.2", newerThan: "0.1.8+build.1"), false)
+    }
 
     func testIsVersionComparesSemantically() {
         XCTAssertTrue(UpdateService.isVersion("0.1.8", newerThan: "0.1.7") == true)

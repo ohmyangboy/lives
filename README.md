@@ -2,13 +2,21 @@
 
 Lives 是一个 macOS 本地工具：从多个 MOV/MP4/M4V 素材中截取不同的 3 秒瞬间，拼贴为一张 Live Photo，并保存到 Apple“照片”或指定文件夹。
 
-当前公开版本为 `0.1.7`。完整的产品范围、实现状态、验收门槛和技术约束请从 [docs/项目文档](docs/项目文档/README.md) 开始阅读：
+当前正式版为 [`0.1.8`](https://github.com/ohmyangboy/lives/releases/tag/v0.1.8)。本版修复照片授权缺失与错误提示、完善 DMG 拖拽安装指引，并改进预发布版到正式版的版本判断。完整的产品范围、实现状态、验收门槛和技术约束请从 [docs/项目文档](docs/项目文档/README.md) 开始阅读：
 
 
 
 - [PRD](docs/项目文档/PRD-MVP.md)
 - [开发计划与验收清单](docs/项目文档/开发计划与验收清单.md)
 - [技术现状与架构](docs/项目文档/技术现状与架构.md)
+
+## 安装 0.1.8
+
+1. 从 [v0.1.8 发布页](https://github.com/ohmyangboy/lives/releases/tag/v0.1.8)下载 Apple Silicon DMG，核对同页的 SHA-256。
+2. 退出旧版，将 Lives 拖入“应用程序”文件夹。
+3. 从“应用程序”打开 Lives，不要直接在 DMG 安装窗口运行；保存到“照片”时按提示允许“仅添加照片”。
+
+可从发布页下载安装，或通过应用内自动更新升级。详见 [本版更新说明](release/v0.1.8/release-notes.md)与[验证记录](release/v0.1.8/verification.md)。
 
 ## 开发运行
 
@@ -30,6 +38,7 @@ npm run dev
 ```bash
 npm test
 swift test --package-path native/LivePhotoService
+bash scripts/test-photo-signing.sh
 npm run tauri:build
 ```
 
