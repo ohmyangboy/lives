@@ -31,4 +31,10 @@
 
 ## 发布后验证
 
-本文件将在 GitHub Release、官网 Pages 和自有下载源同步完成后补充线上资产、下载哈希及 workflow 结果。
+- 实现提交：`5fbab0c`，正式标签 `v0.1.14`。
+- [GitHub Release](https://github.com/ohmyangboy/lives/releases/tag/v0.1.14) 已发布为正式版并标记为最新版本，包含 DMG 与 `.sha256` 资产。
+- [官网部署 workflow](https://github.com/ohmyangboy/lives/actions/runs/33749025980) 成功；GitHub Pages 构建、Pages 部署和 1leaf 官网部署均成功。
+- [自有源同步 workflow](https://github.com/ohmyangboy/lives/actions/runs/33749100629) 成功；GitHub Release 资产下载和 SHA-256 校验通过后写入 `Lives-latest.dmg`。
+- `https://lives.1leaf.cc/`、`https://ohmyangboy.github.io/lives/` 的首页版本均为 `0.1.14`，更新日志均包含 4K 预览修复说明。
+- 自有更新清单 `https://download.1leaf.cc/lives-download-stats.json` 返回 `currentVersion=v0.1.14`、大小 `11648552` 字节、SHA-256 与正式 DMG 一致，`updatedAt=2026-09-03T11:21:48Z`。
+- 从自有源重新下载 `Lives-latest.dmg`，HTTP 200，大小 `11648552` 字节，SHA-256 与本地及 GitHub Release 一致。
