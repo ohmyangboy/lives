@@ -189,6 +189,7 @@ enum LivePhotoPipeline {
     }
 
     private static func validate(_ project: RenderProject) throws {
+        try SharedCoreBridge.validate(project)
         guard (1...3).contains(project.clips.count), supportsCanvas(width: project.canvas.width, height: project.canvas.height),
               project.canvas.durationMs == 3000, project.canvas.fps == 30,
               project.coverTimeMs >= 0, project.coverTimeMs < project.canvas.durationMs else {

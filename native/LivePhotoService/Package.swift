@@ -11,9 +11,13 @@ let package = Package(
     name: "LivePhotoService",
     platforms: [.macOS(.v13)],
     products: [.executable(name: "live-photo-service", targets: ["LivePhotoService"])],
+    dependencies: [
+        .package(path: "../LivesCore"),
+    ],
     targets: [
         .executableTarget(
             name: "LivePhotoService",
+            dependencies: ["LivesCore"],
             exclude: ["Helper-Info.plist"],
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [
