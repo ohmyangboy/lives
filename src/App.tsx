@@ -254,7 +254,10 @@ const restoreMediaLibrary = (): { clips: VideoClip[]; projects: MediaProject[]; 
       projects?: MediaProject[]
       activeProjectId?: string
     }
-    const clips = (saved.clips ?? []).filter((clip) => clip.sourcePath).map((clip) => ({ ...clip, previewUrl: previewUrlForPath(clip.sourcePath) }))
+    const clips = (saved.clips ?? []).filter((clip) => clip.sourcePath).map((clip) => ({
+      ...clip,
+      previewUrl: previewUrlForPath(clip.previewPath ?? clip.sourcePath),
+    }))
     const clipIds = new Set(clips.map((clip) => clip.id))
     const restoredProjects = (saved.projects ?? []).map((project) => ({ ...project, clipIds: project.clipIds.filter((id) => clipIds.has(id)) }))
     const projects = restoredProjects.some((project) => project.id === defaultProjectId)
@@ -415,6 +418,23 @@ export function App() {
   useEffect(() => {
     if (!desktopAvailable()) return
     nativeService.healthCheck().catch(() => setNotice('原生媒体服务未能启动，请重新打开 App'))
+
+    const restoredClips = clipsRef.current.filter((clip) => clip.sourcePath)
+    if (!restoredClips.length) return
+    let cancelled = false
+    void Promise.all(restoredClips.map(async (clip) => {
+      try {
+        const preview = await nativeService.preparePreview(clip.sourcePath)
+        if (cancelled) return
+        const previewPath = preview.transcoded ? preview.path : undefined
+        setClips((current) => current.map((currentClip) => currentClip.id === clip.id
+          ? { ...currentClip, previewPath, previewUrl: previewUrlForPath(preview.path) }
+          : currentClip))
+      } catch {
+        // Keep the original source as a fallback; export still uses sourcePath.
+      }
+    }))
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -481,10 +501,12 @@ export function App() {
         try {
           const info = await nativeService.inspect(path)
           if (info.durationMs < MINIMUM_SOURCE_DURATION_MS) throw new Error(`${path.split('/').pop() ?? '视频'} 只有 ${formatDuration(info.durationMs)}，至少需要 ${formatDuration(MINIMUM_SOURCE_DURATION_MS)}`)
+          const preview = await nativeService.preparePreview(path)
           imported[index] = {
             id: crypto.randomUUID(), sourcePath: path, name: path.split('/').pop() ?? '视频', durationMs: info.durationMs,
+            previewPath: preview.transcoded ? preview.path : undefined,
             width: info.width, height: info.height, codec: info.codec, startTimeMs: 0,
-            crop: { normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1 }, previewUrl: previewUrlForPath(path),
+            crop: { normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1 }, previewUrl: previewUrlForPath(preview.path),
           }
         } catch (error) {
           failed += 1

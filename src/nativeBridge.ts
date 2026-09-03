@@ -12,6 +12,11 @@ export interface VideoInfo {
   codec: string
 }
 
+export interface PreviewInfo {
+  path: string
+  transcoded: boolean
+}
+
 export type NativeStage = 'inspecting' | 'transcoding' | 'rendering' | 'writingMetadata' | 'validating' | 'requestingPhotoPermission' | 'resettingPhotoPermission' | 'saving' | 'exportingFiles' | 'verifyingSavedAsset' | 'completed'
 
 export type UpdateStage = 'downloading' | 'verifying' | 'preparing' | 'completed'
@@ -141,6 +146,7 @@ class LivePhotoService {
   }
 
   inspect(path: string) { return this.request<VideoInfo>('inspect', { path }) }
+  preparePreview(path: string) { return this.request<PreviewInfo>('preparePreview', { path }) }
   scanFolder(path: string) { return this.request<string[]>('scanFolder', { path }) }
   healthCheck() { return this.request<string>('ping', {}) }
   renderAndSave(project: RenderProject, onProgress: PendingRequest['onProgress']) {

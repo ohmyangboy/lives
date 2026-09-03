@@ -50,7 +50,7 @@ Lives 不需要账号，也不会把导入的视频上传到服务器。应用�
 
 ## 获取与支持
 
-最新正式版：[v0.1.13](https://github.com/ohmyangboy/lives/releases/tag/v0.1.13)。更新重启后仅展示一次右上角反馈面板，显示当前版本并在 4 秒后淡出；手动打开不自动关闭。应用优先使用自有源更新，GitHub 作为备用。官网默认版本读取本目录 package.json，发布流水线不再依赖容易过期的 LIVES_VERSION 仓库变量。
+最新正式版：[v0.1.14](https://github.com/ohmyangboy/lives/releases/tag/v0.1.14)。本版修复 4K H.264 视频导入后预览黑屏：使用 macOS 原生媒体框架生成 WebView 可播放的预览代理，原始视频仍保留用于后续处理。应用优先使用自有源更新，GitHub 作为备用。官网默认版本读取本目录 package.json，发布流水线不再依赖容易过期的 LIVES_VERSION 仓库变量。
 
 安装时将 Lives 拖入“应用程序”，退出旧版后从“应用程序”启动，不要直接运行 DMG 内的副本。首次保存到“照片”时允许仅添加照片。查看[完整更新日志](https://ohmyangboy.github.io/lives/changelog.html)。
 

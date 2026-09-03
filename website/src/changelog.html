@@ -16,25 +16,25 @@
     <main class="legal-document">
       <p class="eyebrow">更新日志</p>
       <h1>v__LIVES_VERSION__</h1>
-      <p class="legal-updated">2026 年 8 月 30 日 · 正式版 · Apple Silicon / macOS 13+</p>
+      <p class="legal-updated">2026 年 9 月 3 日 · 正式版 · Apple Silicon / macOS 13+</p>
       <section>
         <h2>本次更新</h2>
         <ul>
-          <li>更新完成并重启后，不再弹出独立的“更新完成”对话框，改为自动展开右上角反馈面板，每次更新只展示一次。</li>
-          <li>反馈标题显示“当前版本 __LIVES_VERSION__，欢迎给我反馈👏”，自动展示停留 4 秒后整体淡出。</li>
-          <li>手动点击反馈按钮或操作面板后保持显示，不会被自动计时器关闭；普通启动不再弹出提示。</li>
+          <li>修复 4K H.264 视频导入后预览画面黑屏的问题。</li>
+          <li>导入超高清视频时，由 macOS 原生媒体框架生成 WebView 可播放的预览代理；原始视频路径保留，不改变后续导出来源。</li>
+          <li>预览代理按源文件路径、大小和修改时间缓存，重复打开素材时可复用，普通分辨率视频不额外转码。</li>
           <li>保留自有更新源优先、GitHub 备用、大小与 SHA-256 校验、Developer ID 身份验证，以及照片权限恢复等既有功能。</li>
         </ul>
       </section>
       <section>
         <h2>安装与渠道</h2>
-        <p><a class="inline-link" href="__LIVES_DOWNLOAD_URL__">下载正式版 DMG</a> · <a class="inline-link" href="https://github.com/ohmyangboy/lives/releases/tag/v0.1.13">发布说明与 SHA-256</a></p>
+        <p><a class="inline-link" href="__LIVES_DOWNLOAD_URL__">下载正式版 DMG</a> · <a class="inline-link" href="https://github.com/ohmyangboy/lives/releases/tag/v0.1.14">发布说明与 SHA-256</a></p>
         <p>退出旧版，将 Lives 拖入“应用程序”，再从“应用程序”打开。不要直接运行 DMG 内的副本；选择“保存到照片”时按系统提示授权。安装包已使用 Developer ID 签名并完成 Apple 公证。</p>
         <p>正式版可手动安装，也可通过应用内自动更新升级。若此前误点过“不允许”，升级后可直接在导出界面点击“重新授权并保存”恢复。</p>
       </section>
       <section>
         <h2>验证范围</h2>
-        <p>前端测试、生产构建及反馈面板浏览器交互检查通过。安装包使用 Developer ID 签名并完成 Apple 公证。完整的 0.1.12 → 0.1.13 真机安装重启，以及 macOS 13/14、全部导出模板、iCloud 与 iPhone 回归仍待验收；请先使用非重要素材测试。</p>
+        <p>前端测试、Swift 原生测试、生产构建及 4K 预览回归检查通过。安装包使用 Developer ID 签名并完成 Apple 公证。完整的 0.1.13 → 0.1.14 真机安装重启，以及 macOS 13/14、全部导出模板、iCloud 与 iPhone 回归仍待验收；请先使用非重要素材测试。</p>
         <p>遇到问题请通过 <a class="inline-link" href="https://github.com/ohmyangboy/lives/issues">GitHub Issues</a>反馈，勿上传私人照片、原视频或未脱敏日志。</p>
       </section>
     </main>

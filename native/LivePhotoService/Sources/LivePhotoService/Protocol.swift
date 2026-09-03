@@ -63,6 +63,11 @@ struct VideoInfo: Codable {
     let codec: String
 }
 
+struct PreviewInfo: Codable {
+    let path: String
+    let transcoded: Bool
+}
+
 struct RenderProject: Codable {
     struct Canvas: Codable { let width: Int; let height: Int; let fps: Int; let durationMs: Int }
     struct Crop: Codable { let normalizedCenterX: Double; let normalizedCenterY: Double; let scale: Double }

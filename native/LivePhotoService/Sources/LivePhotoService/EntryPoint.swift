@@ -110,6 +110,10 @@ final class ServiceRuntime {
                 let envelope = try request.payload.decode(PathEnvelope.self)
                 let info = try await MediaInspector.inspect(path: envelope.path)
                 await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: try encodeValue(info)))
+            case "preparePreview":
+                let envelope = try request.payload.decode(PathEnvelope.self)
+                let preview = try await VideoPreviewGenerator.prepare(path: envelope.path)
+                await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: try encodeValue(preview)))
             case "scanFolder":
                 let envelope = try request.payload.decode(PathEnvelope.self)
                 let paths = try MediaLibraryScanner.scan(path: envelope.path)

@@ -5,7 +5,7 @@
 
 Lives 是一个 macOS 本地工具：从多个 MOV/MP4/M4V 素材中截取不同的 3 秒瞬间，拼贴为一张 Live Photo，并保存到 Apple“照片”或指定文件夹。
 
-当前正式版为 [`0.1.13`](https://github.com/ohmyangboy/lives/releases/tag/v0.1.13)。本版将更新重启后的反馈提示改为右上角轻量面板：显示当前版本，停留 4 秒后淡出；普通启动不弹出，手动打开不自动关闭。保留自有源优先、GitHub 备用的双源更新及原有媒体功能。完整的产品范围、实现状态、验收门槛和技术约束请从 [docs/项目文档](docs/项目文档/README.md) 开始阅读：
+当前正式版为 [`0.1.14`](https://github.com/ohmyangboy/lives/releases/tag/v0.1.14)。本版修复 4K H.264 视频导入后预览黑屏的问题：导入时由 macOS 原生媒体框架生成 WebView 可播放的预览代理，同时保留用户原始视频路径用于后续处理。保留自有源优先、GitHub 备用的双源更新及原有媒体功能。完整的产品范围、实现状态、验收门槛和技术约束请从 [docs/项目文档](docs/项目文档/README.md) 开始阅读：
 
 
 
@@ -13,13 +13,13 @@ Lives 是一个 macOS 本地工具：从多个 MOV/MP4/M4V 素材中截取不同
 - [开发计划与验收清单](docs/项目文档/开发计划与验收清单.md)
 - [技术现状与架构](docs/项目文档/技术现状与架构.md)
 
-## 安装 0.1.13
+## 安装 0.1.14
 
-1. 从 [v0.1.13 发布页](https://github.com/ohmyangboy/lives/releases/tag/v0.1.13)下载 Apple Silicon DMG，核对同页的 SHA-256。
+1. 从 [v0.1.14 发布页](https://github.com/ohmyangboy/lives/releases/tag/v0.1.14)下载 Apple Silicon DMG，核对同页的 SHA-256。
 2. 退出旧版，将 Lives 拖入“应用程序”文件夹。
 3. 从“应用程序”打开 Lives，不要直接在 DMG 安装窗口运行；保存到“照片”时按提示允许“仅添加照片”。
 
-可从发布页下载安装，或通过应用内自动更新升级。详见 [本版更新说明](release/v0.1.13/release-notes.md)与[验证记录](release/v0.1.13/verification.md)。
+可从发布页下载安装，或通过应用内自动更新升级。详见 [本版更新说明](release/v0.1.14/release-notes.md)与[验证记录](release/v0.1.14/verification.md)。
 
 ## 开发运行
 

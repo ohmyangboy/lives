@@ -101,6 +101,8 @@ export interface CropPosition {
 export interface VideoClip {
   id: string
   sourcePath: string
+  /** Optional AVFoundation-generated proxy used only by the desktop WebView. */
+  previewPath?: string
   name: string
   durationMs: number
   width: number
