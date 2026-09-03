@@ -1,6 +1,7 @@
 # Lives MVP
 
 [![Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdownload.1leaf.cc%2Flives-download-stats.json&query=%24.downloads&label=downloads&color=brightgreen)](https://github.com/ohmyangboy/lives/releases)
+[![License](https://img.shields.io/badge/license-GPLv3-c92a2a?style=flat-square)](LICENSE)
 
 Lives 是一个 macOS 本地工具：从多个 MOV/MP4/M4V 素材中截取不同的 3 秒瞬间，拼贴为一张 Live Photo，并保存到 Apple“照片”或指定文件夹。
 
@@ -60,3 +61,7 @@ npm run tauri:build
 - 更新重启后的首次启动自动展开右上角反馈面板，4 秒后淡出；手动点击可持续显示，普通启动不打扰；
 - 更新中断自动恢复：已下载未安装的更新在下次冷启动直接提示完成安装；
 - 替换过程全程记录于 `~/Library/Caches/com.yangbukun.lives/Updates/relaunch.log`，排查「重启卡住」类问题以该日志为准。
+
+## 开源协议
+
+Lives 基于 [GNU General Public License v3.0](LICENSE) 开源。

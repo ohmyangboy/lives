@@ -1,6 +1,6 @@
 # Lives 第三方软件声明
 
-Lives 0.1.2 包含或依赖以下主要开源组件。应用本身及 Lives 品牌素材不因这些声明而开放源代码；除第三方许可另有规定外，Copyright © 2026 ohmyangboy，保留所有权利。
+Lives 0.1.2 包含或依赖以下主要开源组件。Lives 应用源代码基于 [GNU General Public License v3.0](LICENSE) 开源；Lives 品牌素材仍归 Copyright © 2026 ohmyangboy 所有，除第三方许可另有规定外保留所有权利。
 
 | 组件 | 版本 | 许可 | 项目 |
 | --- | --- | --- | --- |
