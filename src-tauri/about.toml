@@ -1,0 +1,20 @@
+# cargo-about scans the exact dependency graph in Cargo.lock for the macOS
+# architecture that Lives currently distributes.
+accepted = [
+  "MIT",
+  "Apache-2.0",
+  "BSD-3-Clause",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Zlib",
+]
+
+targets = ["aarch64-apple-darwin"]
+ignore-build-dependencies = false
+ignore-dev-dependencies = true
+ignore-transitive-dependencies = false
+private = { ignore = true }
+
+# These are cargo-about's reviewed, built-in clarifications for crates that do
+# not expose machine-readable license data cleanly in their published package.
+workarounds = ["chrono", "cocoa", "rustix"]

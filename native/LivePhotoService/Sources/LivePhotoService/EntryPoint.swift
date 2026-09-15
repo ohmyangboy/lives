@@ -8,10 +8,17 @@ private func relaunchInsideHelperBundleIfNeeded() {
     if executable.path.contains("/LiveCollagePhotosHelper.app/Contents/MacOS/") { return }
 
     let contentsDirectory = executable.deletingLastPathComponent().deletingLastPathComponent()
-    let candidates = [
+    var candidates = [
         contentsDirectory.appendingPathComponent("Resources/LiveCollagePhotosHelper.app/Contents/MacOS/live-photo-service"),
         contentsDirectory.appendingPathComponent("resources/LiveCollagePhotosHelper.app/Contents/MacOS/live-photo-service"),
     ]
+    // 热更新宿主不在 .app 内；开发入口显式传入刚构建的 Helper。
+    // 打包应用始终优先使用自身资源，避免误用工作区版本。
+    if let developmentBundle = ProcessInfo.processInfo.environment["LIVES_DEV_PHOTOS_HELPER_APP"],
+       !executable.path.contains(".app/Contents/") {
+        candidates.append(URL(fileURLWithPath: developmentBundle)
+            .appendingPathComponent("Contents/MacOS/live-photo-service"))
+    }
     guard let helperExecutable = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0.path) }) else {
         FileHandle.standardError.write(Data("Lives helper bundle is missing.\n".utf8))
         return

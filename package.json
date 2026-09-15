@@ -1,7 +1,8 @@
 {
   "name": "live-collage",
   "private": true,
-  "version": "0.1.14",
+  "version": "0.1.15",
+  "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,9 +11,17 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build:sidecar": "bash scripts/build-sidecar.sh",
+    "website:build": "node website/scripts/build.mjs",
+    "licenses:generate": "bash scripts/generate-third-party-licenses.sh",
+    "source:build": "bash scripts/build-third-party-source.sh",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build && python3 scripts/verify-photo-permissions.py src-tauri/target/release/bundle/macos/Lives.app && python3 scripts/build-dmg.py src-tauri/target/release/bundle/macos/Lives.app src-tauri/target/release/bundle/dmg/Lives_0.1.14_aarch64.dmg"
+    "tauri:dev": "bash scripts/dev-mac.sh dev",
+    "tauri:dev:app": "bash scripts/dev-mac.sh app",
+    "tauri:build": "tauri build && python3 scripts/verify-photo-permissions.py src-tauri/target/release/bundle/macos/Lives.app && bash scripts/generate-third-party-licenses.sh --verify-app src-tauri/target/release/bundle/macos/Lives.app && bash scripts/verify-license-compliance.sh src-tauri/target/release/bundle/macos/Lives.app",
+    "release:prepare": "python3 scripts/release.py prepare",
+    "release:publish": "python3 scripts/release.py publish",
+    "release:verify": "python3 scripts/release.py verify",
+    "website:check": "python3 scripts/check_website.py website/dist"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1",

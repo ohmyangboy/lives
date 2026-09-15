@@ -42,6 +42,9 @@ jobs:
           LIVES_DOWNLOAD_URL: ${{ vars.LIVES_DOWNLOAD_URL || 'https://github.com/ohmyangboy/lives/releases/latest' }}
         run: npm run build
 
+      - name: Validate public output
+        run: python3 ../scripts/check_website.py dist
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:

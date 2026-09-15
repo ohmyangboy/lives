@@ -3,8 +3,6 @@
  * Dark Tone & Warm Ink Aesthetic (深炭黑暗调、珍珠白、琥珀金高光、极简海报排版)
  * ============================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;600;700&display=swap');
-
 :root {
   /* Dark Tone & Warm Ink Palette */
   --bg-body: #0e0d0b;
@@ -48,9 +46,9 @@
   --shadow-lg: 0 28px 72px -16px rgba(0, 0, 0, 0.75), 0 4px 16px rgba(0, 0, 0, 0.3);
 
   /* Typography */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", Roboto, sans-serif;
-  --font-serif: 'Noto Serif SC', 'Songti SC', 'STSong', Georgia, serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", Roboto, sans-serif;
+  --font-serif: 'Songti SC', 'STSong', Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 
   /* Layout */
   --max-width: 1080px;

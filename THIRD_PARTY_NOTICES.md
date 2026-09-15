@@ -1,6 +1,6 @@
 # Lives 第三方软件声明
 
-Lives 0.1.2 包含或依赖以下主要开源组件。Lives 应用源代码基于 [GNU General Public License v3.0](LICENSE) 开源；Lives 品牌素材仍归 Copyright © 2026 ohmyangboy 所有，除第三方许可另有规定外保留所有权利。
+Lives 项目自有源码采用 GNU General Public License v3.0（GPL-3.0-only）。第三方组件保持各自许可；历史版本的既有授权不变。品牌规则见 TRADEMARKS.md。
 
 | 组件 | 版本 | 许可 | 项目 |
 | --- | --- | --- | --- |
@@ -10,11 +10,40 @@ Lives 0.1.2 包含或依赖以下主要开源组件。Lives 应用源代码基�
 | Tauri Dialog Plugin | 2.7.2 | MIT / Apache-2.0 | https://github.com/tauri-apps/plugins-workspace |
 | Tauri Shell Plugin | 2.3.5 | MIT / Apache-2.0 | https://github.com/tauri-apps/plugins-workspace |
 | Tauri Opener Plugin | 2.5.4 | MIT / Apache-2.0 | https://github.com/tauri-apps/plugins-workspace |
+| scheduler | 0.27.0 | MIT | https://github.com/facebook/react/tree/main/packages/scheduler |
 | Serde | 1.0.229 | MIT / Apache-2.0 | https://github.com/serde-rs/serde |
 | serde_json | 1.0.150 | MIT / Apache-2.0 | https://github.com/serde-rs/json |
 | FFmpeg | 8.1.2 | LGPL-2.1-or-later | https://ffmpeg.org |
 
-构建时使用的完整依赖版本由 `package-lock.json`、`src-tauri/Cargo.lock` 和 Swift Package 清单固定。后续加入或升级依赖时，应同步更新本文件并复核其再分发条件。
+构建时使用的完整依赖版本由 `package-lock.json`、`src-tauri/Cargo.lock` 和 Swift Package 清单固定。本文件是人工维护的高优先级义务摘要，**不是完整的逐包许可报告**。每次对外发布前，`npm run tauri:build` 会针对当次锁文件强制运行 `cargo-about` 与 npm 生产依赖盘点，生成 `RUST_THIRD_PARTY_LICENSES.html` 和 `NPM_THIRD_PARTY_LICENSES.html`。两份报告未经人工审核并随安装包分发时，不得发布。Swift 代码与仓库内 LivesCore 当前均为自研实现，采用 GPL-3.0-only，不包含第三方开源依赖或第三方字体；引入新 Swift 依赖时必须扩展自动盘点。
+
+## MPL-2.0 组件
+
+`src-tauri/Cargo.lock` 当前锁定以下 MPL-2.0 组件：
+
+| 组件 | 版本 | 许可 |
+| --- | --- | --- |
+| cssparser | 0.36.0 | MPL-2.0 |
+| cssparser-macros | 0.6.1 | MPL-2.0 |
+| dtoa-short | 0.3.5 | MPL-2.0 |
+| option-ext | 0.2.0 | MPL-2.0 |
+| selectors | 0.36.1 | MPL-2.0 |
+
+正式分发包必须保留这些组件的完整 MPL-2.0 文本、版权声明和由许可要求的源文件获取信息；详细范围以当次自动生成并经审核的逐包报告为准。MPL-2.0 完整条款见：https://www.mozilla.org/MPL/2.0/
+
+## BSD-3-Clause 义务
+
+`src-tauri/Cargo.lock` 当前锁定以下包含 BSD-3-Clause 许可选项或义务的组件：
+
+| 组件 | 版本 | Cargo 元数据中的许可表达式 |
+| --- | --- | --- |
+| encoding_rs | 0.8.35 | (Apache-2.0 OR MIT) AND BSD-3-Clause |
+| alloc-no-stdlib | 2.0.4 | BSD-3-Clause |
+| alloc-stdlib | 0.2.4 | BSD-3-Clause |
+| brotli | 8.0.4 | BSD-3-Clause AND MIT |
+| brotli-decompressor | 5.0.3 | BSD-3-Clause / MIT |
+
+二进制再分发时必须保留上游版权声明、条件和免责声明。具体原文不在本摘要中重复，必须由当次完整逐包许可报告携带。
 
 ## FFmpeg
 

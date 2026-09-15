@@ -40,6 +40,7 @@ npm run dev
 
 ```bash
 npm test
+swift test --package-path packages/LivesCore
 swift test --package-path native/LivePhotoService
 bash scripts/test-photo-signing.sh
 npm run tauri:build
@@ -62,6 +63,17 @@ npm run tauri:build
 - 更新中断自动恢复：已下载未安装的更新在下次冷启动直接提示完成安装；
 - 替换过程全程记录于 `~/Library/Caches/com.yangbukun.lives/Updates/relaunch.log`，排查「重启卡住」类问题以该日志为准。
 
-## 开源协议
+## 仓库结构
 
-Lives 基于 [GNU General Public License v3.0](LICENSE) 开源。
+本仓库同时承载 Mac 应用源码与官网源码。引擎位于产品内 `packages/LivesCore`，是本仓库的内部模块，不独立发版；不再与其他产品共享同一份包。
+
+- `src/`、`src-tauri/`、`native/LivePhotoService/`：界面、Rust 宿主与 Swift Helper。
+- `packages/LivesCore/`：模型、媒体处理与渲染；`website/`：官网源码。
+- `release/`：历次版本的更新说明、验证记录与校验和。
+- `docs/`：开发、发布与许可参考；`.agents/rules/`：发布与 Actions 规则。
+
+开发使用 `npm run tauri:dev`，始终接入本仓库内的 Core；正式构建检查本仓库的提交。参阅 [发布与官网维护](docs/release-workflow.md)、[许可边界](LICENSING.md)和[第三方声明](THIRD_PARTY_NOTICES.md)。
+
+## 许可
+
+Lives 项目自有源码采用 [GNU General Public License v3.0](LICENSE)（GPL-3.0-only）。历史公开版本的既有授权不撤回；第三方组件继续适用各自许可。详见 [许可边界](LICENSING.md) 与 [第三方声明](THIRD_PARTY_NOTICES.md)。

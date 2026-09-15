@@ -20,6 +20,14 @@ echo "正在为 Lives $TAG 进行签名与打包..."
 
 # ── [GATE 0] 环境与证书预检 ───────────────────────────────────────────
 step "[GATE 0] 环境与证书预检"
+export LIVES_CORE_MODE=locked
+python3 "$ROOT_DIR/scripts/release_preflight.py" \
+  || fail "版本、HEAD、tag 或工作树发布前检查失败"
+pass "版本、HEAD、tag 与工作树发布前检查通过"
+command -v cmp >/dev/null 2>&1 || fail "缺少 cmp"
+command -v git >/dev/null 2>&1 || fail "缺少 git"
+command -v node >/dev/null 2>&1 || fail "缺少 node"
+command -v shasum >/dev/null 2>&1 || fail "缺少 shasum"
 command -v xcrun >/dev/null 2>&1 || fail "缺少 xcrun"
 command -v codesign >/dev/null 2>&1 || fail "缺少 codesign"
 command -v spctl >/dev/null 2>&1 || fail "缺少 spctl"
@@ -28,12 +36,9 @@ command -v create-dmg >/dev/null 2>&1 || fail "缺少 create-dmg，无法生成�
 security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application" \
   || fail "钥匙串中没有 Developer ID Application 证书"
 
-if [[ "$SKIP_NOTARY" != "1" ]]; then
-  if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
-    echo "  [提示] 未找到可用 Notary profile [$NOTARY_PROFILE]，自动转为 Developer ID 官方签名打包模式 (SKIP_NOTARY=1)"
-    SKIP_NOTARY="1"
-  fi
-fi
+[[ "$SKIP_NOTARY" == "0" ]] || fail "正式发布不允许跳过公证"
+xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 \
+  || fail "Notary profile 不可用，请在本机钥匙串配置后重试"
 
 pass "环境预检通过（签名证书已就绪）"
 
@@ -50,6 +55,8 @@ pass "Tauri 编译完成"
 
 APP_PATH="$ROOT_DIR/src-tauri/target/release/bundle/macos/Lives.app"
 [[ -d "$APP_PATH" ]] || fail "未找到生成的 App: $APP_PATH"
+python3 "$ROOT_DIR/scripts/core_dependency.py" --release >/dev/null
+bash "$ROOT_DIR/scripts/verify-license-compliance.sh" "$APP_PATH"
 
 # ── [PASS 3] 自底向上严格代码签名与门禁 ──────────────────────────────
 step "[PASS 3] 自底向上严格代码签名与门禁"
@@ -164,16 +171,30 @@ fi
 
 # ── [PASS 7] 本地 Gatekeeper 签名验证 ─────────────────────────
 step "[PASS 7] 本地 Gatekeeper 签名验证"
-SPCTL_OUT=$(spctl -a -vv -t execute "$APP_PATH" 2>&1) || true
+SPCTL_OUT=$(spctl -a -vv -t execute "$APP_PATH" 2>&1) || { echo "$SPCTL_OUT" >&2; fail "Gatekeeper 拒绝 App"; }
 echo "$SPCTL_OUT"
 pass "Lives.app 签名评估完成"
 
 
 # ── [PASS 8] 生成 SHA-256 与产物就绪 ──────────────────────────────────
 step "[PASS 8] 产物清单与校验和"
-shasum -a 256 "$FINAL_DMG" | awk '{print $1}' > "$RELEASE_DIR/Lives_${VERSION}_aarch64.dmg.sha256"
-SHA256_VAL=$(cat "$RELEASE_DIR/Lives_${VERSION}_aarch64.dmg.sha256")
+DMG_CHECKSUM="$RELEASE_DIR/Lives_${VERSION}_aarch64.dmg.sha256"
+shasum -a 256 "$FINAL_DMG" | awk '{print $1}' > "$DMG_CHECKSUM"
+SHA256_VAL=$(cat "$DMG_CHECKSUM")
+[[ "$SHA256_VAL" == "$(shasum -a 256 "$FINAL_DMG" | awk '{print $1}')" ]] \
+  || fail "最终 DMG SHA-256 校验失败"
 
-echo "产物路径: $FINAL_DMG"
-echo "SHA-256:  $SHA256_VAL"
-pass "所有签名、公证与本地验证流程全部通过！"
+bash "$ROOT_DIR/scripts/build-third-party-source.sh"
+python3 - <<'PYRECEIPT'
+import json,sys
+from pathlib import Path
+sys.path.insert(0,'scripts')
+from release_preflight import check, ROOT
+from release import asset_names, sha
+snapshot=check()
+folder=ROOT/'release'/snapshot['tag']
+snapshot['files']={name:sha(folder/name) for name in asset_names(snapshot['version'])}
+(folder/'build-receipt.json').write_text(json.dumps(snapshot,indent=2)+'\n')
+PYRECEIPT
+echo "DMG SHA-256: $SHA256_VAL"
+pass "签名、公证及第三方资料准备完成；尚未上传公开 Release。"

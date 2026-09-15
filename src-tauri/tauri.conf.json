@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Lives",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "identifier": "com.yangbukun.lives",
   "build": {
     "beforeDevCommand": "npm run build:sidecar && npm run dev:web",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build:sidecar && npm run build",
+    "beforeBuildCommand": "npm run licenses:generate && npm run build:sidecar && npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -52,7 +52,16 @@
       "binaries/live-photo-service"
     ],
     "resources": {
-      "resources/LiveCollagePhotosHelper.app": "LiveCollagePhotosHelper.app"
+      "resources/LiveCollagePhotosHelper.app": "LiveCollagePhotosHelper.app",
+      "resources/LivesCore_LivesCore.bundle": "LivesCore_LivesCore.bundle",
+      "../LICENSE": "Legal/LICENSE.txt",
+      "../LICENSING.md": "Legal/LICENSING.md",
+      "../SOURCE_CODE.md": "Legal/SOURCE_CODE.md",
+      "../THIRD_PARTY_NOTICES.md": "Legal/THIRD_PARTY_NOTICES.md",
+      "../TRADEMARKS.md": "Legal/TRADEMARKS.md",
+      "resources/Legal/RUST_THIRD_PARTY_LICENSES.html": "Legal/RUST_THIRD_PARTY_LICENSES.html",
+      "resources/Legal/NPM_THIRD_PARTY_LICENSES.html": "Legal/NPM_THIRD_PARTY_LICENSES.html",
+      "../USER_TERMS.md": "Legal/USER_TERMS.md"
     },
     "category": "Photography",
     "shortDescription": "把 1～3 段视频制作成拼贴 Live Photo",
@@ -81,7 +90,7 @@
         }
       },
       "signingIdentity": "Developer ID Application: Yonghao Yang (LGKLTGNTY2)",
-      "bundleVersion": "0.1.14"
+      "bundleVersion": "0.1.15"
     }
   }
 }

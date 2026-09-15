@@ -1,4 +1,5 @@
 #!/bin/bash
+# 本构建脚本允许随 FFmpeg 对应源码复制、修改与再分发。
 set -euo pipefail
 
 source_dir="${1:?Usage: scripts/build-ffmpeg-runtime.sh /path/to/ffmpeg-8.1.2 [output-directory]}"

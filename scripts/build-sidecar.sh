@@ -11,6 +11,17 @@ helper_resources="$helper_contents/Resources"
 helper_lib="$helper_contents/lib"
 ffmpeg_root="$project_root/vendor/ffmpeg/macos-arm64"
 ffmpeg_notices="$helper_resources/FFmpeg"
+core_mode="${LIVES_CORE_MODE:-local}"
+python3 "$project_root/scripts/core_dependency.py" >/dev/null
+swift_build_args=(--package-path "$package_path")
+if [[ "$core_mode" == locked ]]; then
+  python3 "$project_root/scripts/core_dependency.py" --release >/dev/null
+  swift_build_args+=(--scratch-path "$project_root/.release-build/swift")
+fi
+swift_bin=$(swift build "${swift_build_args[@]}" -c release --show-bin-path)
+core_bundle_source="$swift_bin/LivesCore_LivesCore.bundle"
+helper_core_bundle="$helper_resources/LivesCore_LivesCore.bundle"
+tauri_core_bundle="$project_root/src-tauri/resources/LivesCore_LivesCore.bundle"
 target_triple="$(uname -m)-apple-darwin"
 
 if [[ "$target_triple" == "arm64-apple-darwin" ]]; then
@@ -25,13 +36,26 @@ fi
 env \
   CLANG_MODULE_CACHE_PATH=/private/tmp/livecollage-clang-cache \
   SWIFTPM_MODULECACHE_OVERRIDE=/private/tmp/livecollage-swiftpm-cache \
-  swift build --disable-sandbox --package-path "$package_path" -c release
+  swift build --disable-sandbox "${swift_build_args[@]}" -c release
+
+if [[ "$core_mode" == locked ]]; then
+  python3 "$project_root/scripts/core_dependency.py" --release >/dev/null
+fi
+
+if [[ ! -d "$core_bundle_source" ]]; then
+  echo "LivesCore resource bundle is missing after Swift build: $core_bundle_source" >&2
+  exit 1
+fi
+
 mkdir -p "$output_dir"
-cp "$package_path/.build/release/live-photo-service" "$output_dir/live-photo-service-$target_triple"
+cp "$swift_bin/live-photo-service" "$output_dir/live-photo-service-$target_triple"
 chmod +x "$output_dir/live-photo-service-$target_triple"
-mkdir -p "$helper_macos" "$helper_resources" "$helper_lib" "$ffmpeg_notices"
+mkdir -p "$helper_macos" "$helper_resources" "$helper_lib" "$ffmpeg_notices" "$project_root/src-tauri/resources"
 find "$helper_lib" -mindepth 1 -delete
-cp "$package_path/.build/release/live-photo-service" "$helper_macos/live-photo-service"
+rm -rf -- "$helper_core_bundle" "$tauri_core_bundle"
+cp -R "$core_bundle_source" "$helper_core_bundle"
+cp -R "$core_bundle_source" "$tauri_core_bundle"
+cp "$swift_bin/live-photo-service" "$helper_macos/live-photo-service"
 cp "$ffmpeg_root/bin/ffmpeg" "$helper_macos/ffmpeg"
 # Tauri 复制 resources 时会展开符号链接；在签名之前完成同样的展开，
 # 避免最终包内的 dylib 与 Helper 的资源签名不一致。

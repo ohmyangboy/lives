@@ -43,6 +43,8 @@ src-tauri/gen/schemas/
 # `npm run build:sidecar` recreates both before dev/build.
 src-tauri/binaries/live-photo-service-*
 src-tauri/resources/LiveCollagePhotosHelper.app/
+src-tauri/resources/LivesCore_LivesCore.bundle/
+src-tauri/resources/Legal/
 
 # Swift Package Manager / Xcode
 .build/
@@ -63,3 +65,16 @@ DerivedData/
 *.log
 .tooling/
 release/v*/ffmpeg-*.tar.xz
+release/source/
+
+# 私有工作区本地状态与构建缓存
+.local/
+.release-build/
+.zcode/
+**/build/
+**/.swiftpm/
+
+release/v*/
+__pycache__/
+*.pyc
+native/LivePhotoService/Packages/

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lives Rust Dependency Licenses</title>
+  <style>
+    body { font: 15px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; margin: 2rem auto; max-width: 980px; padding: 0 1rem; }
+    pre { border: 1px solid #ccc; border-radius: 6px; max-height: 28rem; overflow: auto; padding: 1rem; white-space: pre-wrap; }
+    li { margin: 0.25rem 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Lives Rust Dependency Licenses</h1>
+    <p>This report is generated from the release Cargo.lock by cargo-about. It includes transitive dependencies and build dependencies for aarch64-apple-darwin.</p>
+    <p>Cargo.lock SHA-256: <code>__CARGO_LOCK_SHA256__</code></p>
+
+    <h2>License overview</h2>
+    <ul>
+      {{#each overview}}
+      <li><a href="#{{id}}">{{name}}</a> ({{count}})</li>
+      {{/each}}
+    </ul>
+
+    <h2>Packages and full license texts</h2>
+    {{#each licenses}}
+    <section>
+      {{#if first_of_kind}}<h3 id="{{id}}">{{name}}</h3>{{/if}}
+      <h4>{{name}}</h4>
+      <p>Used by:</p>
+      <ul>
+        {{#each used_by}}
+        <li>
+          {{#if crate.repository}}<a href="{{crate.repository}}">{{crate.name}} {{crate.version}}</a>{{else}}{{crate.name}} {{crate.version}}{{/if}}
+          {{#if path}} ({{path}}){{/if}}
+        </li>
+        {{/each}}
+      </ul>
+      <pre>{{text}}</pre>
+    </section>
+    {{/each}}
+  </main>
+</body>
+</html>
