@@ -54,6 +54,7 @@ npm run website:build                                 # 官网
 - 版本、签名、公证、DMG、官网与公开通道：[发布流程](docs/release-workflow.md) 与 [Mac 发布规则](.agents/rules/mac-release.md)；日常 Debug 不触发发行规则。
 - 发布前置检查与共享约束：[发布规则](.agents/rules/release.md)。
 - 工作流、CI 权限、凭据、缓存、artifact 或部署：[Actions 规则](.agents/rules/github-actions.md)。
+- 未完成的发布门槛与待验事项：[待办与待验](docs/pending.md)。
 
 ## 交付
 
