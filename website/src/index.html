@@ -61,8 +61,20 @@
       <!-- Hero Section (Minimal Zine Poster Aesthetic & Blur-to-Clear Live Focus) -->
       <section class="hero" id="top">
         <div class="hero-content">
-          <div class="hero-app-icon" data-reveal>
-            <img src="assets/lives-icon.svg" alt="Lives App 图标" width="84" height="84" />
+          <!-- App 图标组：macOS 版 + iOS 版（移动版图标跳转 Lives Mobile 官网） -->
+          <div class="hero-app-icons" data-reveal>
+            <div class="hero-app-item">
+              <div class="hero-app-icon">
+                <img src="assets/lives-mac-icon.png" alt="Lives macOS 版 App 图标" width="84" height="84" />
+              </div>
+              <span class="hero-app-badge">macOS</span>
+            </div>
+            <a class="hero-app-item" href="https://ohmyangboy.github.io/lives-mobile-website/" target="_blank" rel="noopener noreferrer" aria-label="Lives Mobile 官网（iOS 版）">
+              <div class="hero-app-icon">
+                <img src="assets/lives-mobile-icon.png" alt="Lives Mobile App 图标" width="84" height="84" />
+              </div>
+              <span class="hero-app-badge">iOS</span>
+            </a>
           </div>
 
           <!-- Slogan: 3 秒从模糊到清晰的 Live Photo 动态聚焦定格 -->
@@ -70,10 +82,23 @@
             <span class="scramble-target" data-text="Lives in lives">Lives in lives</span>
           </h1>
 
-          <!-- Slogan 展开说明 -->
-          <p class="hero-subtitle" data-reveal>
-            macOS 原生的视频转 iPhone Live Photo 工具。自由拼贴多个 3 秒瞬间，一键同步至 iPhone 照片，全程本地处理。
-          </p>
+          <!-- 双端介绍：左侧 macOS，右侧 iOS，中间分割线；iOS 附 Lives Mobile 官网超链 -->
+          <div class="hero-intros" data-reveal>
+            <div class="hero-intro">
+              <p class="hero-intro-text">
+                macOS 原生的视频转 iPhone Live Photo 工具。自由拼贴多个 3 秒瞬间，一键同步至 iPhone 照片，全程本地处理。
+              </p>
+            </div>
+            <span class="hero-intros-divider" aria-hidden="true"></span>
+            <div class="hero-intro">
+              <p class="hero-intro-text">
+                面向 iOS 的视频转 Live 拼图工具。任意视频都能按你想要的方式拼贴组合，拼出你的生活瞬间。
+              </p>
+              <p class="hero-intro-link">
+                <a class="inline-link" href="https://ohmyangboy.github.io/lives-mobile-website/" target="_blank" rel="noopener noreferrer">访问 Lives Mobile 官网 ↗</a>
+              </p>
+            </div>
+          </div>
 
           <!-- Hero Button Cluster: 纯粹药丸胶囊按钮组 -->
           <div class="hero-ctas" data-reveal>
@@ -490,7 +515,7 @@
       <div class="container">
         <div class="footer-grid">
           <div class="footer-brand">
-            <img src="assets/lives-icon.svg" alt="Lives 图标" width="36" height="36" />
+            <img src="assets/lives-mac-icon.png" alt="Lives 图标" width="36" height="36" />
             <p>Lives — 把散落在视频里的瞬间，拼成一张会动的照片。专为 macOS 打造的本地实况拼贴工具。</p>
           </div>
           <div class="footer-col">
