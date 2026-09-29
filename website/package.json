@@ -5,6 +5,7 @@
   "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "preview": "bash scripts/preview_website.sh"
   }
 }

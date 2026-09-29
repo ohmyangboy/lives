@@ -24,6 +24,7 @@ swift test --package-path packages/LivesCore      # 内部 Core
 swift test --package-path native/LivePhotoService # Swift Helper
 npm run build:sidecar                            # Sidecar / Helper / Core 资源包
 npm run website:build                            # 官网静态构建
+npm run website:preview                          # 官网本地预览（-- --shots 断点边界截图与越界查看）
 python3 -m unittest discover -s scripts -p 'test_*.py'
 ```
 

@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "build:sidecar": "bash scripts/build-sidecar.sh",
     "website:build": "node website/scripts/build.mjs",
+    "website:preview": "bash website/scripts/preview_website.sh",
     "licenses:generate": "bash scripts/generate-third-party-licenses.sh",
     "source:build": "bash scripts/build-third-party-source.sh",
     "tauri": "tauri",
