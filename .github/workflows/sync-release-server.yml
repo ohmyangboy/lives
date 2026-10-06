@@ -24,6 +24,7 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.LIVES_RELEASE_SSH_KEY }}
           SERVER_HOST: ${{ secrets.LIVES_SERVER_HOST }}
+          SERVER_KNOWN_HOSTS: ${{ secrets.LIVES_SERVER_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
 
@@ -33,7 +34,8 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          test -n "$SERVER_KNOWN_HOSTS"
+          printf '%s\n' "$SERVER_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Sync latest Lives release
@@ -44,6 +46,7 @@ jobs:
           set -euo pipefail
 
           ssh \
+            -o StrictHostKeyChecking=yes \
             -o BatchMode=yes \
             -o ConnectTimeout=10 \
             "$SERVER_USER@$SERVER_HOST" \
