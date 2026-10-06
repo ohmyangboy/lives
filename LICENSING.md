@@ -10,10 +10,8 @@
 - 第三方软件、字体与素材继续适用各自许可，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 - 本文件不授予任何新许可，也不改变既有授权。
 
-## 待办（对外发布前必须完成）
+## 0.1.15 分发核对
 
-1. **权属范围**：核对自有代码、外部贡献与历史迁移代码的权利覆盖，保留可核验记录。
-2. **品牌资源**：`packages/LivesCore/Sources/LivesCore/Resources/WatermarkAppIcon.png`
-   的对外可分发性需单独确认；不能以删除资源代替运行时验证。
-3. **许可表达复核**：当前采用 `GPL-3.0-only`。若改为 `GPL-3.0-or-later`，需同步
-   `package.json`、`website/package.json`、`src-tauri/Cargo.toml` 与 `scripts/release_preflight.py` 的校验值。
+本次官方发行的源码、品牌资源与用户提供的二维码来源依据见 [0.1.15 发布来源核对](docs/releases/0.1.15-source-check.md)。第三方组件仍按原许可分发完整声明及所需对应源码；本记录不授予额外的品牌许可。
+
+当前许可表达为 `GPL-3.0-only`。将来若改为 `GPL-3.0-or-later`，需同步 `package.json`、`website/package.json`、`src-tauri/Cargo.toml` 与 `scripts/release_preflight.py` 的校验值，并重新核对相应授权。

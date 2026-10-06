@@ -18,6 +18,9 @@ import { clearPostUpdateFeedbackFlag, hasPendingPostUpdateFeedback } from './pos
 import { loadSystemDiagnosticText } from './systemInfo'
 import xiaohongshuContactImage from './assets/xiaohongshu-contact.jpg'
 import wechatSponsorImage from './assets/wechat-sponsor.jpg'
+import livesMacIcon from './assets/lives-mac-icon.png'
+import livesMobileIcon from './assets/lives-mobile-icon.png'
+import livesMobileAppStoreQr from './assets/lives-mobile-app-store-qr.png'
 
 interface ExportState {
   visible: boolean
@@ -56,6 +59,7 @@ const defaultProjectId = 'direct-imports'
 const libraryStorageKey = 'lives.project-media.v2'
 const legacyLibraryStorageKey = 'lives.project-media.v1'
 const onboardingStorageKey = 'lives.onboarding.import-guide.v1'
+const livesMobileWebsiteUrl = 'https://ohmyangboy.github.io/lives-mobile-website/'
 // 渐进降级：连续在系统弹窗中选择"不允许"达到阈值后，恢复卡片主按钮改为"改存到文件夹"。
 // 阈值常量定义在 ExportOverlay（PHOTO_DENY_DOWNGRADE_THRESHOLD）。
 const PHOTO_DENY_COUNT_KEY = 'lives.photosDenyCount'
@@ -467,6 +471,14 @@ export function App() {
       setFeedbackPhase('closed')
     } catch {
       setNotice('无法打开 GitHub Issues，请访问 github.com/ohmyangboy/lives/issues')
+    }
+  }, [])
+
+  const openLivesMobileWebsite = useCallback(async () => {
+    try {
+      await openUrl(livesMobileWebsiteUrl)
+    } catch {
+      setNotice(`无法打开 Lives Mobile 官网，请访问 ${livesMobileWebsiteUrl}`)
     }
   }, [])
 
@@ -1068,7 +1080,7 @@ export function App() {
       }}>
         <div className="brand-menu-anchor" ref={appMenuRef}>
           <button className="brand-menu-button" onClick={() => setAppMenuOpen((current) => !current)} aria-expanded={appMenuOpen} aria-controls="app-menu-popover" title="展开 Lives 应用菜单">
-            <span className="brand-mark"><LiveIcon /></span>
+            <span className="brand-mark"><img src={livesMacIcon} alt="" /></span>
             <div><strong>Lives</strong><small>实况拼贴</small></div>
             <ChevronDownIcon className="brand-chevron" />
           </button>
@@ -1104,6 +1116,17 @@ export function App() {
                 <button className="feedback-email-card" onClick={openFeedback}><FeedbackIcon /><span><strong>发送邮件</strong><small>ohmyangboy@gmail.com</small></span><b>打开 Mail</b></button>
                 <button className="feedback-email-card feedback-issue-card" onClick={openIssueFeedback}><IssueIcon /><span><strong>GitHub Issue</strong><small>Bug 报告与功能建议</small></span><b>公开反馈</b></button>
               </div>
+              <section className="feedback-mobile-card" aria-label="Lives Mobile">
+                <div className="feedback-mobile-code">
+                  <img className="feedback-mobile-qr" src={livesMobileAppStoreQr} alt="Lives Mobile App Store 下载二维码" />
+                  <small>扫码下载 iOS 版</small>
+                </div>
+                <div className="feedback-mobile-content">
+                  <div className="feedback-mobile-heading"><img src={livesMobileIcon} alt="" /><strong>Lives Mobile</strong></div>
+                  <p>已上架 App Store，欢迎使用</p>
+                  <a className="feedback-mobile-website" href={livesMobileWebsiteUrl} target="_blank" rel="noopener noreferrer" onClick={(event) => { if (desktopAvailable()) { event.preventDefault(); void openLivesMobileWebsite() } }} aria-label="访问 Lives Mobile 官网">官网 <span aria-hidden="true">↗</span></a>
+                </div>
+              </section>
               <div className="feedback-social-card">
                 <p className="feedback-support-hint">也可以在小红书联系我；如果 Lives 对你有帮助，欢迎通过微信赞赏支持后续开发。</p>
                 <div className="feedback-code-grid">
