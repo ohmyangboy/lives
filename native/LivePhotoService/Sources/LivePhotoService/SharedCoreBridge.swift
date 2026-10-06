@@ -51,10 +51,11 @@ enum SharedCoreBridge {
                 customRatio: CustomRatio(width: project.canvas.width, height: project.canvas.height)
             ),
             assets: assets,
-            placements: placements
+            placements: placements,
+            outputDurationMs: project.canvas.durationMs
         )
         do {
-            try ProjectValidation.validate(document)
+            try ProjectValidation.validate(document, durationBounds: MediaConstraints.outputDurationBounds)
         } catch let error as LivesCoreError {
             throw ServiceError(code: "INVALID_PROJECT", message: error.localizedDescription, recovery: "请返回编辑器并重新生成")
         }

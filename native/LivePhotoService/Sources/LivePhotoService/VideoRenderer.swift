@@ -42,17 +42,15 @@ enum VideoRenderer {
                 startTimeMilliseconds: clip.startTimeMs,
                 outputDurationMilliseconds: project.canvas.durationMs
             )
-            guard segment.contentMilliseconds >= MediaConstraints.minimumSourceDurationMilliseconds else {
-                throw ServiceError(code: "VIDEO_TOO_SHORT", message: "一段视频不足 2.5 秒", recovery: "请替换对应素材")
+            guard segment.contentMilliseconds >= MediaConstraints.outputDurationBounds.lowerBound else {
+                throw ServiceError(code: "VIDEO_TOO_SHORT", message: "所选片段不足 1 秒", recovery: "请向前移动片段起点或替换对应素材")
             }
             let contentDuration = CMTime(value: CMTimeValue(segment.contentMilliseconds), timescale: 1000)
             try compositionTrack.insertTimeRange(CMTimeRange(start: start, duration: contentDuration), of: sourceTrack, at: .zero)
 
             if segment.paddingMilliseconds > 0 {
-                // Live Photos exported as videos are often a few frames shorter
-                // than three seconds. Duplicate the final source frame and stretch
-                // that duplicate across the small remainder instead of rejecting
-                // the otherwise valid source or rendering a black tail.
+                // Stretch the final source frame across the remaining output
+                // duration so short sources and longer selections have no black tail.
                 let sourceFrameDuration = CMTime(value: 1, timescale: CMTimeScale(project.canvas.fps))
                 let repeatedFrameDuration = CMTimeCompare(contentDuration, sourceFrameDuration) < 0 ? contentDuration : sourceFrameDuration
                 let repeatedFrameStart = CMTimeAdd(start, CMTimeSubtract(contentDuration, repeatedFrameDuration))
@@ -255,21 +253,53 @@ enum VideoRenderer {
         metadataInput.markAsFinished()
 
         let durationSeconds = Double(project.canvas.durationMs) / 1000
-        while reader.status == .reading {
+        var lastSample: CMSampleBuffer?
+        // The reader can become completed while its output still has queued
+        // frames. Drain the output to nil, otherwise a padded tail can be cut off.
+        while true {
             try await cancellations.check(project.id)
+            if writer.status == .failed {
+                throw writer.error ?? ServiceError(code: "RENDER_FAILED", message: "写入视频帧失败", recovery: "请重试")
+            }
             if videoInput.isReadyForMoreMediaData {
                 guard let sample = readerOutput.copyNextSampleBuffer() else { break }
                 guard videoInput.append(sample) else { throw writer.error ?? ServiceError(code: "RENDER_FAILED", message: "写入视频帧失败", recovery: "请重试") }
                 let seconds = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+                lastSample = sample
                 await progress(min(0.92, max(0.02, seconds / durationSeconds)))
             } else {
                 try await Task.sleep(nanoseconds: 2_000_000)
             }
         }
+        if reader.status == .failed { throw reader.error ?? ServiceError(code: "RENDER_FAILED", message: "读取视频帧失败", recovery: "请更换素材") }
+        // Some decoders stop producing composition samples once all real source
+        // frames end, despite the stretched final-frame segments. Fill that tail
+        // with the last composited frame using the regular output frame clock.
+        if let lastSample {
+            let outputEnd = CMTime(value: CMTimeValue(project.canvas.durationMs), timescale: 1000)
+            var nextTime = CMTimeAdd(CMSampleBufferGetPresentationTimeStamp(lastSample), videoComposition.frameDuration)
+            while CMTimeCompare(nextTime, outputEnd) < 0 {
+                try await cancellations.check(project.id)
+                while !videoInput.isReadyForMoreMediaData {
+                    if writer.status == .failed { throw writer.error ?? ServiceError(code: "RENDER_FAILED", message: "写入补帧失败", recovery: "请重试") }
+                    try await cancellations.check(project.id)
+                    try await Task.sleep(nanoseconds: 2_000_000)
+                }
+                var timing = CMSampleTimingInfo(duration: videoComposition.frameDuration, presentationTimeStamp: nextTime, decodeTimeStamp: .invalid)
+                var repeatedSample: CMSampleBuffer?
+                let status = CMSampleBufferCreateCopyWithNewTiming(allocator: kCFAllocatorDefault, sampleBuffer: lastSample,
+                    sampleTimingEntryCount: 1, sampleTimingArray: &timing, sampleBufferOut: &repeatedSample)
+                guard status == noErr, let repeatedSample, videoInput.append(repeatedSample) else {
+                    throw writer.error ?? ServiceError(code: "RENDER_FAILED", message: "写入补帧失败", recovery: "请重试")
+                }
+                await progress(min(0.92, max(0.02, nextTime.seconds / durationSeconds)))
+                nextTime = CMTimeAdd(nextTime, videoComposition.frameDuration)
+            }
+        }
         videoInput.markAsFinished()
         try await audioWritingTask?.value
-        if reader.status == .failed { throw reader.error ?? ServiceError(code: "RENDER_FAILED", message: "读取视频帧失败", recovery: "请更换素材") }
         if audioReader?.status == .failed { throw audioReader?.error ?? ServiceError(code: "RENDER_FAILED", message: "读取音频失败", recovery: "请改为静音后重试") }
+        writer.endSession(atSourceTime: CMTime(value: CMTimeValue(project.canvas.durationMs), timescale: 1000))
         await writer.finishWriting()
         guard writer.status == .completed else { throw writer.error ?? ServiceError(code: "RENDER_FAILED", message: "视频生成失败", recovery: "请重试") }
         await progress(1)

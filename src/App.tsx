@@ -6,7 +6,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { CollagePreview } from './components/CollagePreview'
 import { Timeline, TimelineEmpty } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
-import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, createRenderProject, formatDuration, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, planFolderSync, templates, videoExtensionPattern, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
+import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, clampCoverTimeMs, createRenderProject, formatDuration, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, OUTPUT_DURATION_MS, planFolderSync, templates, videoExtensionPattern, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
+import type { TimelineDragMode } from './components/timelineGeometry'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
 import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, RefreshIcon, UpdateIcon, ChevronDownIcon, GithubIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
@@ -286,6 +287,8 @@ export function App() {
   const [canvasOrientation, setCanvasOrientation] = useState<CanvasOrientation>('portrait')
   const [exportQuality, setExportQuality] = useState<ExportQuality>('1080p')
   const [coverTimeMs, setCoverTimeMs] = useState(1500)
+  const [outputDurationMs, setOutputDurationMs] = useState(OUTPUT_DURATION_MS)
+  const [isTimelineEditing, setIsTimelineEditing] = useState(false)
   const [selectedSlotId, setSelectedSlotId] = useState<string>()
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>()
   const [sourceDragFeedback, setSourceDragFeedback] = useState<SourceDragFeedback>()
@@ -744,15 +747,16 @@ export function App() {
     const material = resolveMaterial(materialId)
     if (!material) return
     const { source, startTimeMs } = material
+    const placedStartMs = Math.min(startTimeMs, Math.max(0, source.durationMs - outputDurationMs))
     const placed: SlotClip = {
       ...source,
       id: crypto.randomUUID(),
       sourceClipId: source.id,
       targetSlotId: slotId,
-      startTimeMs,
+      startTimeMs: placedStartMs,
       crop: { ...source.crop },
       audioEnabled: false,
-      coverTimeMs: 1500,
+      coverTimeMs: clampCoverTimeMs(1500, source.durationMs, placedStartMs, outputDurationMs),
     }
     setSlotPlacements((current) => ({ ...current, [slotId]: placed }))
     setSelectedSlotId(slotId)
@@ -814,6 +818,17 @@ export function App() {
   }, [])
 
   const updateSlotClip = (slotId: string, update: (clip: SlotClip) => SlotClip) => setSlotPlacements((current) => current[slotId] ? { ...current, [slotId]: update(current[slotId]!) } : current)
+
+  const updateTimelineSelection = (slotId: string, startTimeMs: number, durationMs: number, mode: TimelineDragMode) => {
+    setOutputDurationMs(durationMs)
+    setCoverTimeMs((current) => Math.min(current, durationMs - 100))
+    setSlotPlacements((current) => Object.fromEntries(Object.entries(current).map(([id, clip]) => {
+      if (!clip) return [id, clip]
+      const nextStartMs = id === slotId ? startTimeMs : clip.startTimeMs
+      const nextCoverMs = id === slotId && mode === 'leading' ? clip.startTimeMs + clip.coverTimeMs - nextStartMs : clip.coverTimeMs
+      return [id, { ...clip, startTimeMs: nextStartMs, coverTimeMs: clampCoverTimeMs(nextCoverMs, clip.durationMs, nextStartMs, durationMs) }]
+    })))
+  }
 
   const clearSlot = (slotId: string) => {
     const nextSelectedSlot = currentTemplate.slots.find((slot) => slot.id !== slotId && slotPlacements[slot.id])?.id
@@ -922,6 +937,7 @@ export function App() {
     // Slot placements contain the per-slot trim and crop state, so clearing them also
     // resets every assigned video's composition adjustments.
     setCoverTimeMs(1500)
+    setOutputDurationMs(OUTPUT_DURATION_MS)
     setSelectedSlotId(undefined)
     setSelectedMaterialId(undefined)
     setSourceDragFeedback(undefined)
@@ -937,7 +953,7 @@ export function App() {
       destinationFolder = await chooseExportFolder()
       if (!destinationFolder) return
     }
-    const project = createRenderProject(clips, templateId, slotClips, { aspectRatio, quality: exportQuality, customRatio }, coverTimeMs)
+    const project = createRenderProject(clips, templateId, slotClips, { aspectRatio, quality: exportQuality, customRatio }, coverTimeMs, outputDurationMs)
     setExportState({ visible: true, state: 'running', stage: 'inspecting', progress: 0, jobId: project.id })
     try {
       const onProgress = (stage: NativeStage, progress: number) => setExportState((current) => ({ ...current, stage, progress }))
@@ -1070,8 +1086,8 @@ export function App() {
     await exportProject(pickerDestination)
   }
 
-  const projectSummary = useMemo(() => clips.length ? `${clips.length} 段素材 · 3.0 秒 · ${canvas.width} × ${canvas.height}` : '本地处理，不上传视频', [clips.length, canvas.width, canvas.height])
-  const canClearCollage = Boolean(Object.keys(slotPlacements).length || selectedSlotId || selectedMaterialId || coverTimeMs !== 1500)
+  const projectSummary = useMemo(() => clips.length ? `${clips.length} 段素材 · ${(outputDurationMs / 1000).toFixed(1)} 秒 · ${canvas.width} × ${canvas.height}` : '本地处理，不上传视频', [clips.length, canvas.width, canvas.height, outputDurationMs])
+  const canClearCollage = Boolean(Object.keys(slotPlacements).length || selectedSlotId || selectedMaterialId || coverTimeMs !== 1500 || outputDurationMs !== OUTPUT_DURATION_MS)
 
   return (
     <main className={['app', isDragging && 'is-dragging', sourceDragFeedback && 'source-dragging'].filter(Boolean).join(' ')}>
@@ -1159,7 +1175,7 @@ export function App() {
               <div ref={libraryHelpRef} className="context-help-anchor">
               <button className="context-help-button" aria-label="查看素材库使用说明" aria-expanded={openHelpPopover === 'library'} aria-controls="library-help-popover" onClick={() => setOpenHelpPopover((current) => current === 'library' ? undefined : 'library')}><InfoIcon /></button>
               {openHelpPopover === 'library' && <div id="library-help-popover" className="context-help-popover library-help-popover">
-                <div><FilmIcon /><p><strong>拖入画格</strong><span>同一素材可以重复使用，每个画格分别截取 3 秒片段。</span></p></div>
+                <div><FilmIcon /><p><strong>拖入画格</strong><span>同一素材可以重复使用，每格分别选段；拖动时间线两侧手柄调节整体时长，最长 15 秒。</span></p></div>
                 <div><FolderIcon /><p><strong>只引用原文件</strong><span>不会复制、上传或修改视频。</span></p></div>
               </div>}
             </div></div></div></div>
@@ -1196,7 +1212,9 @@ export function App() {
               selectedSourceId={selectedMaterialId}
               pointerDropTargetSlotId={sourceDragFeedback?.overSlotId}
               isSourceDragging={Boolean(sourceDragFeedback)}
-              coverTimeMs={selectedSlotClip?.coverTimeMs ?? coverTimeMs}
+              isTimelineEditing={isTimelineEditing}
+              coverTimeMs={selectedSlotClip?.coverTimeMs ?? slotClips.find(Boolean)?.coverTimeMs ?? coverTimeMs}
+              outputDurationMs={outputDurationMs}
               customRatio={customRatio}
               onCanvasRatioChange={aspectRatio === 'custom' ? (ratio) => setCustomRatio(normalizeCustomRatio(ratio)) : undefined}
               onCoverTimeChange={(milliseconds) => {
@@ -1242,7 +1260,7 @@ export function App() {
             </div>
           </aside>
 
-          {selectedSlotClip ? <Timeline clip={selectedSlotClip} onChange={(startTimeMs) => updateSlotClip(selectedSlotClip.targetSlotId, (clip) => ({ ...clip, startTimeMs }))} /> : <TimelineEmpty />}
+          {selectedSlotClip ? <Timeline key={selectedSlotClip.id} clip={selectedSlotClip} outputDurationMs={outputDurationMs} onEditingChange={setIsTimelineEditing} onChange={(startTimeMs, durationMs, mode) => updateTimelineSelection(selectedSlotClip.targetSlotId, startTimeMs, durationMs, mode)} /> : <TimelineEmpty />}
       </div>
 
       {startupPhase !== 'hidden' && <div className={startupPhase === 'leaving' ? 'startup-splash leaving' : 'startup-splash'} role="status" aria-label="Lives 正在启动">

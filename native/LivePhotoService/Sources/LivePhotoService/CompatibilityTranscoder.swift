@@ -41,7 +41,7 @@ enum CompatibilityTranscoder {
                 jobId: project.id,
                 cancellations: cancellations
             )
-            let convertedInfo = try await MediaInspector.inspect(path: convertedURL.path)
+            let convertedInfo = try await MediaInspector.inspect(path: convertedURL.path, minimumDurationMilliseconds: MediaConstraints.outputDurationBounds.lowerBound)
             preparedClips.append(
                 RenderProject.Clip(
                     id: clip.id,
@@ -89,10 +89,10 @@ enum CompatibilityTranscoder {
         jobId: String,
         cancellations: CancellationRegistry
     ) async throws {
-        guard durationMilliseconds >= MediaConstraints.minimumSourceDurationMilliseconds else {
+        guard durationMilliseconds >= MediaConstraints.outputDurationBounds.lowerBound else {
             throw ServiceError(
                 code: "VIDEO_TOO_SHORT",
-                message: "一段视频不足 2.5 秒",
+                message: "所选片段不足 1 秒",
                 recovery: "请替换对应素材"
             )
         }

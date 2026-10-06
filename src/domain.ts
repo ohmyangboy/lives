@@ -116,7 +116,7 @@ export interface VideoClip {
 /** A video source after it has been placed in a particular canvas cell.
  *
  * Placements intentionally have their own identity: one source may appear in
- * several cells, with a different three-second selection and crop in each.
+ * several cells, with a different selection start and crop in each.
  */
 export interface SlotClip extends VideoClip {
   sourceClipId: string
@@ -148,7 +148,7 @@ export interface CollageTemplate {
 export interface RenderProject {
   id: string
   templateId: TemplateId
-  canvas: { width: number; height: number; fps: 30; durationMs: 3000 }
+  canvas: { width: number; height: number; fps: 30; durationMs: number }
   clips: Array<{
     id: string
     sourcePath: string
@@ -163,8 +163,21 @@ export interface RenderProject {
 }
 
 export const OUTPUT_DURATION_MS = 3000
+export const MINIMUM_OUTPUT_DURATION_MS = 1000
+export const MAXIMUM_OUTPUT_DURATION_MS = 15_000
 export const MINIMUM_SOURCE_DURATION_MS = 2500
 export const videoExtensionPattern = /\.(mov|mp4|m4v)$/i
+
+export const normalizeOutputDurationMs = (durationMs: number) => Math.max(MINIMUM_OUTPUT_DURATION_MS, Math.min(
+  MAXIMUM_OUTPUT_DURATION_MS,
+  Number.isFinite(durationMs) ? Math.round(durationMs / 100) * 100 : OUTPUT_DURATION_MS,
+))
+
+export const maximumCoverTimeMs = (sourceDurationMs: number, startTimeMs: number, outputDurationMs: number) =>
+  Math.floor(Math.max(0, Math.min(outputDurationMs - 100, sourceDurationMs - startTimeMs - 34)) / 100) * 100
+
+export const clampCoverTimeMs = (coverTimeMs: number, sourceDurationMs: number, startTimeMs: number, outputDurationMs: number) =>
+  Math.max(0, Math.min(maximumCoverTimeMs(sourceDurationMs, startTimeMs, outputDurationMs), Math.round(coverTimeMs / 100) * 100))
 
 /** Structural view of a media project for sync planning; App keeps richer fields. */
 export interface FolderSyncProjectView {
@@ -208,11 +221,11 @@ export function planFolderSync(
   return { toAdd, missingClipIds, removeClipIds }
 }
 
-export const sourceContentDurationMs = (sourceDurationMs: number, startTimeMs = 0) =>
-  Math.min(OUTPUT_DURATION_MS, Math.max(0, sourceDurationMs - startTimeMs))
+export const sourceContentDurationMs = (sourceDurationMs: number, startTimeMs = 0, outputDurationMs = OUTPUT_DURATION_MS) =>
+  Math.min(outputDurationMs, Math.max(0, sourceDurationMs - startTimeMs))
 
-export const sourcePaddingDurationMs = (sourceDurationMs: number, startTimeMs = 0) =>
-  Math.max(0, OUTPUT_DURATION_MS - sourceContentDurationMs(sourceDurationMs, startTimeMs))
+export const sourcePaddingDurationMs = (sourceDurationMs: number, startTimeMs = 0, outputDurationMs = OUTPUT_DURATION_MS) =>
+  Math.max(0, outputDurationMs - sourceContentDurationMs(sourceDurationMs, startTimeMs, outputDurationMs))
 
 export const templates: CollageTemplate[] = [
   {
@@ -281,27 +294,34 @@ export function createRenderProject(
   slotClips?: Array<SlotClip | VideoClip | undefined>,
   canvasSettings: CanvasSettings = { aspectRatio: '9:16', quality: '1080p' },
   coverTimeMs = 1500,
+  outputDurationMs = OUTPUT_DURATION_MS,
 ): RenderProject {
   const template = templates.find((item) => item.id === templateId)!
   const renderedClips = slotClips ?? clips.slice(0, template.requiredClipCount)
   if (renderedClips.length !== template.requiredClipCount || renderedClips.some((clip) => !clip)) throw new Error('素材数量不足，无法填满当前模板')
   const filledClips = renderedClips as Array<SlotClip | VideoClip>
   const dimensions = canvasDimensions(canvasSettings)
+  const durationMs = normalizeOutputDurationMs(outputDurationMs)
   return {
     id: crypto.randomUUID(),
     templateId,
-    canvas: { ...dimensions, fps: 30, durationMs: OUTPUT_DURATION_MS },
-    clips: filledClips.map((clip, index) => ({
-      id: clip.id,
-      sourcePath: clip.sourcePath,
-      sourceDurationMs: clip.durationMs,
-      startTimeMs: Math.min(clip.startTimeMs, Math.max(0, clip.durationMs - OUTPUT_DURATION_MS)),
-      crop: clip.crop,
-      targetSlotId: template.slots[index].id,
-      audioEnabled: 'audioEnabled' in clip && clip.audioEnabled === true,
-      coverTimeMs: 'coverTimeMs' in clip ? clip.coverTimeMs : Math.max(0, Math.min(2900, Math.round(coverTimeMs / 100) * 100)),
-    })),
-    coverTimeMs: Math.max(0, Math.min(2900, Math.round(coverTimeMs / 100) * 100)),
+    canvas: { ...dimensions, fps: 30, durationMs },
+    clips: filledClips.map((clip, index) => {
+      // Retain chosen starts when a longer output needs last-frame padding.
+      const minimumContentMs = 'targetSlotId' in clip ? MINIMUM_OUTPUT_DURATION_MS : durationMs
+      const startTimeMs = Math.max(0, Math.min(clip.startTimeMs, Math.max(0, clip.durationMs - minimumContentMs)))
+      return {
+        id: clip.id,
+        sourcePath: clip.sourcePath,
+        sourceDurationMs: clip.durationMs,
+        startTimeMs,
+        crop: clip.crop,
+        targetSlotId: template.slots[index].id,
+        audioEnabled: 'audioEnabled' in clip && clip.audioEnabled === true,
+        coverTimeMs: clampCoverTimeMs('coverTimeMs' in clip ? clip.coverTimeMs : coverTimeMs, clip.durationMs, startTimeMs, durationMs),
+      }
+    }),
+    coverTimeMs: Math.max(0, Math.min(durationMs - 100, Math.round(coverTimeMs / 100) * 100)),
   }
 }
 

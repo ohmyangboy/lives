@@ -3,7 +3,7 @@ import CoreMedia
 import Foundation
 
 enum MediaInspector {
-    static func inspect(path: String) async throws -> VideoInfo {
+    static func inspect(path: String, minimumDurationMilliseconds: Int = MediaConstraints.minimumSourceDurationMilliseconds) async throws -> VideoInfo {
         let url = URL(fileURLWithPath: path)
         guard FileManager.default.isReadableFile(atPath: path) else {
             throw ServiceError(code: "VIDEO_READ_FAILED", message: "无法读取 \(url.lastPathComponent)", recovery: "请检查文件是否完整，或重新选择文件")
@@ -15,11 +15,12 @@ enum MediaInspector {
         let asset = AVURLAsset(url: url)
         let duration = try await asset.load(.duration)
         let durationMilliseconds = duration.isNumeric ? Int((duration.seconds * 1000).rounded(.down)) : 0
-        guard durationMilliseconds >= MediaConstraints.minimumSourceDurationMilliseconds else {
+        guard durationMilliseconds >= minimumDurationMilliseconds else {
             let displayedDuration = String(format: "%.1f", Double(durationMilliseconds) / 1000)
+            let displayedMinimum = String(format: "%.1f", Double(minimumDurationMilliseconds) / 1000)
             throw ServiceError(
                 code: "VIDEO_TOO_SHORT",
-                message: "\(url.lastPathComponent) 只有 \(displayedDuration) 秒，至少需要 2.5 秒",
+                message: "\(url.lastPathComponent) 只有 \(displayedDuration) 秒，至少需要 \(displayedMinimum) 秒",
                 recovery: "请选择更长的视频；接近 3 秒的 Live Photo 视频会自动补齐末帧"
             )
         }

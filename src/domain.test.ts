@@ -153,6 +153,32 @@ describe('render project', () => {
   it('rejects a template with too few clips', () => {
     expect(() => createRenderProject([clip(1)], 'stack-2')).toThrow('素材数量不足')
   })
+
+  it('exports the chosen duration and retains independent starts for padded slots', () => {
+    const top: SlotClip = { ...clip(1), id: 'top', sourceClipId: 'clip-1', targetSlotId: 'top', startTimeMs: 1_300, coverTimeMs: 2_100 }
+    const bottom: SlotClip = { ...clip(2), id: 'bottom', sourceClipId: 'clip-2', targetSlotId: 'bottom', startTimeMs: 3_000, coverTimeMs: 1_500 }
+    const project = createRenderProject([], 'stack-2', [top, bottom], undefined, 12_000, 15_000)
+    expect(project.canvas.durationMs).toBe(15_000)
+    expect(project.clips.map((item) => item.startTimeMs)).toEqual([1_300, 3_000])
+    expect(project.coverTimeMs).toBe(12_000)
+    expect(sourcePaddingDurationMs(5_000, 1_300, 15_000)).toBe(11_300)
+  })
+
+  it('keeps all cover frames inside a shortened output and the actual source', () => {
+    const placed: SlotClip = { ...clip(1), id: 'placed', sourceClipId: 'clip-1', targetSlotId: 'full', startTimeMs: 3_500, coverTimeMs: 2_800 }
+    const short = createRenderProject([], 'single', [placed], undefined, 2_800, 1_000)
+    expect(short.canvas.durationMs).toBe(1_000)
+    expect(short.clips[0].coverTimeMs).toBe(900)
+    expect(short.coverTimeMs).toBe(900)
+    const padded = createRenderProject([], 'single', [placed], undefined, 2_800, 15_000)
+    expect(padded.clips[0].coverTimeMs).toBe(1_400)
+  })
+
+  it('normalizes duration to 0.1 seconds and the one-to-fifteen-second bounds', () => {
+    for (const [requested, expected] of [[-100, 1_000], [3_944, 3_900], [16_000, 15_000], [Number.NaN, 3_000]]) {
+      expect(createRenderProject([clip(1)], 'single', undefined, undefined, 500, requested).canvas.durationMs).toBe(expected)
+    }
+  })
 })
 
 describe('source-aware export quality', () => {

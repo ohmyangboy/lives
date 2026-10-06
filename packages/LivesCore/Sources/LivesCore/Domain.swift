@@ -750,9 +750,10 @@ public enum ProjectValidation {
     public static let outputDurationMs = 3_000
     public static let minimumSourceDurationMs = 1_000
 
-    public static func validate(_ project: ProjectDocument) throws {
+    public static func validate(_ project: ProjectDocument, durationBounds: ClosedRange<Int>? = nil) throws {
         let definition = TemplateCatalog.definition(for: project.templateID)
-        guard (100...ProjectTimeline.durationBounds(for: project).upperBound).contains(project.outputDurationMs), project.outputDurationMs % 100 == 0 else {
+        let allowedDuration = durationBounds ?? (100...ProjectTimeline.durationBounds(for: project).upperBound)
+        guard allowedDuration.contains(project.outputDurationMs), project.outputDurationMs % 100 == 0 else {
             throw LivesCoreError.invalidProject("Live 时长超出有效范围，精度必须为 0.1 秒")
         }
         guard project.schemaVersion == ProjectDocument.currentSchemaVersion else {

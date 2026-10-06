@@ -5,6 +5,8 @@ Lives 项目自有源码采用 GNU General Public License v3.0（GPL-3.0-only）
 | 组件 | 版本 | 许可 | 项目 |
 | --- | --- | --- | --- |
 | React / React DOM | 19.2.7 | MIT | https://github.com/facebook/react |
+| Three.js | 0.186.1 | MIT | https://github.com/mrdoob/three.js |
+| fflate（Three.js 内置 USDZ 解压模块） | 0.8.2 | MIT | https://github.com/101arrowz/fflate |
 | Tauri JavaScript API | 2.11.1 | MIT / Apache-2.0 | https://github.com/tauri-apps/tauri |
 | Tauri | 2.11.5 | MIT / Apache-2.0 | https://github.com/tauri-apps/tauri |
 | Tauri Dialog Plugin | 2.7.2 | MIT / Apache-2.0 | https://github.com/tauri-apps/plugins-workspace |
@@ -55,6 +57,10 @@ Lives 使用动态链接的精简 FFmpeg 运行时，仅在 macOS 无法直接�
 - 源代码 SHA-256：`464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c`
 
 ## MIT License
+
+Three.js: Copyright © 2010-2026 three.js authors. 胶卷与观片器渲染使用 Three.js 及其内置 USD 加载器，完整许可随 npm 生产依赖报告分发。
+
+fflate: Copyright (c) 2023 Arjun Barrett. 使用 Three.js 内置副本解压 USDZ，适用下方 MIT 条款；上游原文：https://github.com/101arrowz/fflate/blob/v0.8.2/LICENSE。
 
 Copyright notices belong to the respective upstream authors and contributors.
 

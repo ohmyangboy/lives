@@ -188,12 +188,13 @@ enum LivePhotoPipeline {
         }
     }
 
-    private static func validate(_ project: RenderProject) throws {
+    static func validate(_ project: RenderProject) throws {
         try SharedCoreBridge.validate(project)
         guard (1...3).contains(project.clips.count), supportsCanvas(width: project.canvas.width, height: project.canvas.height),
-              project.canvas.durationMs == 3000, project.canvas.fps == 30,
-              project.coverTimeMs >= 0, project.coverTimeMs < project.canvas.durationMs else {
-            throw ServiceError(code: "INVALID_PROJECT", message: "项目参数不符合 MVP 输出规范", recovery: "请返回编辑器并重新生成")
+              MediaConstraints.outputDurationBounds.contains(project.canvas.durationMs), project.canvas.fps == 30,
+              project.coverTimeMs >= 0, project.coverTimeMs < project.canvas.durationMs,
+              project.clips.allSatisfy({ $0.startTimeMs >= 0 && $0.coverTimeMs >= 0 && $0.coverTimeMs < project.canvas.durationMs }) else {
+            throw ServiceError(code: "INVALID_PROJECT", message: "项目参数无效，Live 时长须为 1–15 秒", recovery: "请返回编辑器并重新生成")
         }
         let expected = expectedClipCount(for: project.templateId)
         guard project.clips.count == expected else {

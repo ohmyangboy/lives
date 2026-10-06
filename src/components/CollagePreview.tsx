@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
-import { CUSTOM_RATIO_BOUNDS, simplifyRatio, type CollageTemplate, type SlotClip } from '../domain'
-import { CloseIcon, CollapseIcon, ExpandIcon, LiveIcon, PauseIcon, PlayIcon, PlusIcon, SoundIcon } from '../icons'
+import { CUSTOM_RATIO_BOUNDS, maximumCoverTimeMs, simplifyRatio, type CollageTemplate, type SlotClip } from '../domain'
+import { CloseIcon, CollapseIcon, ExpandIcon, LiveIcon, PlusIcon, SoundIcon } from '../icons'
+import { FilmKeyframeControl } from './FilmKeyframeControl'
+import { previewPlaybackKey, PreviewHoldGesture, PreviewReplayScheduler } from './previewPlayback'
 
 interface Props {
   clips: Array<SlotClip | undefined>
@@ -11,7 +13,9 @@ interface Props {
   selectedSourceId?: string
   pointerDropTargetSlotId?: string
   isSourceDragging?: boolean
+  isTimelineEditing?: boolean
   coverTimeMs: number
+  outputDurationMs: number
   customRatio?: { width: number; height: number }
   onCanvasRatioChange?: (ratio: { width: number; height: number }) => void
   onSelectSlot: (slotId: string | undefined) => void
@@ -36,7 +40,7 @@ const ratioHandleStyle: Record<(typeof RATIO_HANDLE_CORNERS)[number], CSSPropert
   se: { bottom: -9, right: -9 },
 }
 
-export function CollagePreview({ clips, template, canvasWidth, canvasHeight, selectedSlotId, selectedSourceId, pointerDropTargetSlotId, isSourceDragging, coverTimeMs, customRatio, onCanvasRatioChange, onSelectSlot, onCropChange, onScaleChange, onClearSlot, onAudioEnabledChange, onDropSource, onCoverTimeChange }: Props) {
+export function CollagePreview({ clips, template, canvasWidth, canvasHeight, selectedSlotId, selectedSourceId, pointerDropTargetSlotId, isSourceDragging, isTimelineEditing, coverTimeMs, outputDurationMs, customRatio, onCanvasRatioChange, onSelectSlot, onCropChange, onScaleChange, onClearSlot, onAudioEnabledChange, onDropSource, onCoverTimeChange }: Props) {
   const videosRef = useRef<Map<string, HTMLVideoElement>>(new Map())
   const coverVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map())
   const stageRef = useRef<HTMLDivElement>(null)
@@ -48,9 +52,8 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const settleTimerRef = useRef<number | undefined>(undefined)
   const settleSequenceRef = useRef(0)
   const startedAtRef = useRef(0)
+  const playbackSequenceRef = useRef(0)
   const dragRef = useRef<{ slotId: string; x: number; y: number; cropX: number; cropY: number } | undefined>(undefined)
-  const keyframeTimelineRef = useRef<HTMLDivElement>(null)
-  const coverFrameDragRef = useRef<{ pointerId: number; grabOffsetX: number; lastValue: number } | undefined>(undefined)
   const canvasShellRef = useRef<HTMLDivElement>(null)
   const ratioDragRef = useRef<{ pointerId: number; centerX: number; centerY: number; ratio0: number; dx0: number; dy0: number } | undefined>(undefined)
   const [playing, setPlaying] = useState(false)
@@ -58,14 +61,34 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const [settledOnCover, setSettledOnCover] = useState(true)
   const [settlingOnCover, setSettlingOnCover] = useState(false)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
-  const [isCoverFrameDragging, setIsCoverFrameDragging] = useState(false)
   const [maximumCanvasHeight, setMaximumCanvasHeight] = useState(360)
   const [dropTargetSlotId, setDropTargetSlotId] = useState<string>()
   const [isRatioDragging, setIsRatioDragging] = useState(false)
+  const [isCropDragging, setIsCropDragging] = useState(false)
+  const [isCoverEditing, setIsCoverEditing] = useState(false)
+  const [isHoldingPreview, setIsHoldingPreview] = useState(false)
+  const [mediaReadyRevision, setMediaReadyRevision] = useState(0)
+  const startPlaybackRef = useRef<() => void>(() => {})
+  const stopPlaybackRef = useRef<() => void>(() => {})
+  const holdPointerRef = useRef<number | undefined>(undefined)
+  const holdGestureRef = useRef<PreviewHoldGesture | undefined>(undefined)
+  if (!holdGestureRef.current) holdGestureRef.current = new PreviewHoldGesture(
+    () => { setIsHoldingPreview(true); startPlaybackRef.current() },
+    () => { setIsHoldingPreview(false); stopPlaybackRef.current() },
+  )
+  const holdGesture = holdGestureRef.current
+  const replaySchedulerRef = useRef<PreviewReplayScheduler | undefined>(undefined)
+  if (!replaySchedulerRef.current) replaySchedulerRef.current = new PreviewReplayScheduler(() => startPlaybackRef.current())
+  const replayScheduler = replaySchedulerRef.current
+  const isEditing = Boolean(isTimelineEditing || isSourceDragging || isRatioDragging || isCropDragging || isCoverEditing)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const clipsKey = useMemo(() => clips.filter((clip): clip is SlotClip => Boolean(clip)).map((clip) => `${clip.id}:${clip.previewUrl}:${clip.startTimeMs}:${clip.coverTimeMs}`).join('|'), [clips])
+  const playbackKey = useMemo(() => previewPlaybackKey(clips, template, canvasWidth, canvasHeight, outputDurationMs), [clips, template, canvasWidth, canvasHeight, outputDurationMs])
   const coverTimeForClip = (clip: SlotClip) => clip.coverTimeMs ?? 1500
   const selectedClip = clips.find((clip) => clip?.targetSlotId === selectedSlotId)
+  const coverClip = selectedClip ?? clips.find(Boolean)
+  const maximumCoverMs = coverClip ? maximumCoverTimeMs(coverClip.durationMs, coverClip.startTimeMs, outputDurationMs) : outputDurationMs - 100
+  const outputDurationSeconds = outputDurationMs / 1000
   const enabledAudioCount = clips.filter((clip) => clip?.audioEnabled).length
   const slotLabel = (slotId: string) => {
     if (template.slots.length === 1) return '主画面'
@@ -105,7 +128,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const seekClipStart = (video: HTMLVideoElement, clip: SlotClip) => {
     if (!Number.isFinite(video.duration)) return
     video.pause()
-    video.currentTime = Math.min(clip.startTimeMs / 1000, Math.max(0, video.duration - 3))
+    video.currentTime = Math.min(clip.startTimeMs / 1000, Math.max(0, video.duration - .04))
   }
 
   const seekToOffset = (offsetSeconds?: number, targetSlotId?: string) => {
@@ -147,13 +170,34 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   }
 
   useEffect(() => {
+    const pointerId = holdPointerRef.current
+    holdGesture.clear()
+    holdPointerRef.current = undefined
+    if (pointerId !== undefined && stageRef.current?.hasPointerCapture(pointerId)) stageRef.current.releasePointerCapture(pointerId)
+    setIsHoldingPreview(false)
+    playbackSequenceRef.current += 1
     cancelCoverSettle()
     setPlaying(false)
     setSettledOnCover(true)
-    setPlayhead(coverTimeMs / 3000)
+    setPlayhead(coverTimeMs / outputDurationMs)
     seekToOffset()
     seekCoverVideosToOffset()
-  }, [selectedSlotId, clipsKey, coverTimeMs])
+  }, [selectedSlotId, clipsKey, coverTimeMs, outputDurationMs, playbackKey, isEditing])
+
+  useEffect(() => {
+    const filledClips = clips.filter((clip): clip is SlotClip => Boolean(clip))
+    const ready = filledClips.length > 0 && filledClips.every((clip) => (videosRef.current.get(clip.id)?.readyState ?? 0) >= 2)
+    replayScheduler.update(playbackKey, isEditing, ready)
+    return () => replayScheduler.clearTimer()
+  }, [playbackKey, isEditing, mediaReadyRevision, replayScheduler])
+
+  useEffect(() => () => replayScheduler.cancel(), [replayScheduler])
+
+  useEffect(() => {
+    const cancelHold = () => holdGesture.cancel()
+    window.addEventListener('blur', cancelHold)
+    return () => { window.removeEventListener('blur', cancelHold); holdGesture.clear() }
+  }, [holdGesture])
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -203,122 +247,133 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   }, [isFullscreen])
 
   useEffect(() => () => {
+    playbackSequenceRef.current += 1
     settleSequenceRef.current += 1
     if (settleTimerRef.current !== undefined) window.clearTimeout(settleTimerRef.current)
     cancelAnimationFrame(settleFrameRef.current)
   }, [])
+
+  const settleOnCover = (from = playhead) => {
+    playbackSequenceRef.current += 1
+    cancelCoverSettle()
+    videosRef.current.forEach((video) => video.pause())
+    setPlaying(false)
+    setSettledOnCover(false)
+    setSettlingOnCover(true)
+    seekCoverVideosToOffset()
+
+    const sequence = ++settleSequenceRef.current
+    const duration = prefersReducedMotion ? 0 : COVER_SETTLE_DURATION_MS
+    const to = coverTimeMs / outputDurationMs
+    const started = performance.now()
+    const animatePlayhead = (timestamp: number) => {
+      if (sequence !== settleSequenceRef.current) return
+      const progress = duration ? Math.min(1, (timestamp - started) / duration) : 1
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setPlayhead(from + (to - from) * eased)
+      if (progress < 1) settleFrameRef.current = requestAnimationFrame(animatePlayhead)
+    }
+    settleFrameRef.current = requestAnimationFrame(animatePlayhead)
+    settleTimerRef.current = window.setTimeout(() => {
+      if (sequence !== settleSequenceRef.current) return
+      settleTimerRef.current = undefined
+      seekToOffset()
+      setPlayhead(to)
+      setSettlingOnCover(false)
+      setSettledOnCover(true)
+    }, duration)
+  }
+  stopPlaybackRef.current = settleOnCover
 
   useEffect(() => {
     if (!playing) {
       videosRef.current.forEach((video) => video.pause())
       return
     }
+    const activeVideos = Array.from(videosRef.current.values())
     const tick = (now: number) => {
       const elapsed = (now - startedAtRef.current) / 1000
-      const position = Math.min(elapsed, 3)
-      setPlayhead(position / 3)
-      if (elapsed >= 3) {
-        setPlaying(false)
-        setSettledOnCover(false)
-        setSettlingOnCover(true)
-        seekCoverVideosToOffset()
-
-        const sequence = ++settleSequenceRef.current
-        const duration = prefersReducedMotion ? 0 : COVER_SETTLE_DURATION_MS
-        const from = 1
-        const to = coverTimeMs / 3000
-        const started = performance.now()
-        const animatePlayhead = (timestamp: number) => {
-          if (sequence !== settleSequenceRef.current) return
-          const progress = duration ? Math.min(1, (timestamp - started) / duration) : 1
-          const eased = 1 - Math.pow(1 - progress, 3)
-          setPlayhead(from + (to - from) * eased)
-          if (progress < 1) settleFrameRef.current = requestAnimationFrame(animatePlayhead)
-        }
-        settleFrameRef.current = requestAnimationFrame(animatePlayhead)
-        settleTimerRef.current = window.setTimeout(() => {
-          if (sequence !== settleSequenceRef.current) return
-          settleTimerRef.current = undefined
-          seekToOffset()
-          setPlayhead(to)
-          setSettlingOnCover(false)
-          setSettledOnCover(true)
-        }, duration)
+      const position = Math.min(elapsed, outputDurationSeconds)
+      setPlayhead(position / outputDurationSeconds)
+      if (elapsed >= outputDurationSeconds) {
+        if (holdGesture.isActive) {
+          startPlaybackRef.current()
+          frameRef.current = requestAnimationFrame(tick)
+        } else settleOnCover(1)
         return
       }
       frameRef.current = requestAnimationFrame(tick)
     }
     frameRef.current = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frameRef.current)
-  }, [playing, clips, coverTimeMs, prefersReducedMotion])
+    return () => { cancelAnimationFrame(frameRef.current); activeVideos.forEach((video) => video.pause()) }
+  }, [playing, clips, coverTimeMs, prefersReducedMotion, outputDurationMs, holdGesture])
 
-  const togglePlayback = () => {
+  const startPlayback = () => {
     if (!clips.some(Boolean)) return
+    const sequence = ++playbackSequenceRef.current
     cancelCoverSettle()
-    if (playing) { setPlaying(false); setSettledOnCover(false); return }
     clips.forEach((clip) => {
       if (!clip) return
       const video = videosRef.current.get(clip.id)
       if (!video) return
       seekClipStart(video, clip)
-      void video.play()
+      void video.play().catch(() => {
+        if (sequence !== playbackSequenceRef.current) return
+        setPlaying(false)
+        setSettledOnCover(true)
+        seekToOffset()
+      })
     })
     startedAtRef.current = performance.now()
     setSettledOnCover(false)
     setPlaying(true)
   }
+  startPlaybackRef.current = startPlayback
+
+  const togglePlayback = () => {
+    replayScheduler.cancel()
+    holdGesture.clear()
+    setIsHoldingPreview(false)
+    if (playing) { settleOnCover(); return }
+    startPlayback()
+  }
+
+  const beginPreviewHold = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement
+    const blank = target === event.currentTarget || ['preview-controls', 'preview-scrubber', 'film-keyframe-control', 'source-monitor-bar'].some((name) => target.classList.contains(name))
+    if (!blank || !event.isPrimary || event.button !== 0 || isEditing) return
+    if (!clips.some(Boolean)) { onSelectSlot(undefined); return }
+    event.preventDefault()
+    replayScheduler.cancel()
+    event.currentTarget.focus({ preventScroll: true })
+    holdPointerRef.current = event.pointerId
+    event.currentTarget.setPointerCapture(event.pointerId)
+    holdGesture.begin(event.clientX, event.clientY)
+  }
+  const movePreviewHold = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (holdPointerRef.current === event.pointerId) holdGesture.move(event.clientX, event.clientY)
+  }
+  const endPreviewHold = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (holdPointerRef.current !== event.pointerId) return
+    holdPointerRef.current = undefined
+    let tap = false
+    if (event.type === 'pointerup') tap = holdGesture.release()
+    else holdGesture.cancel()
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    if (tap) onSelectSlot(undefined)
+  }
 
   const setCoverFrame = (milliseconds: number) => {
-    const next = Math.max(0, Math.min(2900, Math.round(milliseconds / 100) * 100))
-    const effectiveSlotId = selectedSlotId ?? clips.find(Boolean)?.targetSlotId
-    if (!selectedSlotId && effectiveSlotId) onSelectSlot(effectiveSlotId)
+    const next = Math.max(0, Math.min(maximumCoverMs, Math.round(milliseconds / 100) * 100))
+    const effectiveSlotId = coverClip?.targetSlotId
+    if (selectedSlotId !== effectiveSlotId && effectiveSlotId) onSelectSlot(effectiveSlotId)
     cancelCoverSettle()
     setPlaying(false)
     setSettledOnCover(true)
-    setPlayhead(next / 3000)
+    setPlayhead(next / outputDurationMs)
     seekToOffset(next / 1000, effectiveSlotId)
     seekCoverVideosToOffset(next / 1000, effectiveSlotId)
     onCoverTimeChange(next)
-  }
-
-  const setCoverFrameFromPointer = (clientX: number, grabOffsetX = 0) => {
-    const rect = keyframeTimelineRef.current?.getBoundingClientRect()
-    if (!rect || rect.width <= 0) return
-    const position = Math.max(0, Math.min(1, (clientX - grabOffsetX - rect.left) / rect.width))
-    const next = Math.max(0, Math.min(2900, Math.round((position * 2900) / 100) * 100))
-    if (coverFrameDragRef.current?.lastValue === next) return
-    if (coverFrameDragRef.current) coverFrameDragRef.current.lastValue = next
-    setCoverFrame(next)
-  }
-
-  const beginCoverFrameDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    if (!event.isPrimary || event.button !== 0) return
-    const rect = keyframeTimelineRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const handleX = rect.left + (coverTimeMs / 2900) * rect.width
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    coverFrameDragRef.current = {
-      pointerId: event.pointerId,
-      grabOffsetX: event.clientX - handleX,
-      lastValue: coverTimeMs,
-    }
-    setIsCoverFrameDragging(true)
-  }
-
-  const moveCoverFrameDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    const drag = coverFrameDragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    event.preventDefault()
-    setCoverFrameFromPointer(event.clientX, drag.grabOffsetX)
-  }
-
-  const endCoverFrameDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    const drag = coverFrameDragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-    coverFrameDragRef.current = undefined
-    setIsCoverFrameDragging(false)
   }
 
   const canEditCanvasRatio = Boolean(onCanvasRatioChange && customRatio)
@@ -366,7 +421,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code !== 'Space' || event.repeat || document.querySelector('[role="dialog"]:not(.preview-stage)')) return
       const target = event.target as HTMLElement | null
-      if (target?.closest('button, a, input, textarea, select, [role="button"], [role="radio"], [contenteditable="true"]')) return
+      if (target?.closest('button, a, input, textarea, select, [role="button"], [role="radio"], [role="slider"], [contenteditable="true"]')) return
       event.preventDefault()
       togglePlayback()
     }
@@ -402,7 +457,13 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
     }
     event.currentTarget.setPointerCapture(event.pointerId)
     onSelectSlot(template.slots[slotIndex].id)
+    setIsCropDragging(true)
     dragRef.current = { slotId: template.slots[slotIndex].id, x: point.x, y: point.y, cropX: clip.crop.normalizedCenterX, cropY: clip.crop.normalizedCenterY }
+  }
+
+  const endCropDrag = () => {
+    dragRef.current = undefined
+    setIsCropDragging(false)
   }
 
   const pointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -440,7 +501,10 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   }
 
   return (
-    <div ref={stageRef} className={isFullscreen ? 'preview-stage is-fullscreen' : 'preview-stage'} role={isFullscreen ? 'dialog' : undefined} aria-modal={isFullscreen || undefined} aria-label={isFullscreen ? '全屏拼贴预览' : undefined} onPointerDown={(event) => { if (event.target === event.currentTarget) onSelectSlot(undefined) }}>
+    <div ref={stageRef} className={`preview-stage${isFullscreen ? ' is-fullscreen' : ''}${isHoldingPreview ? ' is-holding-preview' : ''}`} data-playback={playing ? 'playing' : settlingOnCover ? 'settling' : settledOnCover ? 'cover' : 'paused'}
+      role={isFullscreen ? 'dialog' : 'region'} aria-modal={isFullscreen || undefined} aria-label={isFullscreen ? '全屏拼贴预览' : '拼贴预览，按住空白处播放'}
+      tabIndex={clips.some(Boolean) ? 0 : -1} aria-keyshortcuts="Space"
+      onPointerDown={beginPreviewHold} onPointerMove={movePreviewHold} onPointerUp={endPreviewHold} onPointerCancel={endPreviewHold} onLostPointerCapture={endPreviewHold}>
       <div ref={sourceMonitorRef} className="source-monitor-bar">
         <div className="source-monitor-label"><span /> 拼贴预览 · {selectedClip ? `正在调整${slotLabel(selectedClip.targetSlotId)}` : clips.some(Boolean) ? '点击画格继续调整' : '把素材拖入画面格'}</div>
         <div className="source-monitor-actions">
@@ -454,7 +518,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
         </div>
       </div>
       <div ref={canvasShellRef} className={`canvas-shell${canEditCanvasRatio ? ' ratio-editable' : ''}${isRatioDragging ? ' ratio-dragging' : ''}`} style={{ aspectRatio: `${canvasWidth} / ${canvasHeight}`, width: `min(88%, ${isFullscreen ? 1100 : 500}px, ${(maximumCanvasHeight * canvasWidth / canvasHeight).toFixed(1)}px)` }}>
-        <div className="collage-canvas" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={() => { dragRef.current = undefined }} onPointerCancel={() => { dragRef.current = undefined }} onWheel={handleWheel}>
+        <div className="collage-canvas" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={endCropDrag} onPointerCancel={endCropDrag} onLostPointerCapture={endCropDrag} onWheel={handleWheel}>
           {template.slots.map((slot, index) => {
             const clip = clips[index]
             const isPointerTarget = slot.id === pointerDropTargetSlotId
@@ -512,6 +576,8 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
                 src={clip.previewUrl}
                 playsInline
                 preload="auto"
+                onLoadedData={() => setMediaReadyRevision((current) => current + 1)}
+                onSeeked={() => setMediaReadyRevision((current) => current + 1)}
                 onLoadedMetadata={(event) => {
                   event.currentTarget.pause()
                   event.currentTarget.currentTime = Math.min(clip.startTimeMs / 1000 + coverTimeForClip(clip) / 1000, Math.max(0, event.currentTarget.duration - .04))
@@ -561,40 +627,13 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
         </>}
       </div>
       <div ref={previewControlsRef} className="preview-controls">
-        <button className="round-button" onClick={togglePlayback} aria-label={playing ? '暂停预览' : '播放预览'}>
-          {playing ? <PauseIcon /> : <PlayIcon />}
-        </button>
         <div className="preview-scrubber">
-          <div ref={keyframeTimelineRef} className={`keyframe-timeline${isCoverFrameDragging ? ' is-dragging' : ''}`} style={{ '--keyframe-position': `${coverTimeMs / 30}%` } as CSSProperties}>
-            <span className="timeline-ruler" aria-hidden="true" />
-            <i style={{ transform: `scaleX(${playhead})` }} />
-            <span className="keyframe-handle" aria-hidden="true">
-              <span
-                className="keyframe-handle-hit-target"
-                onPointerDown={beginCoverFrameDrag}
-                onPointerMove={moveCoverFrameDrag}
-                onPointerUp={endCoverFrameDrag}
-                onPointerCancel={endCoverFrameDrag}
-                onLostPointerCapture={endCoverFrameDrag}
-              />
-              <b>关键帧 · {(coverTimeMs / 1000).toFixed(1)}s</b>
-            </span>
-            <input
-              className="keyframe-range-input"
-              type="range"
-              min="0"
-              max="2900"
-              step="100"
-              value={coverTimeMs}
-              aria-label="Live Photo 关键帧"
-              onChange={(event) => setCoverFrame(Number(event.target.value))}
-            />
-          </div>
-          <small>{settlingOnCover ? '正在柔和过渡到关键帧' : '播放结束后渐变停留在关键帧'}</small>
+          <FilmKeyframeControl clip={coverClip} coverTimeMs={coverTimeMs} maximumCoverMs={maximumCoverMs} outputDurationMs={outputDurationMs}
+            playhead={playhead} reducedMotion={prefersReducedMotion} onChange={setCoverFrame} onEditingChange={setIsCoverEditing} />
+          <small>{settlingOnCover ? '正在柔和过渡到关键帧' : isHoldingPreview ? '松手回到关键帧' : playing ? '同步播放 · 结束后停留在关键帧' : '按住空白处预览 · Shift 拖动精细调节'}</small>
         </div>
-        <span>{(playhead * 3).toFixed(1)} / 3.0s</span>
       </div>
-      <p ref={canvasHintRef} className="canvas-hint">拖动画面移动位置 · 拖动进度条标记 Live 关键帧</p>
+      <p ref={canvasHintRef} className="canvas-hint">拖动画面移动位置 · 拖动观片器设置 Live 关键帧</p>
     </div>
   )
 }

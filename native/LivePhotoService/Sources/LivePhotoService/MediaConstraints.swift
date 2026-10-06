@@ -2,6 +2,7 @@ import Foundation
 
 enum MediaConstraints {
     static let outputDurationMilliseconds = 3_000
+    static let outputDurationBounds = 1_000...15_000
     static let minimumSourceDurationMilliseconds = 2_500
 
     struct SegmentDurations: Equatable {

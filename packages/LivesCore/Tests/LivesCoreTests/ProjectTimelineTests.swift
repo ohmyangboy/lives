@@ -183,4 +183,15 @@ final class ProjectTimelineTests: XCTestCase {
         XCTAssertNoThrow(try ProjectValidation.validate(value))
         XCTAssertEqual(ProjectTimeline.maximumCoverMs(sourceDurationMs: 8000, startTimeMs: 0, outputDurationMs: 3900), 3800)
     }
+
+    func testMacDurationBoundsAllowFifteenSecondsWithoutChangingLegacyValidation() {
+        var value = project()
+        value.outputDurationMs = 15_000
+        XCTAssertThrowsError(try ProjectValidation.validate(value))
+        XCTAssertNoThrow(try ProjectValidation.validate(value, durationBounds: 1_000...15_000))
+        for duration in [900, 1_050, 15_100] {
+            value.outputDurationMs = duration
+            XCTAssertThrowsError(try ProjectValidation.validate(value, durationBounds: 1_000...15_000))
+        }
+    }
 }
