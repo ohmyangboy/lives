@@ -36,12 +36,12 @@ Mac Helper 通过 `../../packages/LivesCore` 引用本仓库内部 Core；不存
 
 推送到 `main` 且改动涉及 `website/**` 时，`.github/workflows/pages.yml` 自动构建、校验并部署到 GitHub Pages 与服务器。本机不推送生成产物，也不做官网的独立冻结发布；官网更新随普通提交进入 `main`。构建不等于部署成功，部署结果由 `npm run release:verify` 验收。
 
-## 公开通道切换（尚未执行）
+## 公开通道（0.1.16 已完成验证）
 
 本仓库同时承载应用源码与官网源码，对外远端就是本仓库；`.github/workflows/pages.yml` 从 `website/` 源码构建部署，`sync-release-server.yml` 在 Release 发布后同步服务器。
 
-首次公开前的检查：核对远端 `main` 没有未知提交；确认 `LIVES_SERVER_KNOWN_HOSTS` 等服务器 Secret 已按经核验的身份配置；确认 `LIVES_RELEASE_SYNC_ENABLED=true` 与 `LIVES_SERVER_DEPLOY_ENABLED=true`。`scripts/release.py` 的 `public_guard()` 会在发布前校验这些前置条件。
+每次公开前的检查：核对远端 `main` 没有未知提交；确认 `LIVES_SERVER_KNOWN_HOSTS` 等服务器 Secret 已按经核验的身份配置；确认 `LIVES_RELEASE_SYNC_ENABLED=true` 与 `LIVES_SERVER_DEPLOY_ENABLED=true`。`scripts/release.py` 的 `public_guard()` 会在发布前校验这些前置条件。
 
 服务器继续执行 `sync-lives-release` 和 `deploy-lives-website`；manifest 协议保持 `currentVersion`、`size`、`sha256` 与固定下载 URL。需要回退时正常 revert 提交，保留历史及 Release。
 
-本机 SSH 身份此前无法直接认证服务器，端到端部署仍待首次发布时验收；不因本地脚本检查通过而认定线上发布已完成。
+0.1.16 已通过现有 GitHub Actions 的服务器身份完成端到端同步、官网部署与真实下载验证，见 [发布验证记录](releases/0.1.16-verification.md)。本机 SSH 身份仍无法直接认证服务器；后续发布继续沿用受约束的 CI 部署身份，不因本地脚本检查通过而认定线上发布完成。更新清单由现有统计任务周期刷新，同步工作流成功后仍须等待版本、大小、SHA-256 和实际下载一致。
