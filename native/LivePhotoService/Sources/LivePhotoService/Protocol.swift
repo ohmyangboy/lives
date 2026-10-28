@@ -80,6 +80,8 @@ struct RenderProject: Codable {
         let targetSlotId: String
         let audioEnabled: Bool
         let coverTimeMs: Int
+        var kind: String? = nil
+        var livePhoto: LivePhotoSource? = nil
     }
     let id: String
     let templateId: String

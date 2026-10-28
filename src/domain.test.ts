@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeSourceQuality, canvasDimensions, createRenderProject, CUSTOM_RATIO_BOUNDS, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, planFolderSync, simplifyRatio, sourceContentDurationMs, sourcePaddingDurationMs, type SlotClip, type VideoClip } from './domain'
+import { analyzeSourceQuality, canvasDimensions, createRenderProject, CUSTOM_RATIO_BOUNDS, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, nativeAspectRatio, planFolderSync, simplifyRatio, sourceContentDurationMs, sourcePaddingDurationMs, type SlotClip, type VideoClip } from './domain'
 
 const clip = (index: number): VideoClip => ({
   id: `clip-${index}`,
@@ -252,5 +252,27 @@ describe('planFolderSync', () => {
     const plan = planFolderSync([], [browserClip], folderProject('p1', ['clip-3']), [folderProject('p1', ['clip-3'])])
     expect(plan.missingClipIds).toEqual([])
     expect(plan.removeClipIds).toEqual([])
+  })
+})
+
+
+describe('Live Photo import and native aspect', () => {
+  it('keeps both resources and the Live type in the render protocol', () => {
+    const source: VideoClip = { ...clip(1), kind: 'livePhoto', livePhoto: {
+      photoPath: '/tmp/renamed.heic', contentIdentifier: 'pair-id', width: 4032, height: 3024,
+      motionWidth: 1920, motionHeight: 1080,
+    } }
+    const project = createRenderProject([source], 'single')
+    expect(project.clips[0].kind).toBe('livePhoto')
+    expect(project.clips[0].livePhoto).toEqual(source.livePhoto)
+    expect(project.clips[0].sourcePath).toBe(source.sourcePath)
+  })
+
+  it('uses each selected source dimensions with a safe empty selection fallback', () => {
+    expect(nativeAspectRatio({ width: 1920, height: 1080 })).toEqual({ width: 16, height: 9 })
+    expect(nativeAspectRatio({ width: 1080, height: 1920 })).toEqual({ width: 9, height: 16 })
+    expect(nativeAspectRatio({ width: 1440, height: 1080 })).toEqual({ width: 4, height: 3 })
+    expect(nativeAspectRatio()).toEqual({ width: 1, height: 1 })
+    expect(nativeAspectRatio({ width: 4000, height: 1000 })).toEqual({ width: 3, height: 1 })
   })
 })

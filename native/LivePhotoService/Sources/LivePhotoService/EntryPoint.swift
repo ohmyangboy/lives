@@ -117,6 +117,21 @@ final class ServiceRuntime {
                 let envelope = try request.payload.decode(PathEnvelope.self)
                 let info = try await MediaInspector.inspect(path: envelope.path)
                 await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: try encodeValue(info)))
+            case "importLivePhotosFromLibrary":
+                let task = Task { try await PhotoLibraryWorkerClient.importLivePhotos() }
+                await cancellations.registerCancellation(request.requestId) { task.cancel() }
+                defer { Task { await cancellations.finish(request.requestId) } }
+                let imported: [ImportedLivePhoto]
+                do {
+                    imported = try await task.value
+                } catch is CancellationError {
+                    imported = []
+                }
+                await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: try encodeValue(imported)))
+            case "pairLivePhotos":
+                let envelope = try request.payload.decode(LivePhotoPathsEnvelope.self)
+                let pairs = try await LivePhotoImporter.pair(paths: envelope.paths)
+                await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: try encodeValue(pairs)))
             case "preparePreview":
                 let envelope = try request.payload.decode(PathEnvelope.self)
                 let preview = try await VideoPreviewGenerator.prepare(path: envelope.path)
@@ -288,22 +303,35 @@ enum ErrorMapper {
 
 @main
 struct LivePhotoServiceMain {
-    static func main() async {
+    static func main() {
         let arguments = Array(CommandLine.arguments.dropFirst())
-        if await PhotoLibraryWorker.runIfRequested(arguments: arguments) { return }
+        if let mode = arguments.first, ["photo-import", "photo-status", "photo-authorize", "photo-save"].contains(mode) {
+            let application = NSApplication.shared
+            application.setActivationPolicy(.accessory)
+            Task {
+                _ = await PhotoLibraryWorker.runIfRequested(arguments: arguments)
+                await MainActor.run { application.terminate(nil) }
+            }
+            application.run()
+            return
+        }
         guard CommandLine.arguments.dropFirst().first == "serve" else {
             FileHandle.standardError.write(Data("LivePhotoService must be started with 'serve'.\n".utf8))
             return
         }
         relaunchInsideHelperBundleIfNeeded()
         let runtime = ServiceRuntime()
-        do {
-            for try await line in FileHandle.standardInput.bytes.lines {
-                guard let data = line.data(using: .utf8), let request = try? JSONDecoder().decode(ServiceRequest.self, from: data) else { continue }
-                runtime.submit(request)
+        Task {
+            do {
+                for try await line in FileHandle.standardInput.bytes.lines {
+                    guard let data = line.data(using: .utf8), let request = try? JSONDecoder().decode(ServiceRequest.self, from: data) else { continue }
+                    runtime.submit(request)
+                }
+            } catch {
+                FileHandle.standardError.write(Data("LivePhotoService input failed: \(String(reflecting: error))\n".utf8))
             }
-        } catch {
-            FileHandle.standardError.write(Data("LivePhotoService input failed: \(String(reflecting: error))\n".utf8))
+            exit(0)
         }
+        dispatchMain()
     }
 }

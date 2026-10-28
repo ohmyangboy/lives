@@ -111,6 +111,46 @@ final class DurationRenderingTests: XCTestCase {
         XCTAssertEqual(inspected.durationMs, 1_000)
     }
 
+    func testExportedPairCanBeRenamedImportedAndRenderedAsLivePhoto() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("LivesImport-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceURL = directory.appendingPathComponent("source.mov")
+        try await writeSource(to: sourceURL)
+        let pair = try await LivePhotoPipeline.exportToFolder(
+            project: project(sourcePath: sourceURL.path, durationMs: 1_000),
+            directoryPath: directory.path, cancellations: CancellationRegistry()
+        ) { _, _ in }
+        let renamedPhoto = directory.appendingPathComponent("different-name.jpg")
+        try FileManager.default.moveItem(atPath: pair.photoPath, toPath: renamedPhoto.path)
+        // An unrelated MOV may be selected in the same file dialog.
+        let imported = try await LivePhotoImporter.pair(paths: [sourceURL.path, pair.videoPath, renamedPhoto.path])
+        let live = try XCTUnwrap(imported.first)
+        XCTAssertEqual(imported.count, 1)
+        XCTAssertEqual(live.livePhoto.photoPath, renamedPhoto.path)
+        XCTAssertEqual(live.video.path, pair.videoPath)
+        XCTAssertEqual(live.video.durationMs, 1000)
+        let clip = RenderProject.Clip(
+            id: UUID().uuidString, sourcePath: live.video.path, sourceDurationMs: live.video.durationMs,
+            startTimeMs: 0, crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
+            targetSlotId: "full", audioEnabled: false, coverTimeMs: 500, kind: "livePhoto", livePhoto: live.livePhoto
+        )
+        let render = RenderProject(id: UUID().uuidString, templateId: "single",
+            canvas: .init(width: 720, height: 720, fps: 30, durationMs: 3000), clips: [clip], coverTimeMs: 500)
+        let result = try await LivePhotoPipeline.exportToFolder(project: render, directoryPath: directory.path,
+            cancellations: CancellationRegistry()) { _, _ in }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.videoPath))
+        // A removed still must fail explicitly instead of silently exporting a plain video source.
+        try FileManager.default.removeItem(at: renamedPhoto)
+        do {
+            _ = try await LivePhotoPipeline.exportToFolder(project: render, directoryPath: directory.path,
+                cancellations: CancellationRegistry()) { _, _ in }
+            XCTFail("Missing paired photo must fail")
+        } catch let error as ServiceError {
+            XCTAssertEqual(error.code, "INVALID_LIVE_PHOTO")
+        }
+    }
+
     private func writeSource(to url: URL, frameCount: Int = 78, red: UInt8 = 0, green: UInt8 = 200) async throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
