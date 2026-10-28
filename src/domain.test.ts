@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeSourceQuality, canvasDimensions, createRenderProject, CUSTOM_RATIO_BOUNDS, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, nativeAspectRatio, planFolderSync, simplifyRatio, sourceContentDurationMs, sourcePaddingDurationMs, type SlotClip, type VideoClip } from './domain'
+import { analyzeSourceQuality, canvasDimensions, createRenderProject, CUSTOM_RATIO_BOUNDS, imageExtensionPattern, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, nativeAspectRatio, planFolderSync, simplifyRatio, sourceContentDurationMs, sourcePaddingDurationMs, type SlotClip, type VideoClip } from './domain'
 
 const clip = (index: number): VideoClip => ({
   id: `clip-${index}`,
@@ -81,6 +81,25 @@ describe('render project', () => {
     expect(project.clips[1].coverTimeMs).toBe(1200)
     expect(project.clips[2].coverTimeMs).toBe(2800)
     expect(project.clips.map((item) => item.targetSlotId)).toEqual(['top', 'middle', 'bottom'])
+  })
+  it('preserves custom coverPhotoPath for each slot in render project', () => {
+    const top: SlotClip = { ...clip(1), id: 'slot-1', sourceClipId: 'clip-1', targetSlotId: 'top', startTimeMs: 0, coverTimeMs: 500, coverPhotoPath: '/path/to/custom1.heic' }
+    const bottom: SlotClip = { ...clip(2), id: 'slot-2', sourceClipId: 'clip-2', targetSlotId: 'bottom', startTimeMs: 0, coverTimeMs: 1500 }
+    const project = createRenderProject([clip(1), clip(2)], 'stack-2', [top, bottom])
+
+    expect(project.clips[0].coverPhotoPath).toBe('/path/to/custom1.heic')
+    expect(project.clips[1].coverPhotoPath).toBeUndefined()
+  })
+
+  it('matches valid image extensions with imageExtensionPattern', () => {
+    expect(imageExtensionPattern.test('photo.HEIC')).toBe(true)
+    expect(imageExtensionPattern.test('image.heif')).toBe(true)
+    expect(imageExtensionPattern.test('picture.jpg')).toBe(true)
+    expect(imageExtensionPattern.test('picture.jpeg')).toBe(true)
+    expect(imageExtensionPattern.test('screenshot.png')).toBe(true)
+    expect(imageExtensionPattern.test('web.webp')).toBe(true)
+    expect(imageExtensionPattern.test('movie.mov')).toBe(false)
+    expect(imageExtensionPattern.test('video.mp4')).toBe(false)
   })
 
   it('applies the selected aspect ratio and export quality to the render canvas', () => {

@@ -82,6 +82,33 @@ struct RenderProject: Codable {
         let coverTimeMs: Int
         var kind: String? = nil
         var livePhoto: LivePhotoSource? = nil
+        let coverPhotoPath: String?
+
+        init(
+            id: String,
+            sourcePath: String,
+            sourceDurationMs: Int,
+            startTimeMs: Int,
+            crop: Crop,
+            targetSlotId: String,
+            audioEnabled: Bool,
+            coverTimeMs: Int,
+            kind: String? = nil,
+            livePhoto: LivePhotoSource? = nil,
+            coverPhotoPath: String? = nil
+        ) {
+            self.id = id
+            self.sourcePath = sourcePath
+            self.sourceDurationMs = sourceDurationMs
+            self.startTimeMs = startTimeMs
+            self.crop = crop
+            self.targetSlotId = targetSlotId
+            self.audioEnabled = audioEnabled
+            self.coverTimeMs = coverTimeMs
+            self.kind = kind
+            self.livePhoto = livePhoto
+            self.coverPhotoPath = coverPhotoPath
+        }
     }
     let id: String
     let templateId: String

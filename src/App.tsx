@@ -6,7 +6,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { CollagePreview } from './components/CollagePreview'
 import { Timeline, TimelineEmpty } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
-import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, clampCoverTimeMs, createRenderProject, formatDuration, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, nativeAspectRatio, OUTPUT_DURATION_MS, planFolderSync, templates, videoExtensionPattern, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip, type LivePhotoSource } from './domain'
+import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, clampCoverTimeMs, createRenderProject, formatDuration, imageExtensionPattern, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, nativeAspectRatio, OUTPUT_DURATION_MS, planFolderSync, templates, videoExtensionPattern, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip, type LivePhotoSource } from './domain'
 import type { TimelineDragMode } from './components/timelineGeometry'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
 import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, RefreshIcon, UpdateIcon, ChevronDownIcon, GithubIcon, PhotosIcon } from './icons'
@@ -334,6 +334,8 @@ export function App() {
   const startupFolderSyncDoneRef = useRef(false)
   const [isSyncingFolders, setIsSyncingFolders] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const coverFileInputRef = useRef<HTMLInputElement>(null)
+  const coverFileSlotTargetRef = useRef<string | undefined>(undefined)
   const firstRunDialogRef = useRef<HTMLDivElement>(null)
   const firstRunPrimaryRef = useRef<HTMLButtonElement>(null)
   const libraryHelpRef = useRef<HTMLDivElement>(null)
@@ -510,7 +512,27 @@ export function App() {
   const importPaths = useCallback(async (paths: string[], target: Omit<MediaProject, 'clipIds'> = createDefaultProject(), options: { activate?: boolean; livePhotos?: Map<string, { video: Awaited<ReturnType<typeof nativeService.inspect>>; livePhoto: LivePhotoSource }> } = {}): Promise<{ added: number; failed: number; projectClipIds: string[] }> => {
     const existingByPath = new Map(clipsRef.current.filter((clip) => clip.sourcePath).map((clip) => [clip.sourcePath, clip]))
     const supported = [...new Set(paths.filter((path) => videoExtensionPattern.test(path)))]
-    if (!supported.length) { setNotice('请选择 MOV、MP4 或 M4V 视频'); return { added: 0, failed: 0, projectClipIds: [] } }
+    const imagePaths = [...new Set(paths.filter((path) => imageExtensionPattern.test(path)))]
+    if (!supported.length) {
+      if (imagePaths.length > 0 && selectedSlotId && slotPlacements[selectedSlotId]) {
+        const imagePath = imagePaths[0]
+        updateSlotClip(selectedSlotId, (clip) => ({
+          ...clip,
+          coverPhotoPath: imagePath,
+          coverPhotoUrl: previewUrlForPath(imagePath),
+        }))
+        setNotice('已将所选图片设为当前画格封面')
+        return { added: 0, failed: 0, projectClipIds: [] }
+      }
+      setNotice('请选择 MOV、MP4 或 M4V 视频')
+      return { added: 0, failed: 0, projectClipIds: [] }
+    }
+    const imageByBaseName = new Map(imagePaths.map((p) => {
+      const fileName = p.split('/').pop() ?? ''
+      const dotIndex = fileName.lastIndexOf('.')
+      const base = (dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName).toLowerCase()
+      return [base, p]
+    }))
     const accepted = supported.filter((path) => !existingByPath.has(path) || (options.livePhotos?.has(path) && !existingByPath.get(path)?.livePhoto))
     setNotice(undefined)
     if (accepted.length) setImportProgress({ done: 0, total: accepted.length })
@@ -528,12 +550,18 @@ export function App() {
           const info = pair?.video ?? await nativeService.inspect(path)
           if (!pair && info.durationMs < MINIMUM_SOURCE_DURATION_MS) throw new Error(`${path.split('/').pop() ?? '视频'} 只有 ${formatDuration(info.durationMs)}，至少需要 ${formatDuration(MINIMUM_SOURCE_DURATION_MS)}`)
           const preview = await nativeService.preparePreview(path)
+          const fileName = path.split('/').pop() ?? '视频'
+          const dotIndex = fileName.lastIndexOf('.')
+          const base = (dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName).toLowerCase()
+          const matchedImage = imageByBaseName.get(base)
           imported[index] = {
             id: existingByPath.get(path)?.id ?? crypto.randomUUID(), sourcePath: path,
             kind: pair ? 'livePhoto' : 'video', livePhoto: pair?.livePhoto, name: path.split('/').pop() ?? '视频', durationMs: info.durationMs,
             previewPath: preview.transcoded ? preview.path : undefined,
             width: info.width, height: info.height, codec: info.codec, startTimeMs: 0,
             crop: { normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1 }, previewUrl: previewUrlForPath(preview.path),
+            coverPhotoPath: matchedImage,
+            coverPhotoUrl: matchedImage ? previewUrlForPath(matchedImage) : undefined,
           }
         } catch (error) {
           failed += 1
@@ -656,7 +684,14 @@ export function App() {
 
   const importBrowserFiles = async (files: FileList) => {
     const next: VideoClip[] = []
-    for (const file of Array.from(files)) {
+    const fileList = Array.from(files)
+    const imageFiles = fileList.filter((f) => imageExtensionPattern.test(f.name))
+    const imageByBase = new Map(imageFiles.map((f) => {
+      const dotIndex = f.name.lastIndexOf('.')
+      const base = (dotIndex > 0 ? f.name.substring(0, dotIndex) : f.name).toLowerCase()
+      return [base, f]
+    }))
+    for (const file of fileList) {
       if (!videoExtensionPattern.test(file.name)) continue
       const url = URL.createObjectURL(file)
       const metadata = await new Promise<{ durationMs: number; width: number; height: number }>((resolve, reject) => {
@@ -666,7 +701,16 @@ export function App() {
         video.onerror = () => reject(new Error(`无法读取 ${file.name}`))
       })
       if (metadata.durationMs < MINIMUM_SOURCE_DURATION_MS) { URL.revokeObjectURL(url); setNotice(`${file.name} 只有 ${formatDuration(metadata.durationMs)}，至少需要 ${formatDuration(MINIMUM_SOURCE_DURATION_MS)}`); continue }
-      next.push({ id: crypto.randomUUID(), sourcePath: '', name: file.name, ...metadata, codec: file.type || 'video', startTimeMs: 0, crop: { normalizedCenterX: .5, normalizedCenterY: .5, scale: 1 }, previewUrl: url })
+      const dotIndex = file.name.lastIndexOf('.')
+      const base = (dotIndex > 0 ? file.name.substring(0, dotIndex) : file.name).toLowerCase()
+      const pairedImage = imageByBase.get(base)
+      const coverPhotoUrl = pairedImage ? URL.createObjectURL(pairedImage) : undefined
+      next.push({
+        id: crypto.randomUUID(), sourcePath: '', name: file.name, ...metadata, codec: file.type || 'video', startTimeMs: 0,
+        crop: { normalizedCenterX: .5, normalizedCenterY: .5, scale: 1 }, previewUrl: url,
+        coverPhotoPath: pairedImage ? pairedImage.name : undefined,
+        coverPhotoUrl,
+      })
     }
     setClips((current) => [...current, ...next])
     if (next.length) {
@@ -827,6 +871,8 @@ export function App() {
       crop: { ...source.crop },
       audioEnabled: false,
       coverTimeMs: clampCoverTimeMs(1500, source.durationMs, placedStartMs, outputDurationMs),
+      coverPhotoPath: source.coverPhotoPath,
+      coverPhotoUrl: source.coverPhotoUrl,
     }
     setSlotPlacements((current) => ({ ...current, [slotId]: placed }))
     setSelectedSlotId(slotId)
@@ -889,6 +935,44 @@ export function App() {
   }, [])
 
   const updateSlotClip = (slotId: string, update: (clip: SlotClip) => SlotClip) => setSlotPlacements((current) => current[slotId] ? { ...current, [slotId]: update(current[slotId]!) } : current)
+
+  const replaceSlotCover = async (slotId: string) => {
+    if (!desktopAvailable()) {
+      coverFileSlotTargetRef.current = slotId
+      coverFileInputRef.current?.click()
+      return
+    }
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: '图片', extensions: ['heic', 'heif', 'jpg', 'jpeg', 'png', 'webp'] }],
+    })
+    if (typeof selected === 'string') {
+      updateSlotClip(slotId, (clip) => ({
+        ...clip,
+        coverPhotoPath: selected,
+        coverPhotoUrl: previewUrlForPath(selected),
+      }))
+    }
+  }
+
+  const clearSlotCover = (slotId: string) => {
+    updateSlotClip(slotId, (clip) => ({
+      ...clip,
+      coverPhotoPath: undefined,
+      coverPhotoUrl: undefined,
+    }))
+  }
+
+  const dropCoverPhoto = (slotId: string, file: File) => {
+    const url = URL.createObjectURL(file)
+    const filePath = 'path' in file && typeof file.path === 'string' ? file.path : file.name
+    updateSlotClip(slotId, (clip) => ({
+      ...clip,
+      coverPhotoPath: filePath,
+      coverPhotoUrl: url,
+    }))
+  }
 
   const updateTimelineSelection = (slotId: string, startTimeMs: number, durationMs: number, mode: TimelineDragMode) => {
     setOutputDurationMs(durationMs)
@@ -1306,6 +1390,9 @@ export function App() {
               onAudioEnabledChange={(slotId, audioEnabled) => updateSlotClip(slotId, (clip) => ({ ...clip, audioEnabled }))}
               onScaleChange={(slotId, scale) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, scale } }))}
               onCropChange={(slotId, x, y) => updateSlotClip(slotId, (clip) => ({ ...clip, crop: { ...clip.crop, normalizedCenterX: x, normalizedCenterY: y } }))}
+              onReplaceCoverPhoto={replaceSlotCover}
+              onClearCoverPhoto={clearSlotCover}
+              onDropCoverPhoto={dropCoverPhoto}
             />
           </section>
 
@@ -1361,6 +1448,13 @@ export function App() {
       </div>}
       {isDragging && <div className="drag-overlay"><PlusIcon /><strong>放下视频，加入素材库</strong><span>使用原文件，可一次添加多段视频</span></div>}
       <input ref={fileInputRef} hidden type="file" multiple accept="video/quicktime,video/mp4,.m4v" onChange={(event) => event.target.files && void importBrowserFiles(event.target.files)} />
+      <input ref={coverFileInputRef} hidden type="file" accept=".heic,.heif,.jpg,.jpeg,.png,.webp,image/*" onChange={(event) => {
+        const file = event.target.files?.[0]
+        if (file && coverFileSlotTargetRef.current) {
+          dropCoverPhoto(coverFileSlotTargetRef.current, file)
+        }
+        event.target.value = ''
+      }} />
       {destinationPickerVisible && <ExportDestinationPicker aspectRatio={aspectRatio} customRatio={customRatio} quality={exportQuality} sourceQuality={sourceQuality} cropUpscaleRisk={cropUpscaleRisk} destination={pickerDestination} onQualityChange={setExportQuality} onDestinationChange={setPickerDestination} onExport={() => void exportFromPicker()} onClose={() => setDestinationPickerVisible(false)} />}
       {exportState.visible && <ExportOverlay {...exportState} destination={exportDestination} photoDenyCount={photoDenyCount} onClose={() => closeExportOverlay(false)} onCancel={() => closeExportOverlay(true)} onRetry={() => void exportProject()} onResetAndRetry={() => void resetAndRetryExport()} onCopyRepairCommands={() => void nativeService.copyRepairCommands().catch(() => undefined)} onOpenPrivacySettings={() => void nativeService.openPhotoPrivacySettings()} onFallbackToFolder={() => void exportToFolderInstead()} onRevealResult={() => exportDestination === 'photos' ? void nativeService.openPhotos() : exportState.outputPath ? void nativeService.revealInFinder(exportState.outputPath) : undefined} />}
       {materialContextMenu && (

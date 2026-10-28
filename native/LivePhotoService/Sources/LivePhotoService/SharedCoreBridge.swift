@@ -15,6 +15,14 @@ enum SharedCoreBridge {
             throw ServiceError(code: "INVALID_LIVE_PHOTO", message: "Live Photo 缺少配对照片", recovery: "请重新添加原始照片与配对 MOV")
         }
 
+        for clip in project.clips {
+            if let coverPath = clip.coverPhotoPath, !coverPath.isEmpty {
+                guard FileManager.default.isReadableFile(atPath: coverPath) else {
+                    throw ServiceError(code: "COVER_IMAGE_FAILED", message: "无法读取封面图片", recovery: "请确认图片格式为 JPG、PNG 或 HEIC")
+                }
+            }
+        }
+
         let assets: [SourceAsset] = project.clips.map { clip in
             SourceAsset(
                 id: stableID(for: clip.id),

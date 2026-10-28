@@ -125,6 +125,10 @@ export interface VideoClip {
   startTimeMs: number
   crop: CropPosition
   previewUrl: string
+  /** Custom static image cover path for this clip. */
+  coverPhotoPath?: string
+  /** Custom static image cover URL for web preview. */
+  coverPhotoUrl?: string
 }
 
 /** A video source after it has been placed in a particular canvas cell.
@@ -140,6 +144,10 @@ export interface SlotClip extends VideoClip {
   audioEnabled?: boolean
   /** Live Photo cover frame offset for this placed cell. */
   coverTimeMs: number
+  /** Custom static image cover path for this placed cell. */
+  coverPhotoPath?: string
+  /** Custom static image cover URL for web preview. */
+  coverPhotoUrl?: string
 }
 
 export interface Slot {
@@ -174,6 +182,7 @@ export interface RenderProject {
     targetSlotId: string
     audioEnabled: boolean
     coverTimeMs: number
+    coverPhotoPath?: string
   }>
   coverTimeMs: number
 }
@@ -183,7 +192,7 @@ export const MINIMUM_OUTPUT_DURATION_MS = 1000
 export const MAXIMUM_OUTPUT_DURATION_MS = 15_000
 export const MINIMUM_SOURCE_DURATION_MS = 2500
 export const videoExtensionPattern = /\.(mov|mp4|m4v)$/i
-
+export const imageExtensionPattern = /\.(heic|heif|jpg|jpeg|png|webp)$/i
 export const normalizeOutputDurationMs = (durationMs: number) => Math.max(MINIMUM_OUTPUT_DURATION_MS, Math.min(
   MAXIMUM_OUTPUT_DURATION_MS,
   Number.isFinite(durationMs) ? Math.round(durationMs / 100) * 100 : OUTPUT_DURATION_MS,
@@ -337,6 +346,7 @@ export function createRenderProject(
         targetSlotId: template.slots[index].id,
         audioEnabled: 'audioEnabled' in clip && clip.audioEnabled === true,
         coverTimeMs: clampCoverTimeMs('coverTimeMs' in clip ? clip.coverTimeMs : coverTimeMs, clip.durationMs, startTimeMs, durationMs),
+        coverPhotoPath: 'coverPhotoPath' in clip ? clip.coverPhotoPath : undefined,
       }
     }),
     coverTimeMs: Math.max(0, Math.min(durationMs - 100, Math.round(coverTimeMs / 100) * 100)),

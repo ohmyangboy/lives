@@ -53,7 +53,8 @@ enum CompatibilityTranscoder {
                     audioEnabled: clip.audioEnabled,
                     coverTimeMs: clip.coverTimeMs,
                     kind: clip.kind,
-                    livePhoto: clip.livePhoto
+                    livePhoto: clip.livePhoto,
+                    coverPhotoPath: clip.coverPhotoPath
                 )
             )
             await progress(Double(index + 1) / Double(max(1, project.clips.count)))

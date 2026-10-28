@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
-import { CUSTOM_RATIO_BOUNDS, maximumCoverTimeMs, simplifyRatio, type CollageTemplate, type SlotClip } from '../domain'
-import { CloseIcon, CollapseIcon, ExpandIcon, LiveIcon, PlusIcon, SoundIcon } from '../icons'
+import { CUSTOM_RATIO_BOUNDS, imageExtensionPattern, maximumCoverTimeMs, simplifyRatio, type CollageTemplate, type SlotClip } from '../domain'
+import { CloseIcon, CollapseIcon, ExpandIcon, ImageIcon, LiveIcon, PlusIcon, RefreshIcon, SoundIcon } from '../icons'
 import { FilmKeyframeControl } from './FilmKeyframeControl'
 import { previewPlaybackKey, PreviewHoldGesture, PreviewReplayScheduler } from './previewPlayback'
 
@@ -25,6 +25,9 @@ interface Props {
   onAudioEnabledChange: (slotId: string, audioEnabled: boolean) => void
   onDropSource: (slotId: string, sourceClipId: string) => void
   onCoverTimeChange: (milliseconds: number) => void
+  onReplaceCoverPhoto?: (slotId: string) => void
+  onClearCoverPhoto?: (slotId: string) => void
+  onDropCoverPhoto?: (slotId: string, file: File) => void
 }
 
 const MIN_SCALE = 1
@@ -40,7 +43,8 @@ const ratioHandleStyle: Record<(typeof RATIO_HANDLE_CORNERS)[number], CSSPropert
   se: { bottom: -9, right: -9 },
 }
 
-export function CollagePreview({ clips, template, canvasWidth, canvasHeight, selectedSlotId, selectedSourceId, pointerDropTargetSlotId, isSourceDragging, isTimelineEditing, coverTimeMs, outputDurationMs, customRatio, onCanvasRatioChange, onSelectSlot, onCropChange, onScaleChange, onClearSlot, onAudioEnabledChange, onDropSource, onCoverTimeChange }: Props) {
+export function CollagePreview({ clips, template, canvasWidth, canvasHeight, selectedSlotId, selectedSourceId, pointerDropTargetSlotId, isSourceDragging, isTimelineEditing, coverTimeMs, outputDurationMs, customRatio, onCanvasRatioChange, onSelectSlot, onCropChange, onScaleChange, onClearSlot, onAudioEnabledChange, onDropSource, onCoverTimeChange, onReplaceCoverPhoto, onClearCoverPhoto, onDropCoverPhoto }: Props) {
+  const [photoDimensions, setPhotoDimensions] = useState<Record<string, { width: number; height: number }>>({})
   const videosRef = useRef<Map<string, HTMLVideoElement>>(new Map())
   const coverVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map())
   const stageRef = useRef<HTMLDivElement>(null)
@@ -124,6 +128,36 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
       top: `${-metrics.overflowY * clip.crop.normalizedCenterY * 100}%`,
     }
   }
+  const renderPhotoMetrics = (clip: SlotClip, slotIndex: number, dimensions?: { width: number; height: number }) => {
+    const slot = template.slots[slotIndex]
+    const naturalWidth = dimensions?.width || clip.width
+    const naturalHeight = dimensions?.height || clip.height
+    const sourceAspect = naturalWidth / Math.max(1, naturalHeight)
+    const slotAspect = (canvasWidth * slot.width) / (canvasHeight * slot.height)
+    const baseWidth = sourceAspect > slotAspect ? sourceAspect / slotAspect : 1
+    const baseHeight = sourceAspect > slotAspect ? 1 : slotAspect / sourceAspect
+    const renderedWidth = baseWidth * clip.crop.scale * 1.002
+    const renderedHeight = baseHeight * clip.crop.scale * 1.002
+    return {
+      renderedWidth,
+      renderedHeight,
+      overflowX: Math.max(0, renderedWidth - 1),
+      overflowY: Math.max(0, renderedHeight - 1),
+    }
+  }
+
+  const photoStyle = (clip: SlotClip, slotIndex: number): CSSProperties => {
+    const metrics = renderPhotoMetrics(clip, slotIndex, photoDimensions[clip.id])
+    return {
+      width: `${metrics.renderedWidth * 100}%`,
+      height: `${metrics.renderedHeight * 100}%`,
+      left: `${-metrics.overflowX * clip.crop.normalizedCenterX * 100}%`,
+      top: `${-metrics.overflowY * clip.crop.normalizedCenterY * 100}%`,
+      position: 'absolute',
+      objectFit: 'cover',
+    }
+  }
+
 
   const seekClipStart = (video: HTMLVideoElement, clip: SlotClip) => {
     if (!Number.isFinite(video.duration)) return
@@ -366,6 +400,9 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const setCoverFrame = (milliseconds: number) => {
     const next = Math.max(0, Math.min(maximumCoverMs, Math.round(milliseconds / 100) * 100))
     const effectiveSlotId = coverClip?.targetSlotId
+    if (coverClip?.coverPhotoPath && onClearCoverPhoto && effectiveSlotId) {
+      onClearCoverPhoto(effectiveSlotId)
+    }
     if (selectedSlotId !== effectiveSlotId && effectiveSlotId) onSelectSlot(effectiveSlotId)
     cancelCoverSettle()
     setPlaying(false)
@@ -567,7 +604,20 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
               }}
               onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDropTargetSlotId(slot.id) }}
               onDragLeave={() => setDropTargetSlotId((current) => current === slot.id ? undefined : current)}
-              onDrop={(event) => { event.preventDefault(); const sourceClipId = event.dataTransfer.getData('application/x-livecollage-source'); setDropTargetSlotId(undefined); if (sourceClipId) onDropSource(slot.id, sourceClipId) }}
+              onDrop={(event) => {
+                event.preventDefault()
+                const sourceClipId = event.dataTransfer.getData('application/x-livecollage-source')
+                setDropTargetSlotId(undefined)
+                if (sourceClipId) {
+                  onDropSource(slot.id, sourceClipId)
+                  return
+                }
+                const files = Array.from(event.dataTransfer.files)
+                const imageFile = files.find((file) => imageExtensionPattern.test(file.name))
+                if (imageFile && clip && onDropCoverPhoto) {
+                  onDropCoverPhoto(slot.id, imageFile)
+                }
+              }}
             >
               {!clip ? <div className="slot-drop-copy"><PlusIcon /><strong>{isPointerTarget ? '松开放入' : '拖入视频'}</strong><small>{isPointerTarget ? '将素材放进这个格子' : template.slots.length === 1 ? '开始构图' : '可重复使用素材'}</small></div> : <>
               <video
@@ -599,9 +649,30 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
                 }}
                 style={videoStyle(clip, index)}
               />
+              {clip.coverPhotoUrl && (
+                <img
+                  className="cover-frame-image"
+                  src={clip.coverPhotoUrl}
+                  alt=""
+                  aria-hidden="true"
+                  onLoad={(event) => {
+                    const img = event.currentTarget
+                    setPhotoDimensions((current) => ({
+                      ...current,
+                      [clip.id]: { width: img.naturalWidth, height: img.naturalHeight },
+                    }))
+                  }}
+                  style={photoStyle(clip, index)}
+                />
+              )}
+              {Boolean(clip.coverPhotoPath || clip.coverPhotoUrl) && (
+                <span className="slot-cover-badge">图片封面</span>
+              )}
               <span className="slot-replace-copy">拖入替换</span>
               {slot.id === selectedSlotId && <div className="slot-context-actions">
                 <button className={clip.audioEnabled ? 'slot-audio-button enabled' : 'slot-audio-button'} aria-label={`${clip.audioEnabled ? '关闭' : '开启'}${slotLabel(slot.id)}原声`} aria-pressed={clip.audioEnabled === true} title={clip.audioEnabled ? '关闭原声' : '开启原声'} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onAudioEnabledChange(slot.id, !clip.audioEnabled) }}><SoundIcon /></button>
+                <button className={clip.coverPhotoPath ? 'slot-cover-button active' : 'slot-cover-button'} aria-label={clip.coverPhotoPath ? '更换封面图片' : '替换封面'} title={clip.coverPhotoPath ? '更换封面图片' : '替换封面'} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onReplaceCoverPhoto?.(slot.id) }}><ImageIcon /></button>
+                {Boolean(clip.coverPhotoPath) && <button className="slot-cover-revert-button" aria-label="恢复视频关键帧" title="恢复视频关键帧" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onClearCoverPhoto?.(slot.id) }}><RefreshIcon /></button>}
                 <button className="slot-clear-button" aria-label={`清空${slotLabel(slot.id)}`} title="清空画面" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onClearSlot(slot.id) }}><CloseIcon /></button>
               </div>}
               </>}
@@ -610,7 +681,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
           })}
         </div>
         <div className="live-badge"><LiveIcon /> LIVE</div>
-        <div className="cover-mark"><span /> {playing ? '同步播放' : settlingOnCover ? '正在回到关键帧' : settledOnCover ? `Live 关键帧 ${(coverTimeMs / 1000).toFixed(1)}s` : '预览已暂停'}</div>
+        <div className="cover-mark"><span /> {playing ? '同步播放' : settlingOnCover ? '正在回到关键帧' : (coverClip?.coverPhotoPath || coverClip?.coverPhotoUrl) ? '自定义图片封面' : settledOnCover ? `Live 关键帧 ${(coverTimeMs / 1000).toFixed(1)}s` : '预览已暂停'}</div>
         {canEditCanvasRatio && <>
           {RATIO_HANDLE_CORNERS.map((corner) => <span
             key={corner}
@@ -630,7 +701,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
         <div className="preview-scrubber">
           <FilmKeyframeControl clip={coverClip} coverTimeMs={coverTimeMs} maximumCoverMs={maximumCoverMs} outputDurationMs={outputDurationMs}
             playhead={playhead} reducedMotion={prefersReducedMotion} onChange={setCoverFrame} onEditingChange={setIsCoverEditing} />
-          <small>{settlingOnCover ? '正在柔和过渡到关键帧' : isHoldingPreview ? '松手回到关键帧' : playing ? '同步播放 · 结束后停留在关键帧' : '按住空白处预览 · Shift 拖动精细调节'}</small>
+          <small>{settlingOnCover ? '正在柔和过渡到关键帧' : isHoldingPreview ? '松手回到关键帧' : playing ? '同步播放 · 结束后停留在关键帧' : (coverClip?.coverPhotoPath || coverClip?.coverPhotoUrl) ? '当前画格已使用图片封面 · 拖动把手可切换回视频关键帧' : '按住空白处预览 · Shift 拖动精细调节'}</small>
         </div>
       </div>
       <p ref={canvasHintRef} className="canvas-hint">拖动画面移动位置 · 拖动观片器设置 Live 关键帧</p>

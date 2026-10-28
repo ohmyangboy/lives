@@ -206,7 +206,25 @@ enum LivePhotoPipeline {
         }
     }
 
-    private static func writeCover(project: RenderProject, to photoURL: URL, contentIdentifier: String) async throws {
+    static func loadCoverImage(from path: String) throws -> CGImage {
+        let url = URL(fileURLWithPath: path)
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              CGImageSourceGetCount(source) > 0 else {
+            throw ServiceError(code: "COVER_IMAGE_FAILED", message: "无法读取封面图片", recovery: "请确认图片格式为 JPG、PNG 或 HEIC")
+        }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCache: true
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+            ?? CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            throw ServiceError(code: "COVER_IMAGE_FAILED", message: "无法读取封面图片", recovery: "请确认图片格式为 JPG、PNG 或 HEIC")
+        }
+        return image
+    }
+
+    static func writeCover(project: RenderProject, to photoURL: URL, contentIdentifier: String) async throws {
         let canvasSize = CGSize(width: project.canvas.width, height: project.canvas.height)
         guard let context = CGContext(
             data: nil,
@@ -222,14 +240,19 @@ enum LivePhotoPipeline {
         context.setFillColor(NSColor.black.cgColor)
         context.fill(CGRect(origin: .zero, size: canvasSize))
         for clip in project.clips {
-            let asset = AVURLAsset(url: URL(fileURLWithPath: clip.sourcePath))
-            let generator = AVAssetImageGenerator(asset: asset)
-            generator.appliesPreferredTrackTransform = true
-            generator.requestedTimeToleranceBefore = .zero
-            generator.requestedTimeToleranceAfter = .zero
-            let sourceOffset = min(clip.coverTimeMs, max(0, clip.sourceDurationMs - clip.startTimeMs - 1))
-            let sourceTime = CMTime(value: CMTimeValue(clip.startTimeMs + sourceOffset), timescale: 1000)
-            let image = try await generator.image(at: sourceTime).image
+            let image: CGImage
+            if let coverPhotoPath = clip.coverPhotoPath, !coverPhotoPath.isEmpty {
+                image = try loadCoverImage(from: coverPhotoPath)
+            } else {
+                let asset = AVURLAsset(url: URL(fileURLWithPath: clip.sourcePath))
+                let generator = AVAssetImageGenerator(asset: asset)
+                generator.appliesPreferredTrackTransform = true
+                generator.requestedTimeToleranceBefore = .zero
+                generator.requestedTimeToleranceAfter = .zero
+                let sourceOffset = min(clip.coverTimeMs, max(0, clip.sourceDurationMs - clip.startTimeMs - 1))
+                let sourceTime = CMTime(value: CMTimeValue(clip.startTimeMs + sourceOffset), timescale: 1000)
+                image = try await generator.image(at: sourceTime).image
+            }
             let target = try TemplateLayout.rect(for: clip.targetSlotId, templateId: project.templateId, canvas: canvasSize)
             let imageAspect = CGFloat(image.width) / CGFloat(max(1, image.height))
             let targetAspect = target.width / max(1, target.height)
