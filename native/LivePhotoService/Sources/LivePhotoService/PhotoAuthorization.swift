@@ -143,6 +143,25 @@ enum PhotoAuthorization {
         }
     }
 
+    static func readError(for status: PHAuthorizationStatus) -> ServiceError? {
+        switch status {
+        case .authorized, .limited:
+            return nil
+        case .denied:
+            return ServiceError(code: "PHOTO_READ_DENIED", message: "没有照片读取权限",
+                                recovery: "请在系统设置 → 隐私与安全性 → 照片中允许 Lives 读取照片，或使用文件配对导入")
+        case .restricted:
+            return ServiceError(code: "PHOTO_READ_RESTRICTED", message: "照片读取受到系统限制",
+                                recovery: "请检查屏幕使用时间或设备管理策略；也可以使用文件配对导入")
+        case .notDetermined:
+            return ServiceError(code: "PHOTO_READ_UNAVAILABLE", message: "未能完成照片读取授权",
+                                recovery: "请重试或在系统设置中检查照片权限；也可以使用文件配对导入")
+        @unknown default:
+            return ServiceError(code: "PHOTO_READ_UNAVAILABLE", message: "无法确认照片读取权限",
+                                recovery: "请重新启动 Lives 后重试，或使用文件配对导入")
+        }
+    }
+
     static func error(for status: PHAuthorizationStatus) -> ServiceError? {
         switch status {
         case .authorized:

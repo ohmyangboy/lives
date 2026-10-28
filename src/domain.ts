@@ -98,7 +98,21 @@ export interface CropPosition {
   scale: number
 }
 
+export interface LivePhotoSource {
+  photoPath: string
+  contentIdentifier: string
+  width: number
+  height: number
+  motionWidth: number
+  motionHeight: number
+}
+
+export const nativeAspectRatio = (source?: { width: number; height: number }) =>
+  simplifyRatio(normalizeCustomRatio(source ?? { width: 1, height: 1 }))
+
 export interface VideoClip {
+  kind?: 'video' | 'livePhoto'
+  livePhoto?: LivePhotoSource
   id: string
   sourcePath: string
   /** Optional AVFoundation-generated proxy used only by the desktop WebView. */
@@ -152,6 +166,8 @@ export interface RenderProject {
   clips: Array<{
     id: string
     sourcePath: string
+    kind?: 'video' | 'livePhoto'
+    livePhoto?: LivePhotoSource
     sourceDurationMs: number
     startTimeMs: number
     crop: CropPosition
@@ -313,6 +329,8 @@ export function createRenderProject(
       return {
         id: clip.id,
         sourcePath: clip.sourcePath,
+        kind: clip.kind,
+        livePhoto: clip.livePhoto,
         sourceDurationMs: clip.durationMs,
         startTimeMs,
         crop: clip.crop,

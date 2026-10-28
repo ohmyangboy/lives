@@ -143,7 +143,11 @@ enum LivePhotoPipeline {
         try validate(project)
         await progress("inspecting", 0.03)
         for clip in project.clips {
-            _ = try await MediaInspector.inspect(path: clip.sourcePath)
+            if let livePhoto = clip.livePhoto {
+                try await LivePhotoImporter.validate(source: livePhoto, videoPath: clip.sourcePath)
+            } else {
+                _ = try await MediaInspector.inspect(path: clip.sourcePath)
+            }
             try await cancellations.check(project.id)
         }
 

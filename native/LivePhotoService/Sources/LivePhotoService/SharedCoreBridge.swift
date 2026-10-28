@@ -11,15 +11,23 @@ enum SharedCoreBridge {
             throw ServiceError(code: "INVALID_PROJECT", message: "项目模板不受支持", recovery: "请更新应用后重试")
         }
 
+        guard project.clips.allSatisfy({ $0.kind != "livePhoto" || $0.livePhoto != nil }) else {
+            throw ServiceError(code: "INVALID_LIVE_PHOTO", message: "Live Photo 缺少配对照片", recovery: "请重新添加原始照片与配对 MOV")
+        }
+
         let assets: [SourceAsset] = project.clips.map { clip in
             SourceAsset(
                 id: stableID(for: clip.id),
                 displayName: URL(fileURLWithPath: clip.sourcePath).lastPathComponent,
-                relativePath: clip.sourcePath,
+                relativePath: clip.livePhoto?.photoPath ?? clip.sourcePath,
                 durationMs: clip.sourceDurationMs,
-                width: 0,
-                height: 0,
-                codec: "unknown"
+                width: clip.livePhoto?.width ?? 0,
+                height: clip.livePhoto?.height ?? 0,
+                codec: "unknown",
+                kind: clip.livePhoto == nil ? .video : .livePhoto,
+                pairedRelativePath: clip.livePhoto == nil ? nil : clip.sourcePath,
+                motionWidth: clip.livePhoto?.motionWidth,
+                motionHeight: clip.livePhoto?.motionHeight
             )
         }
         let assetIDs = Dictionary(uniqueKeysWithValues: project.clips.map { ($0.id, stableID(for: $0.id)) })

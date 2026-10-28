@@ -7,10 +7,36 @@ private struct PhotoWorkerResponse: Codable {
     var identifier: String?
     var statusCode: Int?
     var error: ServiceError?
+    var imported: [ImportedLivePhoto]?
 }
 
 enum PhotoLibraryWorker {
     static func runIfRequested(arguments: [String]) async -> Bool {
+        if let modeIndex = arguments.firstIndex(of: "photo-import"), arguments.indices.contains(modeIndex + 2) {
+            PhotoAuthorization.appendDiagnosticsLog("photo-import: worker started")
+            let responseURL = URL(fileURLWithPath: arguments[modeIndex + 1])
+            let directory = URL(fileURLWithPath: arguments[modeIndex + 2], isDirectory: true)
+            do {
+                try PhotoAuthorization.validateSigningConfiguration()
+                await prepareApplicationForPhotoKit()
+                PhotoAuthorization.appendDiagnosticsLog("photo-import: requesting read authorization")
+                let status = await requestReadAuthorizationDirect()
+                PhotoAuthorization.appendDiagnosticsLog("photo-import: authorization status=\(status.rawValue)")
+                if let error = PhotoAuthorization.readError(for: status) { throw error }
+                let identifiers = try await LivePhotoLibraryPicker().select(limited: status == .limited)
+                PhotoAuthorization.appendDiagnosticsLog("photo-import: selected count=\(identifiers.count)")
+                let imported = try await PhotoLibraryImporter.export(identifiers: identifiers, to: directory)
+                PhotoAuthorization.appendDiagnosticsLog("photo-import: completed count=\(imported.count)")
+                write(PhotoWorkerResponse(imported: imported), to: responseURL)
+            } catch let error as ServiceError {
+                PhotoAuthorization.appendDiagnosticsLog("photo-import: failed code=\(error.code)")
+                write(PhotoWorkerResponse(error: error), to: responseURL)
+            } catch {
+                write(PhotoWorkerResponse(error: ErrorMapper.map(error)), to: responseURL)
+            }
+            return true
+        }
+
         if let modeIndex = arguments.firstIndex(of: "photo-status"), arguments.indices.contains(modeIndex + 1) {
             let responseURL = URL(fileURLWithPath: arguments[modeIndex + 1])
             await prepareApplicationForPhotoKit()
@@ -60,7 +86,6 @@ enum PhotoLibraryWorker {
     private static func prepareApplicationForPhotoKit() {
         let application = NSApplication.shared
         application.setActivationPolicy(.accessory)
-        application.finishLaunching()
         application.activate(ignoringOtherApps: true)
     }
 
@@ -96,6 +121,12 @@ enum PhotoLibraryWorker {
         return AuthorizationOutcome(status: status, promptSuppressed: promptSuppressed)
     }
 
+    private static func requestReadAuthorizationDirect() async -> PHAuthorizationStatus {
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        guard status == .notDetermined else { return status }
+        return await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+    }
+
     private static func savePairDirect(photoURL: URL, pairedVideoURL: URL) async throws -> String {
         var placeholderIdentifier: String?
         do {
@@ -123,6 +154,31 @@ enum PhotoLibraryWorker {
 }
 
 enum PhotoLibraryWorkerClient {
+    static func importLivePhotos() async throws -> [ImportedLivePhoto] {
+        let root = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                              appropriateFor: nil, create: true)
+            .appendingPathComponent("Lives/ImportedLivePhotos", isDirectory: true)
+        return try await withImportDirectory(root: root) { directory in
+            let response = try await launch(mode: "photo-import", resourcePaths: [directory.path])
+            if let error = response.error { throw error }
+            guard let imported = response.imported else {
+                throw ServiceError(code: "PHOTO_IMPORT_FAILED", message: "照片服务没有返回导入结果", recovery: "请重新尝试，或使用文件配对导入")
+            }
+            return imported
+        }
+    }
+
+    /// Only a successful nonempty import owns durable resources. Cancel/error paths discard this batch.
+    static func withImportDirectory(root: URL, operation: (URL) async throws -> [ImportedLivePhoto]) async throws -> [ImportedLivePhoto] {
+        let directory = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var keepResources = false
+        defer { if !keepResources { try? FileManager.default.removeItem(at: directory) } }
+        let imported = try await operation(directory)
+        keepResources = !imported.isEmpty
+        return imported
+    }
+
     // 常驻 serve 进程内的 PhotoKit 状态可能滞后；需要权威状态时
     // 启动全新 helper 进程读取（与授权弹窗同一身份通道）。
     static func readAuthorizationStatus() async -> PHAuthorizationStatus? {
@@ -166,18 +222,39 @@ enum PhotoLibraryWorkerClient {
         configuration.addsToRecentItems = false
         configuration.createsNewApplicationInstance = true
         configuration.arguments = [mode, responseURL.path] + resourcePaths
-        let application = try await NSWorkspace.shared.openApplication(
-            at: try helperBundleURL(),
-            configuration: configuration
-        )
+        let application: NSRunningApplication
+        do {
+            application = try await NSWorkspace.shared.openApplication(at: try helperBundleURL(), configuration: configuration)
+        } catch {
+            if let serviceError = error as? ServiceError { throw serviceError }
+            throw ServiceError(code: "PHOTO_WORKER_FAILED", message: "无法启动照片导入服务", recovery: "请重新启动 Lives 后重试，或使用文件配对导入")
+        }
+        if mode == "photo-import" { PhotoAuthorization.appendDiagnosticsLog("photo-import: launched pid=\(application.processIdentifier)") }
 
-        for _ in 0..<1_200 {
+        // Picker interaction and iCloud downloads may take longer than a save operation.
+        // On failure terminate the worker before the caller removes its partial resource directory.
+        var receivedResponse = false
+        defer {
+            if mode == "photo-import" && !receivedResponse && !application.isTerminated {
+                application.forceTerminate()
+            }
+        }
+        let polls = 1_200
+        for _ in 0..<polls {
+            try Task.checkCancellation()
             if fileManager.fileExists(atPath: responseURL.path) {
                 let data = try Data(contentsOf: responseURL)
-                return try JSONDecoder().decode(PhotoWorkerResponse.self, from: data)
+                let response = try JSONDecoder().decode(PhotoWorkerResponse.self, from: data)
+                receivedResponse = true
+                return response
             }
-            if application.isTerminated { break }
+            if application.isTerminated {
+                throw ServiceError(code: "PHOTO_WORKER_FAILED", message: "照片导入服务意外退出", recovery: "请重试，或使用文件配对导入")
+            }
             try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        if mode == "photo-import" {
+            throw ServiceError(code: "PHOTO_IMPORT_TIMEOUT", message: "照片导入等待超过 2 分钟", recovery: "请检查照片选择器和 iCloud 下载后重试，或使用文件配对导入")
         }
         throw ServiceError(code: "PHOTO_WORKER_FAILED", message: "照片后台服务未能完成", recovery: "请重新启动 App 后重试，或改为导出到文件夹")
     }

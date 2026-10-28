@@ -2,7 +2,7 @@ import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { Command, type Child } from '@tauri-apps/plugin-shell'
 
-import type { RenderProject } from './domain'
+import type { LivePhotoSource, RenderProject } from './domain'
 
 export interface VideoInfo {
   path: string
@@ -145,6 +145,8 @@ class LivePhotoService {
     })
   }
 
+  importLivePhotosFromLibrary(signal?: AbortSignal) { return this.request<Array<{ video: VideoInfo; livePhoto: LivePhotoSource }>>('importLivePhotosFromLibrary', {}, undefined, undefined, signal) }
+  pairLivePhotos(paths: string[]) { return this.request<Array<{ video: VideoInfo; livePhoto: LivePhotoSource }>>('pairLivePhotos', { paths }) }
   inspect(path: string) { return this.request<VideoInfo>('inspect', { path }) }
   preparePreview(path: string) { return this.request<PreviewInfo>('preparePreview', { path }) }
   scanFolder(path: string) { return this.request<string[]>('scanFolder', { path }) }

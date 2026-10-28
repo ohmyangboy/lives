@@ -6,15 +6,16 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { CollagePreview } from './components/CollagePreview'
 import { Timeline, TimelineEmpty } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
-import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, clampCoverTimeMs, createRenderProject, formatDuration, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, OUTPUT_DURATION_MS, planFolderSync, templates, videoExtensionPattern, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip } from './domain'
+import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, clampCoverTimeMs, createRenderProject, formatDuration, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, nativeAspectRatio, OUTPUT_DURATION_MS, planFolderSync, templates, videoExtensionPattern, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip, type LivePhotoSource } from './domain'
 import type { TimelineDragMode } from './components/timelineGeometry'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
-import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, RefreshIcon, UpdateIcon, ChevronDownIcon, GithubIcon } from './icons'
+import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, RefreshIcon, UpdateIcon, ChevronDownIcon, GithubIcon, PhotosIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
 import { currentAppVersion, defaultUpdateCoordinator } from './releaseUpdate'
 import { UpdateCapsule } from './components/UpdateCapsule'
 import { AboutModal } from './components/AboutModal'
 import { clearPostUpdateFeedbackFlag, hasPendingPostUpdateFeedback } from './postUpdateFeedback'
+import { prepareFileImport } from './fileImport'
 
 import { loadSystemDiagnosticText } from './systemInfo'
 import xiaohongshuContactImage from './assets/xiaohongshu-contact.jpg'
@@ -293,6 +294,9 @@ export function App() {
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>()
   const [sourceDragFeedback, setSourceDragFeedback] = useState<SourceDragFeedback>()
   const [notice, setNotice] = useState<string>()
+  const [photoImportError, setPhotoImportError] = useState<{ message: string; settings: boolean }>()
+  const [isImportingFromPhotos, setIsImportingFromPhotos] = useState(false)
+  const photoImportBusyRef = useRef(false)
   const [isDragging, setIsDragging] = useState(false)
   const [exportState, setExportState] = useState<ExportState>(initialExport)
   const [exportDestination, setExportDestination] = useState<ExportDestination>('photos')
@@ -306,6 +310,7 @@ export function App() {
   const [slotPlacements, setSlotPlacements] = useState<SlotPlacements>({})
   const [destinationPickerVisible, setDestinationPickerVisible] = useState(false)
   const [importProgress, setImportProgress] = useState<{ done: number; total: number }>()
+  const photoImportAbortRef = useRef<AbortController | undefined>(undefined)
   const [startupPhase, setStartupPhase] = useState<'visible' | 'leaving' | 'hidden'>('visible')
   const [firstRunGuideVisible, setFirstRunGuideVisible] = useState(shouldShowFirstRunGuide)
   const [openHelpPopover, setOpenHelpPopover] = useState<'library' | 'templates'>()
@@ -349,10 +354,15 @@ export function App() {
   const canvas = canvasDimensions({ aspectRatio, quality: exportQuality, customRatio })
   const slotClips = currentTemplate.slots.map((slot) => slotPlacements[slot.id])
   const selectedSlotClip = selectedSlotId ? slotPlacements[selectedSlotId] : undefined
+  const ratioSource = selectedSlotId ? selectedSlotClip : clips.find((clip) => clip.id === selectedMaterialId)
+  const nativeRatio = nativeAspectRatio(ratioSource)
+  useEffect(() => {
+    if (aspectRatio === 'custom') setCustomRatio(nativeAspectRatio(ratioSource))
+  }, [ratioSource?.id, ratioSource?.width, ratioSource?.height, aspectRatio])
   const activeClips = slotClips.filter((clip): clip is SlotClip => Boolean(clip))
   const sourceQuality = analyzeSourceQuality(activeClips.length ? activeClips : clips)
   const cropUpscaleRisk = sourceQuality.effectiveShortEdge < Math.min(canvas.width, canvas.height)
-  const canExport = desktopAvailable() && slotClips.length === currentTemplate.requiredClipCount && slotClips.every((clip): clip is SlotClip => clip !== undefined && clip.durationMs >= MINIMUM_SOURCE_DURATION_MS)
+  const canExport = desktopAvailable() && slotClips.length === currentTemplate.requiredClipCount && slotClips.every((clip): clip is SlotClip => clip !== undefined && clip.durationMs >= (clip.livePhoto ? 1000 : MINIMUM_SOURCE_DURATION_MS))
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -497,11 +507,11 @@ export function App() {
     if (clips.length && !sourceQuality.supports1080p && exportQuality === '1080p') setExportQuality('720p')
   }, [clips.length, exportQuality, sourceQuality.supports1080p])
 
-  const importPaths = useCallback(async (paths: string[], target: Omit<MediaProject, 'clipIds'> = createDefaultProject(), options: { activate?: boolean } = {}): Promise<{ added: number; failed: number; projectClipIds: string[] }> => {
+  const importPaths = useCallback(async (paths: string[], target: Omit<MediaProject, 'clipIds'> = createDefaultProject(), options: { activate?: boolean; livePhotos?: Map<string, { video: Awaited<ReturnType<typeof nativeService.inspect>>; livePhoto: LivePhotoSource }> } = {}): Promise<{ added: number; failed: number; projectClipIds: string[] }> => {
     const existingByPath = new Map(clipsRef.current.filter((clip) => clip.sourcePath).map((clip) => [clip.sourcePath, clip]))
     const supported = [...new Set(paths.filter((path) => videoExtensionPattern.test(path)))]
     if (!supported.length) { setNotice('请选择 MOV、MP4 或 M4V 视频'); return { added: 0, failed: 0, projectClipIds: [] } }
-    const accepted = supported.filter((path) => !existingByPath.has(path))
+    const accepted = supported.filter((path) => !existingByPath.has(path) || (options.livePhotos?.has(path) && !existingByPath.get(path)?.livePhoto))
     setNotice(undefined)
     if (accepted.length) setImportProgress({ done: 0, total: accepted.length })
     const imported = new Array<VideoClip | undefined>(accepted.length)
@@ -514,11 +524,13 @@ export function App() {
         const index = cursor++
         const path = accepted[index]
         try {
-          const info = await nativeService.inspect(path)
-          if (info.durationMs < MINIMUM_SOURCE_DURATION_MS) throw new Error(`${path.split('/').pop() ?? '视频'} 只有 ${formatDuration(info.durationMs)}，至少需要 ${formatDuration(MINIMUM_SOURCE_DURATION_MS)}`)
+          const pair = options.livePhotos?.get(path)
+          const info = pair?.video ?? await nativeService.inspect(path)
+          if (!pair && info.durationMs < MINIMUM_SOURCE_DURATION_MS) throw new Error(`${path.split('/').pop() ?? '视频'} 只有 ${formatDuration(info.durationMs)}，至少需要 ${formatDuration(MINIMUM_SOURCE_DURATION_MS)}`)
           const preview = await nativeService.preparePreview(path)
           imported[index] = {
-            id: crypto.randomUUID(), sourcePath: path, name: path.split('/').pop() ?? '视频', durationMs: info.durationMs,
+            id: existingByPath.get(path)?.id ?? crypto.randomUUID(), sourcePath: path,
+            kind: pair ? 'livePhoto' : 'video', livePhoto: pair?.livePhoto, name: path.split('/').pop() ?? '视频', durationMs: info.durationMs,
             previewPath: preview.transcoded ? preview.path : undefined,
             width: info.width, height: info.height, codec: info.codec, startTimeMs: 0,
             crop: { normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1 }, previewUrl: previewUrlForPath(preview.path),
@@ -534,7 +546,15 @@ export function App() {
     }
     await Promise.all(Array.from({ length: Math.min(4, accepted.length) }, () => worker()))
     const successful = imported.filter((clip): clip is VideoClip => Boolean(clip))
-    if (successful.length) setClips((current) => [...current, ...successful])
+    if (successful.length) {
+      const replacements = new Map(successful.map((clip) => [clip.id, clip]))
+      setClips((current) => [...current.filter((clip) => !replacements.has(clip.id)), ...successful])
+      setSlotPlacements((current) => Object.fromEntries(Object.entries(current).map(([slot, clip]) => {
+        if (!clip) return [slot, clip]
+        const replacement = replacements.get(clip.sourceClipId)
+        return [slot, replacement ? { ...clip, kind: replacement.kind, livePhoto: replacement.livePhoto } : clip]
+      })))
+    }
     setImportProgress(undefined)
     const importedByPath = new Map(successful.map((clip) => [clip.sourcePath, clip]))
     const projectClipIds = supported.flatMap((path) => {
@@ -658,10 +678,60 @@ export function App() {
     }
   }
 
-  const chooseVideos = async () => {
+  const choosePhotosLibrary = async () => {
+    if (photoImportBusyRef.current || importProgressRef.current) return
+    if (!desktopAvailable()) { setNotice('请在 Mac App 中从照片库添加 Live Photo'); return }
+    photoImportBusyRef.current = true
+    const controller = new AbortController()
+    photoImportAbortRef.current = controller
+    let timedOut = false
+    const timeout = window.setTimeout(() => { timedOut = true; controller.abort() }, 120_000)
+    setIsImportingFromPhotos(true)
+    setPhotoImportError(undefined)
+    setNotice(undefined)
+    setImportProgress({ done: 0, total: 1 })
+    try {
+      const pairs = await nativeService.importLivePhotosFromLibrary(controller.signal)
+      window.clearTimeout(timeout)
+      photoImportAbortRef.current = undefined
+      setIsImportingFromPhotos(false)
+      if (pairs.length) {
+        await importPaths(pairs.map((pair) => pair.video.path), createDefaultProject(), { livePhotos: new Map(pairs.map((pair) => [pair.video.path, pair])) })
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        if (timedOut) setPhotoImportError({ message: '照片导入等待超过 2 分钟。请检查照片选择器和 iCloud 下载后重试，或使用文件配对导入。', settings: false })
+        return
+      }
+      const nativeError = error as Error & { code?: string; recovery?: string }
+      setPhotoImportError({
+        message: error instanceof Error ? `${error.message} ${nativeError.recovery ?? ''}` : '无法从照片库导入 Live Photo，请重试',
+        settings: ['PHOTO_READ_DENIED', 'PHOTO_READ_RESTRICTED', 'PHOTO_READ_LIMITED', 'PHOTO_READ_UNAVAILABLE', 'PHOTO_RESOURCE_DOWNLOAD_FAILED'].includes(nativeError.code ?? ''),
+      })
+    } finally {
+      window.clearTimeout(timeout)
+      photoImportAbortRef.current = undefined
+      photoImportBusyRef.current = false
+      setIsImportingFromPhotos(false)
+      setImportProgress(undefined)
+    }
+  }
+
+  const chooseFiles = async () => {
+    if (photoImportBusyRef.current || importProgressRef.current) return
+    setPhotoImportError(undefined)
     if (!desktopAvailable()) { fileInputRef.current?.click(); return }
-    const selected = await open({ multiple: true, directory: false, filters: [{ name: '视频', extensions: ['mov', 'mp4', 'm4v'] }] })
-    if (selected) await importPaths(Array.isArray(selected) ? selected : [selected], createDefaultProject())
+    try {
+      const selected = await open({ title: '选择视频或 Live Photo 原始照片及配对 MOV', multiple: true, directory: false, filters: [{ name: '视频和 Live Photo 文件', extensions: ['mov', 'mp4', 'm4v', 'heic', 'heif', 'jpg', 'jpeg'] }] })
+      if (!selected) return
+      setImportProgress({ done: 0, total: 1 })
+      const prepared = await prepareFileImport(Array.isArray(selected) ? selected : [selected], (paths) => nativeService.pairLivePhotos(paths))
+      await importPaths(prepared.paths, createDefaultProject(), { livePhotos: prepared.livePhotos })
+    } catch (error) {
+      setNotice(error instanceof Error ? `${error.message} ${(error as Error & { recovery?: string }).recovery ?? ''}` : '无法导入 Live Photo，请检查配对文件及读取权限')
+    } finally {
+      setImportProgress(undefined)
+    }
   }
 
   const chooseSourceFolder = async () => {
@@ -706,9 +776,9 @@ export function App() {
     }
   }
 
-  const importVideosFromFirstRunGuide = () => {
+  const importFilesFromFirstRunGuide = () => {
     dismissFirstRunGuide()
-    void chooseVideos()
+    void chooseFiles()
   }
 
   const importFolderFromFirstRunGuide = () => {
@@ -770,6 +840,7 @@ export function App() {
     sourcePointerDragRef.current = { pointerId: event.pointerId, materialId, startX: event.clientX, startY: event.clientY, active: false }
     event.currentTarget.setPointerCapture(event.pointerId)
     setSelectedMaterialId(materialId)
+    setSelectedSlotId(undefined)
   }
 
   const moveSourcePointerDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -1049,15 +1120,14 @@ export function App() {
 
   const selectCustomRatio = () => {
     if (aspectRatio === 'custom') return
-    const preset = aspectRatioOptions.find((option) => option.id === aspectRatio)
-    if (preset) setCustomRatio({ width: preset.width, height: preset.height })
+    setCustomRatio(nativeRatio)
     setAspectRatio('custom')
   }
 
   const updateCustomRatio = (side: 'width' | 'height', raw: string) => {
     const value = Math.round(Number(raw))
     if (!Number.isFinite(value)) return
-    setCustomRatio((current) => ({ ...current, [side]: Math.max(1, Math.min(99, value)) }))
+    setCustomRatio((current) => ({ ...current, [side]: Math.max(1, Math.min(16384, value)) }))
   }
 
   const clampCustomRatio = () => setCustomRatio((current) => normalizeCustomRatio(current))
@@ -1176,7 +1246,7 @@ export function App() {
               <button className="context-help-button" aria-label="查看素材库使用说明" aria-expanded={openHelpPopover === 'library'} aria-controls="library-help-popover" onClick={() => setOpenHelpPopover((current) => current === 'library' ? undefined : 'library')}><InfoIcon /></button>
               {openHelpPopover === 'library' && <div id="library-help-popover" className="context-help-popover library-help-popover">
                 <div><FilmIcon /><p><strong>拖入画格</strong><span>同一素材可以重复使用，每格分别选段；拖动时间线两侧手柄调节整体时长，最长 15 秒。</span></p></div>
-                <div><FolderIcon /><p><strong>只引用原文件</strong><span>不会复制、上传或修改视频。</span></p></div>
+                <div><FolderIcon /><p><strong>添加素材</strong><span>选择视频，或同时选择 Live Photo 的原始照片和配对 MOV；文件导入只引用原文件。</span></p></div>
               </div>}
             </div></div></div></div>
             <div className="media-project-tabs" role="tablist" aria-label="素材项目">
@@ -1185,20 +1255,20 @@ export function App() {
                 <button className="media-project-close" aria-label={`关闭项目 ${project.name}`} onClick={() => closeMediaProject(project.id)}><CloseIcon /></button>
               </div>)}
             </div>
-            {importProgress && <div className="material-import-status" role="progressbar" aria-label="导入视频" aria-valuemin={0} aria-valuemax={importProgress.total} aria-valuenow={importProgress.done}><i style={{ width: `${importProgress.total ? importProgress.done / importProgress.total * 100 : 0}%` }} /><span>正在导入 {importProgress.done} / {importProgress.total}</span></div>}
+            {importProgress && <div className="material-import-status"><i style={{ width: `${importProgress.total ? importProgress.done / importProgress.total * 100 : 0}%` }} /><span role="status">{isImportingFromPhotos ? '正在等待照片选择或 iCloud 原片下载（最长 2 分钟）' : `正在导入 ${importProgress.done} / ${importProgress.total}`}</span>{isImportingFromPhotos && <button onClick={() => photoImportAbortRef.current?.abort()}>取消</button>}</div>}
             <div className="clip-list material-library">
               {activeProjectClips.map((clip, index) => {
                 const materialId = clip.id
-                return <div key={materialId} role="button" tabIndex={0} aria-pressed={materialId === selectedMaterialId} aria-label={`${clip.name}，${formatDuration(clip.durationMs)}`} className={['clip-card', materialId === selectedMaterialId && 'selected', materialId === sourceDragFeedback?.materialId && 'dragging'].filter(Boolean).join(' ')} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && !(event.target as HTMLElement).closest('button')) { event.preventDefault(); setSelectedMaterialId(materialId) } }} onPointerDown={(event) => beginSourcePointerDrag(event, materialId)} onPointerMove={moveSourcePointerDrag} onPointerUp={finishSourcePointerDrag} onPointerCancel={cancelSourcePointerDrag} onContextMenu={(event) => handleClipContextMenu(event, clip)}>
+                return <div key={materialId} role="button" tabIndex={0} aria-pressed={materialId === selectedMaterialId} aria-label={`${clip.name}，${formatDuration(clip.durationMs)}`} className={['clip-card', materialId === selectedMaterialId && 'selected', materialId === sourceDragFeedback?.materialId && 'dragging'].filter(Boolean).join(' ')} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && !(event.target as HTMLElement).closest('button')) { event.preventDefault(); setSelectedMaterialId(materialId); setSelectedSlotId(undefined) } }} onPointerDown={(event) => beginSourcePointerDrag(event, materialId)} onPointerMove={moveSourcePointerDrag} onPointerUp={finishSourcePointerDrag} onPointerCancel={cancelSourcePointerDrag} onContextMenu={(event) => handleClipContextMenu(event, clip)}>
                   <span className="clip-index">{String(index + 1).padStart(2, '0')}</span>
                   <VideoCover src={clip.previewUrl} />
-                  <span className="clip-copy"><strong>{clip.name}</strong><small>{formatDuration(clip.durationMs)} · {clip.width}×{clip.height}</small><em>拖入画面格</em></span>
+                  <span className="clip-copy"><strong>{clip.name}</strong><small>{clip.livePhoto ? 'LIVE · ' : ''}{formatDuration(clip.durationMs)} · {clip.width}×{clip.height}</small><em>拖入画面格</em></span>
                   <button className="remove-clip" aria-label={`移除 ${clip.name}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => removeClip(clip.id)}><CloseIcon /></button>
                 </div>
               })}
-              {!activeProjectClips.length && <div className="project-empty"><FilmIcon /><strong>这个项目还没有视频</strong><span>{activeMediaProject.kind === 'folder' ? '文件夹里的最新视频会同步到这里。' : '添加视频后会显示在这里。'}</span>{activeMediaProject.kind === 'folder' && activeMediaProject.folderPath && <button className="project-empty-action" disabled={isSyncingFolders || Boolean(importProgress)} onClick={() => void syncFolderProjects([activeMediaProject], { silent: false })}><RefreshIcon />重新扫描文件夹</button>}</div>}
+              {!activeProjectClips.length && <div className="project-empty"><FilmIcon /><strong>这个项目还没有素材</strong><span>{activeMediaProject.kind === 'folder' ? '文件夹里的最新视频会同步到这里。' : '添加素材后会显示在这里。'}</span>{activeMediaProject.kind === 'folder' && activeMediaProject.folderPath && <button className="project-empty-action" disabled={isSyncingFolders || Boolean(importProgress)} onClick={() => void syncFolderProjects([activeMediaProject], { silent: false })}><RefreshIcon />重新扫描文件夹</button>}</div>}
             </div>
-            <div className="material-import-actions"><button onClick={() => void chooseVideos()}><PlusIcon />添加视频</button><button onClick={() => void chooseSourceFolder()}><FolderIcon />导入文件夹</button></div>
+            <div className="material-import-actions"><button className="material-import-files" disabled={Boolean(importProgress)} onClick={() => void chooseFiles()} title="选择视频，或选择 Live Photo 原始照片及配对 MOV"><PlusIcon />添加素材</button><button disabled={Boolean(importProgress)} onClick={() => void choosePhotosLibrary()}><PhotosIcon />从照片添加</button><button disabled={Boolean(importProgress)} onClick={() => void chooseSourceFolder()}><FolderIcon />导入文件夹</button></div>
           </aside>
 
           <section className="center-panel">
@@ -1245,7 +1315,7 @@ export function App() {
               <span className="eyebrow">画面比例</span>
               <div className="setting-row"><span><strong>画布方向</strong><small>横竖屏即时切换</small></span><div className="segmented compact" role="group" aria-label="画布方向"><button aria-pressed={effectiveOrientation === 'portrait'} className={effectiveOrientation === 'portrait' ? 'selected' : ''} onClick={() => changeCanvasOrientation('portrait')}>竖屏</button><button aria-pressed={effectiveOrientation === 'landscape'} className={effectiveOrientation === 'landscape' ? 'selected' : ''} onClick={() => changeCanvasOrientation('landscape')}>横屏</button></div></div>
               <div className="setting-row"><span><strong>场景比例</strong><small>同步调整预览与导出</small></span><div className="segmented compact" role="group" aria-label="场景比例">{visibleAspectRatios.map((option) => <button key={option.id} aria-pressed={aspectRatio === option.id} className={aspectRatio === option.id ? 'selected' : ''} onClick={() => setAspectRatio(option.id)}>{option.label}</button>)}<button aria-pressed={aspectRatio === 'custom'} className={aspectRatio === 'custom' ? 'selected' : ''} onClick={selectCustomRatio}>自定义</button></div></div>
-              {aspectRatio === 'custom' && <div className="setting-row custom-ratio-row"><span><strong>自定义比例</strong><small>宽高 1:3 – 3:1 · 导出 {canvas.width} × {canvas.height}</small></span><div className="custom-ratio-inputs"><input type="number" inputMode="numeric" min={1} max={99} value={customRatio.width} aria-label="自定义比例宽度" onChange={(event) => updateCustomRatio('width', event.target.value)} onBlur={clampCustomRatio} /><span className="custom-ratio-divider">:</span><input type="number" inputMode="numeric" min={1} max={99} value={customRatio.height} aria-label="自定义比例高度" onChange={(event) => updateCustomRatio('height', event.target.value)} onBlur={clampCustomRatio} /><button type="button" className="custom-ratio-swap" onClick={() => setCustomRatio((current) => ({ width: current.height, height: current.width }))} aria-label="交换宽高" title="交换宽高">⇄</button></div></div>}
+              {aspectRatio === 'custom' && <div className="setting-row custom-ratio-row"><span><strong>自定义比例</strong><small>宽高 1:3 – 3:1 · 导出 {canvas.width} × {canvas.height}</small></span><div className="custom-ratio-inputs"><input type="number" inputMode="numeric" min={1} max={16384} value={customRatio.width} aria-label="自定义比例宽度" onChange={(event) => updateCustomRatio('width', event.target.value)} onBlur={clampCustomRatio} /><span className="custom-ratio-divider">:</span><input type="number" inputMode="numeric" min={1} max={16384} value={customRatio.height} aria-label="自定义比例高度" onChange={(event) => updateCustomRatio('height', event.target.value)} onBlur={clampCustomRatio} /><button type="button" className="custom-ratio-swap" onClick={() => setCustomRatio((current) => ({ width: current.height, height: current.width }))} aria-label="交换宽高" title="交换宽高">⇄</button><button type="button" disabled={!ratioSource} onClick={() => setCustomRatio(nativeRatio)} title="恢复当前选中素材的原始比例（限 1:3 – 3:1）">重置</button></div></div>}
             </div>
             <div className="template-list config-templates">
               <div className="section-label-with-help"><span className="eyebrow">拼贴模板</span><div ref={templateHelpRef} className="context-help-anchor">
@@ -1273,16 +1343,17 @@ export function App() {
           <span className="first-run-mark" aria-hidden="true"><LiveIcon /></span>
           <span className="eyebrow">欢迎使用 Lives</span>
           <h2 id="first-run-title">导入素材，开始拼贴</h2>
-          <p id="first-run-description">添加视频，或按文件夹创建素材项目。所有处理都在这台 Mac 上完成。</p>
+          <p id="first-run-description">添加视频或 Live Photo，或按文件夹创建素材项目。所有处理都在这台 Mac 上完成。</p>
           <div className="first-run-actions">
-            <button ref={firstRunPrimaryRef} className="first-run-primary" onClick={importVideosFromFirstRunGuide}><PlusIcon /><span><strong>添加视频</strong><small>选择一个或多个视频</small></span></button>
+            <button ref={firstRunPrimaryRef} className="first-run-primary" onClick={importFilesFromFirstRunGuide}><PlusIcon /><span><strong>添加素材</strong><small>选择视频或 Live Photo 配对文件</small></span></button>
             <button className="first-run-secondary" onClick={importFolderFromFirstRunGuide}><FolderIcon /><span><strong>导入文件夹</strong><small>按文件夹创建素材项目</small></span></button>
           </div>
           <small className="first-run-privacy">只引用原文件，不复制、不上传、不修改</small>
         </div>
       </div>}
 
-      {notice && <div className="toast" role="status"><span>!</span>{notice}<button aria-label="关闭通知" onClick={() => setNotice(undefined)}><CloseIcon /></button></div>}
+      {photoImportError && <div className="toast photo-import-toast" role="alert"><span>!</span><div>{photoImportError.message}</div>{photoImportError.settings && <button onClick={() => void nativeService.openPhotoPrivacySettings().catch(() => setPhotoImportError({ message: '无法打开系统设置，请手动前往隐私与安全性 → 照片', settings: false }))}>打开隐私设置</button>}<button aria-label="关闭照片导入提示" onClick={() => setPhotoImportError(undefined)}><CloseIcon /></button></div>}
+      {!photoImportError && notice && <div className="toast" role="status"><span>!</span>{notice}<button aria-label="关闭通知" onClick={() => setNotice(undefined)}><CloseIcon /></button></div>}
       {sourceDragFeedback && <div className={sourceDragFeedback.overSlotId ? 'source-drag-ghost over-target' : 'source-drag-ghost'} style={{ left: sourceDragFeedback.x, top: sourceDragFeedback.y }} aria-hidden="true">
         <video src={sourceDragFeedback.previewUrl} muted preload="metadata" />
         <span><strong>{sourceDragFeedback.name}</strong><small>{sourceDragFeedback.overSlotId ? '松开，放入此画面格' : '拖到中间的画面格'}</small></span>

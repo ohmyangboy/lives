@@ -303,11 +303,12 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .media-project-select { min-width: 0; height: 100%; display: flex; align-items: center; gap: 6px; padding: 0 7px 0 9px; border: 0; color: inherit; background: transparent; cursor: pointer; }
 .media-project-select span { max-width: 100px; overflow: hidden; font-size: 10px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }.media-project-select b { color: #817c73; font-family: 'SFMono-Regular', 'Menlo', monospace; font-size: 8px; }.media-project-tab.selected .media-project-select b { color: rgba(27,21,10,.6); }
 .media-project-close { width: 24px; height: 100%; display: grid; place-items: center; flex: none; padding: 0; border: 0; border-left: 1px solid rgba(255,255,255,.06); color: #68645d; background: transparent; cursor: pointer; }.media-project-tab.selected .media-project-close { border-left-color: rgba(27,21,10,.12); color: rgba(27,21,10,.62); }.media-project-close:hover { color: #f0e9db; background: rgba(0,0,0,.16); }.media-project-close svg { width: 10px; }
-.material-import-status { position: relative; flex: none; height: 20px; overflow: hidden; display: grid; place-items: center; margin-top: 5px; border-radius: 6px; color: #2a210f; background: #8e6f31; font-size: 7px; }.material-import-status i { position: absolute; inset: 0 auto 0 0; background: var(--amber); transition: width .16s linear; }.material-import-status span { position: relative; z-index: 1; }
+.material-import-status { position: relative; flex: none; min-height: 24px; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 2px 4px; margin-top: 5px; border-radius: 6px; color: #2a210f; background: #8e6f31; font-size: 9px; }.material-import-status i { position: absolute; inset: 0 auto 0 0; background: var(--amber); transition: width .16s linear; }.material-import-status span { position: relative; z-index: 1; }.material-import-status button { position: relative; z-index: 1; flex: none; border: 0; border-radius: 4px; padding: 2px 5px; color: #2a210f; background: rgba(255,255,255,.35); cursor: pointer; font-size: 9px; }
 .material-library { min-height: 0; flex: 1; align-content: start; margin-top: 7px; overflow-y: auto; padding-right: 3px; scrollbar-width: thin; scrollbar-color: #4a4439 transparent; }
 .material-library::-webkit-scrollbar { width: 4px; }.material-library::-webkit-scrollbar-thumb { border-radius: 99px; background: #4a4439; }
 .project-empty { min-height: 128px; display: grid; place-items: center; place-content: center; gap: 7px; padding: 16px; color: #817d75; text-align: center; }.project-empty svg { width: 23px; }.project-empty strong { color: #aaa49a; font-size: 10px; }.project-empty span { max-width: 160px; font-size: 9px; line-height: 1.5; }
 .material-import-actions { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }.material-import-actions button { min-height: 36px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px dashed rgba(255,255,255,.15); border-radius: 8px; color: #aaa49a; background: rgba(255,255,255,.02); cursor: pointer; font-size: 10px; transition: .15s ease; }.material-import-actions button:hover { color: var(--amber-soft); border-color: rgba(244,185,66,.48); background: rgba(244,185,66,.04); }.material-import-actions button:active { transform: scale(.98); }.material-import-actions svg { width: 13px; }
+.material-import-actions .material-import-files { grid-column: 1 / -1; }
 
 .panel-title-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 .library-sync-button.syncing svg { animation: library-sync-spin .9s linear infinite; }
@@ -856,3 +857,9 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
   width: 14px;
   height: 14px;
 }
+
+.custom-ratio-inputs button:last-child { flex: none; padding: 0 7px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: var(--amber-soft); cursor: pointer; font-size: 11px; }
+.custom-ratio-inputs button:disabled { opacity: .4; cursor: default; }
+
+.photo-import-toast { max-width: min(760px, calc(100vw - 32px)); grid-template-columns: 24px 1fr auto auto; }
+.photo-import-toast button { color: var(--amber-soft); white-space: nowrap; }
