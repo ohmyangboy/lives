@@ -67,11 +67,11 @@ Skip the steep learning curve of complex NLE editors. Media library, canvas, and
 The current stable release for macOS is [`0.1.16`](https://github.com/ohmyangboy/lives/releases/tag/v0.1.16). This release introduces film cartridge & loupe keyframe controls, flexible 1–15 second duration adjustments, end-frame padding for shorter clips, refreshed official branding, and quick access to Lives Mobile within the feedback panel.
 
 #### Getting Started in Three Steps
-1. **Download DMG**: Grab the Apple Silicon DMG from the [v0.1.16 Release Page](https://github.com/ohmyangboy/lives/releases/tag/v0.1.16) and verify the accompanying SHA-256 checksum.
+1. **Download DMG**: Grab the Apple Silicon DMG from the [v0.1.17 Release Page](https://github.com/ohmyangboy/lives/releases/tag/v0.1.17) and verify the accompanying SHA-256 checksum.
 2. **Drag to Applications**: Mount the DMG and drag Lives into your `/Applications` directory.
 3. **Launch & Authorize**: Quit any previous instances and launch Lives from Applications (do not run directly from the mounted volume). When saving to Photos, grant the requested "Add Photos Only" permission.
 
-See [Release Notes](docs/releases/0.1.16.md) and [Verification Log](docs/releases/0.1.16-verification.md).
+See [Release Notes](docs/releases/0.1.17.md).
 
 #### Code Signing, Notarization & Security
 - Every official build is signed with **Developer ID Application: Yonghao Yang (LGKLTGNTY2)** and stapled with **Apple Notary Service** approval.
