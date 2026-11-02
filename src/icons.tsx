@@ -1,4 +1,6 @@
 import type { SVGProps } from 'react'
+import systemPhotosIcon from './assets/system-icons/photos.png'
+import systemFolderIcon from './assets/system-icons/folder.png'
 
 const Icon = ({ children, ...props }: SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>{children}</svg>
@@ -14,13 +16,13 @@ export const ExportIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><
 export const FilmIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M7 5v14M17 5v14M3 9h4M17 9h4M3 15h4M17 15h4" /></Icon>
 export const CloseIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="m7 7 10 10M17 7 7 17" /></Icon>
 export const ClearIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M4 7h16M10 11v5M14 11v5M9 7l1-3h4l1 3M6 7l1 13h10l1-13" /></Icon>
-export const FolderIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M3 7.5h7l2-2h9v13H3v-11Z" /></Icon>
+export const FolderIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><image href={systemFolderIcon} width="24" height="24" /></Icon>
 export const InfoIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5h.01" /></Icon>
 export const CheckIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="m5 12 4 4L19 6" /></Icon>
 export const UpdateIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></Icon>
 export const FeedbackIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></Icon>
 export const IssueIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><circle cx="12" cy="12" r="9" /><path d="M12 7v6M12 17h.01" /></Icon>
-export const PhotosIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><circle cx="12" cy="12" r="2" /><path d="M12 4c2-3 6 0 4 3 4-1 5 4 2 5 3 2 1 6-2 5 1 4-4 5-5 2-2 3-6 1-5-2-4 1-5-4-2-5-3-2-1-6 2-5 0-4 5-5 6-1Z" /></Icon>
+export const PhotosIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><image href={systemPhotosIcon} width="24" height="24" /></Icon>
 export const ChevronDownIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="m6 9 6 6 6-6" /></Icon>
 export const CopyIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></Icon>
 export const GithubIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" /><path d="M9 18c-4.51 2-5-2-7-2" /></Icon>

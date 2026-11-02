@@ -40,7 +40,7 @@ export function ExportOverlay({ state, stage, progress, message, recovery, error
   const modalRef = useModalFocus(state === 'running' ? undefined : onClose)
   return (
     <div ref={modalRef} className="overlay" role="dialog" aria-modal="true" aria-labelledby="export-status-title">
-      <div className="export-card">
+      <div className={`export-card${state === 'success' ? ' export-card-success' : ''}`}>
         {state !== 'running' && <button className="overlay-close" onClick={onClose} aria-label="关闭"><CloseIcon /></button>}
         {state === 'running' && <>
           <div className="processing-orbit" aria-hidden="true" />
@@ -51,11 +51,15 @@ export function ExportOverlay({ state, stage, progress, message, recovery, error
           <button className="secondary-button" onClick={onCancel}>{stage === 'resettingPhotoPermission' ? '取消恢复' : '取消生成'}</button>
         </>}
         {state === 'success' && <>
-          <div className="result-icon success"><CheckIcon /></div>
-          <h2 id="export-status-title">{destination === 'photos' ? '已保存到照片' : '配对文件已保存'}</h2>
-          <p>{destination === 'photos' ? '已保存为 Mac“照片”中的 Live Photo。开启 iCloud 照片后可同步到 iPhone。' : 'JPG 封面与 MOV 动态资源已配对保存。将两份文件同时拖入 Mac“照片”可合成 Live Photo，或保留在同一文件夹中。'}</p>
-          <button className="primary-button wide" onClick={onRevealResult}>{destination === 'photos' ? <><PhotosIcon />打开“照片”</> : <><FolderIcon />在 Finder 中显示</>}</button>
-          <button className="text-button" onClick={onClose}>继续编辑</button>
+          <div className="export-success-heading">
+            <div className="result-icon success"><CheckIcon /></div>
+            <h2 id="export-status-title">{destination === 'photos' ? '已保存到照片' : '配对文件已保存'}</h2>
+          </div>
+          <p>{destination === 'photos' ? 'Live Photo 已保存，开启 iCloud 照片可同步到 iPhone。' : 'JPG 与 MOV 已保存。将两份文件同时导入“照片”即可查看 Live Photo。'}</p>
+          <div className="export-success-actions">
+            <button className="secondary-button" onClick={onClose}>继续编辑</button>
+            <button className="primary-button" onClick={onRevealResult}>{destination === 'photos' ? <><PhotosIcon />打开“照片”</> : <><FolderIcon />在 Finder 中显示</>}</button>
+          </div>
         </>}
         {state === 'error' && isDenied && !downgraded && <>
           <div className="result-icon permission"><PhotosIcon /></div>
