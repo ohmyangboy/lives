@@ -9,7 +9,7 @@ import { ExportOverlay } from './components/ExportOverlay'
 import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, clampCoverTimeMs, createRenderProject, formatDuration, imageExtensionPattern, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, nativeAspectRatio, OUTPUT_DURATION_MS, planFolderSync, templates, videoExtensionPattern, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip, type LivePhotoSource } from './domain'
 import type { TimelineDragMode } from './components/timelineGeometry'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
-import { ClearIcon, CloseIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, RefreshIcon, UpdateIcon, ChevronDownIcon, GithubIcon, PhotosIcon } from './icons'
+import { CloseIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, RefreshIcon, UpdateIcon, ChevronDownIcon, GithubIcon, PhotosIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
 import { currentAppVersion, defaultUpdateCoordinator } from './releaseUpdate'
 import { UpdateCapsule } from './components/UpdateCapsule'
@@ -1275,7 +1275,6 @@ export function App() {
         <div className="project-meta" title={`${canExport ? '可导出' : '待填充'} · ${projectSummary}`}><span className={canExport ? 'status-dot active' : 'status-dot'} /><span className="project-readiness">{canExport ? '可导出' : '待填充'}</span><span className="project-summary">{projectSummary}</span></div>
         <div className="titlebar-actions">
           <div className="update-slot"><UpdateCapsule coordinator={defaultUpdateCoordinator} /></div>
-          <button className="titlebar-icon-button" disabled={!canClearCollage} onClick={clearCollage} title="清除拼贴（保留素材）" aria-label="清除拼贴，保留素材"><ClearIcon /></button>
           <div className="feedback-menu-anchor" ref={feedbackPopoverRef}>
             <button className="titlebar-icon-button" onClick={() => { startupFeedbackPendingRef.current = false; clearPostUpdateFeedbackFlag(); setFeedbackPhase((current) => current === 'manual' ? 'closed' : 'manual') }} aria-expanded={feedbackPopoverOpen} aria-controls="feedback-popover" aria-label="反馈与支持" title="反馈与支持"><FeedbackIcon /></button>
             {feedbackPopoverOpen && <div className={`feedback-popover${feedbackPhase === 'leaving' ? ' feedback-popover-leaving' : ''}`} id="feedback-popover" role="dialog" aria-label="反馈与联系" onPointerDown={() => setFeedbackPhase('manual')} onFocusCapture={() => setFeedbackPhase('manual')}>
@@ -1316,6 +1315,7 @@ export function App() {
             </div>}
           </div>
           <button className="titlebar-icon-button live-export-button" disabled={!canExport} onClick={requestExport} title={canExport ? '生成 Live Photo' : '请先填充所有画格'} aria-label="生成 Live Photo"><LiveIcon /></button>
+          <button className="titlebar-icon-button" disabled={!canClearCollage} onClick={clearCollage} title="重置拼贴（保留素材）" aria-label="重置拼贴，保留素材"><RefreshIcon /></button>
         </div>
       </header>
 
