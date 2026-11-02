@@ -1276,7 +1276,7 @@ export function App() {
         <div className="titlebar-actions">
           <div className="update-slot"><UpdateCapsule coordinator={defaultUpdateCoordinator} /></div>
           <div className="feedback-menu-anchor" ref={feedbackPopoverRef}>
-            <button className="titlebar-icon-button" onClick={() => { startupFeedbackPendingRef.current = false; clearPostUpdateFeedbackFlag(); setFeedbackPhase((current) => current === 'manual' ? 'closed' : 'manual') }} aria-expanded={feedbackPopoverOpen} aria-controls="feedback-popover" aria-label="反馈与支持" title="反馈与支持">反馈</button>
+            <button className="titlebar-icon-button" onClick={() => { startupFeedbackPendingRef.current = false; clearPostUpdateFeedbackFlag(); setFeedbackPhase((current) => current === 'manual' ? 'closed' : 'manual') }} aria-expanded={feedbackPopoverOpen} aria-controls="feedback-popover" aria-label="反馈与支持" title="反馈与支持"><FeedbackIcon />反馈</button>
             {feedbackPopoverOpen && <div className={`feedback-popover${feedbackPhase === 'leaving' ? ' feedback-popover-leaving' : ''}`} id="feedback-popover" role="dialog" aria-label="反馈与联系" onPointerDown={() => setFeedbackPhase('manual')} onFocusCapture={() => setFeedbackPhase('manual')}>
               <div className="feedback-popover-heading"><span className="eyebrow">反馈与联系</span><strong>当前版本 {currentAppVersion}，欢迎给我反馈👏</strong></div>
               <div className="feedback-channel-list">
@@ -1314,8 +1314,8 @@ export function App() {
               <small className="feedback-privacy-note">发送截图或日志前，请先移除私人素材和个人信息。</small>
             </div>}
           </div>
-          <button className="titlebar-icon-button live-export-button" disabled={!canExport} onClick={requestExport} title={canExport ? '生成 Live Photo' : '请先填充所有画格'} aria-label="生成 Live Photo">导出</button>
-          <button className="titlebar-icon-button" disabled={!canClearCollage} onClick={clearCollage} title="重置拼贴（保留素材）" aria-label="重置拼贴，保留素材">重置</button>
+          <button className="titlebar-icon-button" disabled={!canClearCollage} onClick={clearCollage} title="重置拼贴（保留素材）" aria-label="重置拼贴，保留素材"><RefreshIcon />重置</button>
+          <button className="titlebar-icon-button live-export-button" disabled={!canExport} onClick={requestExport} title={canExport ? '生成 Live Photo' : '请先填充所有画格'} aria-label="生成 Live Photo"><LiveIcon />导出</button>
         </div>
       </header>
 

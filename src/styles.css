@@ -878,7 +878,7 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .update-slot { width: 168px; display: flex; justify-content: flex-end; flex: none; }
 .current-version { border-color: transparent; background: transparent; box-shadow: none; color: #a9a296; cursor: pointer; font-variant-numeric: tabular-nums; font-weight: 500; }
 .current-version:hover { color: var(--paper); background: rgba(255,255,255,.06); }
-.titlebar-icon-button { min-width: 50px; height: 32px; flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0 10px; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: #c8c1b5; font-size: 12px; font-weight: 600; background: rgba(255,255,255,.045); cursor: pointer; transition: background .2s ease, border-color .2s ease, color .2s ease; }
+.titlebar-icon-button { min-width: 50px; gap: 6px; height: 32px; flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0 10px; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: #c8c1b5; font-size: 12px; font-weight: 600; background: rgba(255,255,255,.045); cursor: pointer; transition: background .2s ease, border-color .2s ease, color .2s ease; }
 .titlebar-icon-button svg { width: 16px; height: 16px; }
 .titlebar-icon-button:hover:not(:disabled), .titlebar-icon-button[aria-expanded="true"] { color: var(--paper); border-color: rgba(255,255,255,.3); background: rgba(255,255,255,.1); }
 .titlebar-icon-button:disabled { opacity: .35; cursor: not-allowed; }
