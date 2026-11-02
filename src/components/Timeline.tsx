@@ -29,20 +29,18 @@ export function TimelineEmpty() {
   return (
     <section className="timeline-panel timeline-empty" aria-label="空时间线">
       <div className="timeline-heading">
-        <div><span className="eyebrow">时间线</span><strong>未选中画面</strong></div>
-        <span>选择画格后调节 Live 时长，最长 15 秒</span>
+        <div><strong>时间线</strong></div>
       </div>
       <div className="timeline-workbench">
-        <div className="timeline-toolbar">
+        <div className="timeline-toolbar" title="⌘ / Ctrl + 滚轮缩放时间线；拖动选区两侧手柄调节所有画格的时长，范围 1–15 秒。">
           <span>时间线缩放</span>
           <button aria-label="缩小时间线" disabled>−</button>
           <output>100%</output>
           <button aria-label="放大时间线" disabled>＋</button>
-          <small>⌘ / Ctrl + 滚轮</small>
         </div>
         <div className="timeline-viewport timeline-empty-viewport" aria-hidden="true">
           <div className="timeline-empty-grid" />
-          <div className="timeline-empty-guide"><FilmIcon /><span>选择画格，拖动选区两侧调节时长</span></div>
+          <div className="timeline-empty-guide"><FilmIcon /><span>选择画格后调整时长</span></div>
         </div>
       </div>
       <div className="timeline-scale"><span>0:00</span><span>—</span><span>—</span></div>
@@ -358,17 +356,16 @@ export function Timeline({ clip, outputDurationMs, onChange, onEditingChange }: 
   return (
     <section className="timeline-panel">
       <div className="timeline-heading">
-        <div><span className="eyebrow">当前片段</span><strong>{clip.name}</strong></div>
+        <div><span className="eyebrow">当前片段</span><strong title={clip.name}>{clip.name}</strong></div>
         <span>{selectionDescription}</span>
       </div>
       <div className="timeline-workbench">
         {durationNotice && <div className="timeline-duration-toast" role="status">{durationNotice.message}</div>}
-        <div className="timeline-toolbar">
-          <span title="选区整体平移；拖动两侧手柄调节所有画格的 Live 时长">两侧调节时长 · 1–15 秒</span>
+        <div className="timeline-toolbar" title="⌘ / Ctrl + 滚轮缩放；拖动选区整体平移，拖动两侧手柄调节所有画格的时长，范围 1–15 秒。">
+          <span>所有画格 · {(outputDurationMs / 1000).toFixed(1)} 秒</span>
           <button aria-label="缩小时间线" disabled={isDragging || zoom <= MIN_ZOOM} onClick={() => updateZoom(zoom - .25)}>−</button>
           <output>{Math.round(zoom * 100)}%</output>
           <button aria-label="放大时间线" disabled={isDragging || zoom >= MAX_ZOOM} onClick={() => updateZoom(zoom + .25)}>＋</button>
-          <small>⌘ / Ctrl + 滚轮</small>
         </div>
         <div className="timeline-viewport" ref={viewportRef} onWheel={handleWheel} onScroll={(event) => {
           const viewport = event.currentTarget

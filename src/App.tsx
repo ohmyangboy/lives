@@ -1237,7 +1237,7 @@ export function App() {
     await exportProject(pickerDestination)
   }
 
-  const projectSummary = useMemo(() => clips.length ? `${clips.length} 段素材 · ${(outputDurationMs / 1000).toFixed(1)} 秒 · ${canvas.width} × ${canvas.height}` : '本地处理，不上传视频', [clips.length, canvas.width, canvas.height, outputDurationMs])
+  const projectSummary = useMemo(() => `画格 ${activeClips.length}/${currentTemplate.requiredClipCount} · ${(outputDurationMs / 1000).toFixed(1)}s · ${canvas.width} × ${canvas.height}`, [activeClips.length, currentTemplate.requiredClipCount, canvas.width, canvas.height, outputDurationMs])
   const canClearCollage = Boolean(Object.keys(slotPlacements).length || selectedSlotId || selectedMaterialId || coverTimeMs !== 1500 || outputDurationMs !== OUTPUT_DURATION_MS)
 
   return (
@@ -1248,7 +1248,7 @@ export function App() {
         <div className="brand-menu-anchor" ref={appMenuRef}>
           <button className="brand-menu-button" onClick={() => setAppMenuOpen((current) => !current)} aria-expanded={appMenuOpen} aria-controls="app-menu-popover" title="展开 Lives 应用菜单">
             <span className="brand-mark"><img src={livesMacIcon} alt="" /></span>
-            <div><strong>Lives</strong><small>实况拼贴</small></div>
+            <strong>Lives</strong>
             <ChevronDownIcon className="brand-chevron" />
           </button>
           {appMenuOpen && <div className="app-menu-popover" id="app-menu-popover" role="menu" aria-label="Lives 应用程序菜单">
@@ -1270,13 +1270,18 @@ export function App() {
               <GithubIcon />
               <span>GitHub 仓库</span>
             </button>
+            <div className="app-menu-divider" />
+            <button className="app-menu-item clear-collage-menu-item" role="menuitem" disabled={!canClearCollage} onClick={() => { setAppMenuOpen(false); clearCollage() }} title="保留素材，仅清除当前拼贴">
+              <ClearIcon />
+              <span>清除拼贴<small>保留素材，仅清除当前拼贴</small></span>
+            </button>
           </div>}
         </div>
-        <div className="project-meta"><span className={clips.length ? 'status-dot active' : 'status-dot'} />{projectSummary}</div>
+        <div className="project-meta" title={`${canExport ? '可导出' : '待填充'} · ${projectSummary}`}><span className={canExport ? 'status-dot active' : 'status-dot'} /><span className="project-readiness">{canExport ? '可导出' : '待填充'}</span><span className="project-summary">{projectSummary}</span></div>
         <div className="titlebar-actions">
-          <UpdateCapsule coordinator={defaultUpdateCoordinator} />
+          <div className="update-slot"><UpdateCapsule coordinator={defaultUpdateCoordinator} /></div>
           <div className="feedback-menu-anchor" ref={feedbackPopoverRef}>
-            <button className="feedback-button" onClick={() => { startupFeedbackPendingRef.current = false; clearPostUpdateFeedbackFlag(); setFeedbackPhase((current) => current === 'manual' ? 'closed' : 'manual') }} aria-expanded={feedbackPopoverOpen} aria-controls="feedback-popover" title="联系 Lives"><FeedbackIcon />反馈</button>
+            <button className="feedback-button" onClick={() => { startupFeedbackPendingRef.current = false; clearPostUpdateFeedbackFlag(); setFeedbackPhase((current) => current === 'manual' ? 'closed' : 'manual') }} aria-expanded={feedbackPopoverOpen} aria-controls="feedback-popover" aria-label="反馈与支持" title="反馈与支持"><FeedbackIcon /></button>
             {feedbackPopoverOpen && <div className={`feedback-popover${feedbackPhase === 'leaving' ? ' feedback-popover-leaving' : ''}`} id="feedback-popover" role="dialog" aria-label="反馈与联系" onPointerDown={() => setFeedbackPhase('manual')} onFocusCapture={() => setFeedbackPhase('manual')}>
               <div className="feedback-popover-heading"><span className="eyebrow">反馈与联系</span><strong>当前版本 {currentAppVersion}，欢迎给我反馈👏</strong></div>
               <div className="feedback-channel-list">
@@ -1314,14 +1319,13 @@ export function App() {
               <small className="feedback-privacy-note">发送截图或日志前，请先移除私人素材和个人信息。</small>
             </div>}
           </div>
-          <button className="clear-project" disabled={!canClearCollage} onClick={clearCollage} title="保留素材，仅清除当前拼贴"><ClearIcon />清除拼贴</button>
-          <button className="primary-button" disabled={!clips.length} onClick={requestExport}><ExportIcon />生成 Live Photo</button>
+          <button className="primary-button" disabled={!clips.length} onClick={requestExport} title="生成并导出 Live Photo" aria-label="生成并导出 Live Photo"><ExportIcon />导出…</button>
         </div>
       </header>
 
       <div className="workspace has-timeline">
           <aside className="left-panel">
-            <div className="panel-heading material-panel-heading"><span className="eyebrow">01 / 素材</span><div className="panel-title-row"><h2>视频素材库</h2><div className="panel-title-actions">
+            <div className="panel-heading material-panel-heading"><div className="panel-title-row"><h2>素材</h2><div className="panel-title-actions">
               {activeMediaProject.kind === 'folder' && activeMediaProject.folderPath && <button className={isSyncingFolders ? 'context-help-button library-sync-button syncing' : 'context-help-button library-sync-button'} aria-label="重新扫描文件夹，同步最新视频" title="重新扫描文件夹，同步最新视频" disabled={isSyncingFolders || Boolean(importProgress)} onClick={() => void syncFolderProjects([activeMediaProject], { silent: false })}><RefreshIcon /></button>}
               <div ref={libraryHelpRef} className="context-help-anchor">
               <button className="context-help-button" aria-label="查看素材库使用说明" aria-expanded={openHelpPopover === 'library'} aria-controls="library-help-popover" onClick={() => setOpenHelpPopover((current) => current === 'library' ? undefined : 'library')}><InfoIcon /></button>
@@ -1338,12 +1342,11 @@ export function App() {
             </div>
             {importProgress && <div className="material-import-status"><i style={{ width: `${importProgress.total ? importProgress.done / importProgress.total * 100 : 0}%` }} /><span role="status">{isImportingFromPhotos ? '正在等待照片选择或 iCloud 原片下载（最长 2 分钟）' : `正在导入 ${importProgress.done} / ${importProgress.total}`}</span>{isImportingFromPhotos && <button onClick={() => photoImportAbortRef.current?.abort()}>取消</button>}</div>}
             <div className="clip-list material-library">
-              {activeProjectClips.map((clip, index) => {
+              {activeProjectClips.map((clip) => {
                 const materialId = clip.id
-                return <div key={materialId} role="button" tabIndex={0} aria-pressed={materialId === selectedMaterialId} aria-label={`${clip.name}，${formatDuration(clip.durationMs)}`} className={['clip-card', materialId === selectedMaterialId && 'selected', materialId === sourceDragFeedback?.materialId && 'dragging'].filter(Boolean).join(' ')} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && !(event.target as HTMLElement).closest('button')) { event.preventDefault(); setSelectedMaterialId(materialId); setSelectedSlotId(undefined) } }} onPointerDown={(event) => beginSourcePointerDrag(event, materialId)} onPointerMove={moveSourcePointerDrag} onPointerUp={finishSourcePointerDrag} onPointerCancel={cancelSourcePointerDrag} onContextMenu={(event) => handleClipContextMenu(event, clip)}>
-                  <span className="clip-index">{String(index + 1).padStart(2, '0')}</span>
+                return <div key={materialId} role="button" tabIndex={0} title={clip.name} aria-pressed={materialId === selectedMaterialId} aria-label={`${clip.name}，${formatDuration(clip.durationMs)}`} className={['clip-card', materialId === selectedMaterialId && 'selected', materialId === sourceDragFeedback?.materialId && 'dragging'].filter(Boolean).join(' ')} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && !(event.target as HTMLElement).closest('button')) { event.preventDefault(); setSelectedMaterialId(materialId); setSelectedSlotId(undefined) } }} onPointerDown={(event) => beginSourcePointerDrag(event, materialId)} onPointerMove={moveSourcePointerDrag} onPointerUp={finishSourcePointerDrag} onPointerCancel={cancelSourcePointerDrag} onContextMenu={(event) => handleClipContextMenu(event, clip)}>
                   <VideoCover src={clip.previewUrl} />
-                  <span className="clip-copy"><strong>{clip.name}</strong><small>{clip.livePhoto ? 'LIVE · ' : ''}{formatDuration(clip.durationMs)} · {clip.width}×{clip.height}</small><em>拖入画面格</em></span>
+                  <span className="clip-copy" title={clip.name}><strong>{clip.name}</strong><small>{clip.livePhoto && <b className="material-live-badge">LIVE</b>}{formatDuration(clip.durationMs)} · {clip.width}×{clip.height}</small></span>
                   <button className="remove-clip" aria-label={`移除 ${clip.name}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => removeClip(clip.id)}><CloseIcon /></button>
                 </div>
               })}
@@ -1353,7 +1356,7 @@ export function App() {
           </aside>
 
           <section className="center-panel">
-            <div className="stage-heading"><div><span className="eyebrow">02 / 构图</span><h2>画布预览</h2></div></div>
+            <div className="stage-heading"><h2>画布</h2></div>
             <CollagePreview
               clips={slotClips}
               template={currentTemplate}
@@ -1394,11 +1397,10 @@ export function App() {
           </section>
 
           <aside className="right-panel">
-            <div className="panel-heading"><span className="eyebrow">03 / 配置</span><h2>拼贴设置</h2></div>
+            <div className="panel-heading"><h2>拼贴设置</h2></div>
             <div className="video-settings aspect-settings">
-              <span className="eyebrow">画面比例</span>
-              <div className="setting-row"><span><strong>画布方向</strong><small>横竖屏即时切换</small></span><div className="segmented compact" role="group" aria-label="画布方向"><button aria-pressed={effectiveOrientation === 'portrait'} className={effectiveOrientation === 'portrait' ? 'selected' : ''} onClick={() => changeCanvasOrientation('portrait')}>竖屏</button><button aria-pressed={effectiveOrientation === 'landscape'} className={effectiveOrientation === 'landscape' ? 'selected' : ''} onClick={() => changeCanvasOrientation('landscape')}>横屏</button></div></div>
-              <div className="setting-row"><span><strong>场景比例</strong><small>同步调整预览与导出</small></span><div className="segmented compact" role="group" aria-label="场景比例">{visibleAspectRatios.map((option) => <button key={option.id} aria-pressed={aspectRatio === option.id} className={aspectRatio === option.id ? 'selected' : ''} onClick={() => setAspectRatio(option.id)}>{option.label}</button>)}<button aria-pressed={aspectRatio === 'custom'} className={aspectRatio === 'custom' ? 'selected' : ''} onClick={selectCustomRatio}>自定义</button></div></div>
+              <div className="setting-row"><span><strong>方向</strong></span><div className="segmented compact" role="group" aria-label="画布方向"><button aria-pressed={effectiveOrientation === 'portrait'} className={effectiveOrientation === 'portrait' ? 'selected' : ''} onClick={() => changeCanvasOrientation('portrait')}>竖屏</button><button aria-pressed={effectiveOrientation === 'landscape'} className={effectiveOrientation === 'landscape' ? 'selected' : ''} onClick={() => changeCanvasOrientation('landscape')}>横屏</button></div></div>
+              <div className="setting-row"><span><strong>比例</strong></span><div className="segmented compact" role="group" aria-label="场景比例">{visibleAspectRatios.map((option) => <button key={option.id} aria-pressed={aspectRatio === option.id} className={aspectRatio === option.id ? 'selected' : ''} onClick={() => setAspectRatio(option.id)}>{option.label}</button>)}<button aria-pressed={aspectRatio === 'custom'} className={aspectRatio === 'custom' ? 'selected' : ''} onClick={selectCustomRatio}>自定义</button></div></div>
               {aspectRatio === 'custom' && <div className="setting-row custom-ratio-row"><span><strong>自定义比例</strong><small>宽高 1:3 – 3:1 · 导出 {canvas.width} × {canvas.height}</small></span><div className="custom-ratio-inputs"><input type="number" inputMode="numeric" min={1} max={16384} value={customRatio.width} aria-label="自定义比例宽度" onChange={(event) => updateCustomRatio('width', event.target.value)} onBlur={clampCustomRatio} /><span className="custom-ratio-divider">:</span><input type="number" inputMode="numeric" min={1} max={16384} value={customRatio.height} aria-label="自定义比例高度" onChange={(event) => updateCustomRatio('height', event.target.value)} onBlur={clampCustomRatio} /><button type="button" className="custom-ratio-swap" onClick={() => setCustomRatio((current) => ({ width: current.height, height: current.width }))} aria-label="交换宽高" title="交换宽高">⇄</button><button type="button" disabled={!ratioSource} onClick={() => setCustomRatio(nativeRatio)} title="恢复当前选中素材的原始比例（限 1:3 – 3:1）">重置</button></div></div>}
             </div>
             <div className="template-list config-templates">
@@ -1406,10 +1408,9 @@ export function App() {
                 <button className="context-help-button compact" aria-label="查看拼贴模板使用说明" aria-expanded={openHelpPopover === 'templates'} aria-controls="template-help-popover" onClick={() => setOpenHelpPopover((current) => current === 'templates' ? undefined : 'templates')}><InfoIcon /></button>
                 {openHelpPopover === 'templates' && <div id="template-help-popover" className="context-help-popover template-help-popover"><div><FilmIcon /><p><strong>自由安排素材</strong><span>从左侧拖入任意画格；同一视频可多次使用并截取不同瞬间。</span></p></div></div>}
               </div></div>
-              {templates.map((template) => <button key={template.id} aria-pressed={template.id === templateId} className={template.id === templateId ? 'template-card selected' : 'template-card'} onClick={() => { setTemplateId(template.id); setSelectedSlotId(undefined) }}>
+              {templates.map((template) => <button key={template.id} aria-pressed={template.id === templateId} title={`${template.name} · ${template.requiredClipCount} 格 · ${template.description}`} aria-label={`${template.name}，${template.requiredClipCount} 格，${template.description}`} className={template.id === templateId ? 'template-card selected' : 'template-card'} onClick={() => { setTemplateId(template.id); setSelectedSlotId(undefined) }}>
                 <span className="template-mini">{template.slots.map((slot) => <i key={slot.id} style={{ left: `${slot.x * 100}%`, top: `${slot.y * 100}%`, width: `${slot.width * 100}%`, height: `${slot.height * 100}%` }} />)}</span>
-                <span><strong>{template.name}</strong><small>{template.description}</small></span>
-                <b>{template.requiredClipCount}</b>
+                <span><strong>{template.name}</strong></span>
               </button>)}
             </div>
           </aside>

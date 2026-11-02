@@ -543,7 +543,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
       tabIndex={clips.some(Boolean) ? 0 : -1} aria-keyshortcuts="Space"
       onPointerDown={beginPreviewHold} onPointerMove={movePreviewHold} onPointerUp={endPreviewHold} onPointerCancel={endPreviewHold} onLostPointerCapture={endPreviewHold}>
       <div ref={sourceMonitorRef} className="source-monitor-bar">
-        <div className="source-monitor-label"><span /> 拼贴预览 · {selectedClip ? `正在调整${slotLabel(selectedClip.targetSlotId)}` : clips.some(Boolean) ? '点击画格继续调整' : '把素材拖入画面格'}</div>
+        <div className="source-monitor-label">{selectedClip ? `正在调整${slotLabel(selectedClip.targetSlotId)}` : `画格 ${clips.filter(Boolean).length}/${template.slots.length}`}</div>
         <div className="source-monitor-actions">
           {selectedClip && <div className="composition-toolbar" aria-label="当前画面构图工具">
             <button onClick={() => changeSelectedScale(-.1)} disabled={selectedClip.crop.scale <= MIN_SCALE} aria-label="缩小画面">−</button>
@@ -619,7 +619,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
                 }
               }}
             >
-              {!clip ? <div className="slot-drop-copy"><PlusIcon /><strong>{isPointerTarget ? '松开放入' : '拖入视频'}</strong><small>{isPointerTarget ? '将素材放进这个格子' : template.slots.length === 1 ? '开始构图' : '可重复使用素材'}</small></div> : <>
+              {!clip ? <div className="slot-drop-copy"><PlusIcon /><strong>{isPointerTarget ? '松开放入' : '拖入素材'}</strong></div> : <>
               <video
                 className="motion-preview-video"
                 ref={(element) => { if (element) videosRef.current.set(clip.id, element); else videosRef.current.delete(clip.id) }}
@@ -680,8 +680,10 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
             </div>
           })}
         </div>
-        <div className="live-badge"><LiveIcon /> LIVE</div>
-        <div className="cover-mark"><span /> {playing ? '同步播放' : settlingOnCover ? '正在回到关键帧' : (coverClip?.coverPhotoPath || coverClip?.coverPhotoUrl) ? '自定义图片封面' : settledOnCover ? `Live 关键帧 ${(coverTimeMs / 1000).toFixed(1)}s` : '预览已暂停'}</div>
+        <div className={selectedClip ? 'canvas-status has-selection' : 'canvas-status'}>
+          <div className="live-badge"><LiveIcon /> LIVE</div>
+          <div className="cover-mark"><span /> {playing ? '同步播放' : settlingOnCover ? '正在回到关键帧' : (coverClip?.coverPhotoPath || coverClip?.coverPhotoUrl) ? '自定义图片封面' : settledOnCover ? `Live 关键帧 ${(coverTimeMs / 1000).toFixed(1)}s` : '预览已暂停'}</div>
+        </div>
         {canEditCanvasRatio && <>
           {RATIO_HANDLE_CORNERS.map((corner) => <span
             key={corner}
@@ -698,13 +700,12 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
         </>}
       </div>
       <div ref={previewControlsRef} className="preview-controls">
-        <div className="preview-scrubber">
+        <div className="preview-scrubber" title="拖动观片器设置 Live 关键帧；按住 Shift 拖动可精细调节。按住画布空白处或空格键预览，松手回到关键帧。">
           <FilmKeyframeControl clip={coverClip} coverTimeMs={coverTimeMs} maximumCoverMs={maximumCoverMs} outputDurationMs={outputDurationMs}
             playhead={playhead} reducedMotion={prefersReducedMotion} onChange={setCoverFrame} onEditingChange={setIsCoverEditing} />
-          <small>{settlingOnCover ? '正在柔和过渡到关键帧' : isHoldingPreview ? '松手回到关键帧' : playing ? '同步播放 · 结束后停留在关键帧' : (coverClip?.coverPhotoPath || coverClip?.coverPhotoUrl) ? '当前画格已使用图片封面 · 拖动把手可切换回视频关键帧' : '按住空白处预览 · Shift 拖动精细调节'}</small>
         </div>
       </div>
-      <p ref={canvasHintRef} className="canvas-hint">拖动画面移动位置 · 拖动观片器设置 Live 关键帧</p>
+      <p ref={canvasHintRef} className="canvas-hint">{settlingOnCover ? '正在回到关键帧' : isHoldingPreview ? '松手回到关键帧' : playing ? '同步播放中' : !clips.some(Boolean) ? '拖入素材' : !selectedClip ? '点选画格调整' : (coverClip?.coverPhotoPath || coverClip?.coverPhotoUrl) ? '图片封面 · 拖动观片器可恢复视频关键帧' : '拖动画面调整 · 按住空白处预览'}</p>
     </div>
   )
 }

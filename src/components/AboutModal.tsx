@@ -56,7 +56,7 @@ export function AboutModal({ onClose, onNotice }: AboutModalProps) {
           </div>
           <div className="about-title-group">
             <h2 id="about-title">Lives</h2>
-            <p className="about-subtitle">从多个视频中截取 3 秒瞬间，拼贴为 Live Photo</p>
+            <p className="about-subtitle">将视频片段拼贴为 Live Photo</p>
           </div>
         </div>
 
