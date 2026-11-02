@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { CUSTOM_RATIO_BOUNDS, imageExtensionPattern, maximumCoverTimeMs, simplifyRatio, type CollageTemplate, type SlotClip } from '../domain'
-import { CloseIcon, CollapseIcon, ExpandIcon, ImageIcon, LiveIcon, PlusIcon, RefreshIcon, SoundIcon } from '../icons'
+import { CloseIcon, CollapseIcon, ExpandIcon, ImageIcon, LivePhotoIcon, PlusIcon, RefreshIcon, SoundIcon } from '../icons'
 import { FilmKeyframeControl } from './FilmKeyframeControl'
 import { previewPlaybackKey, PreviewHoldGesture, PreviewReplayScheduler } from './previewPlayback'
 
@@ -665,9 +665,6 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
                   style={photoStyle(clip, index)}
                 />
               )}
-              {Boolean(clip.coverPhotoPath || clip.coverPhotoUrl) && (
-                <span className="slot-cover-badge">图片封面</span>
-              )}
               <span className="slot-replace-copy">拖入替换</span>
               {slot.id === selectedSlotId && <div className="slot-context-actions">
                 <button className={clip.audioEnabled ? 'slot-audio-button enabled' : 'slot-audio-button'} aria-label={`${clip.audioEnabled ? '关闭' : '开启'}${slotLabel(slot.id)}原声`} aria-pressed={clip.audioEnabled === true} title={clip.audioEnabled ? '关闭原声' : '开启原声'} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onAudioEnabledChange(slot.id, !clip.audioEnabled) }}><SoundIcon /></button>
@@ -680,10 +677,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
             </div>
           })}
         </div>
-        <div className={selectedClip ? 'canvas-status has-selection' : 'canvas-status'}>
-          <div className="live-badge"><LiveIcon /> LIVE</div>
-          <div className="cover-mark"><span /> {playing ? '同步播放' : settlingOnCover ? '正在回到关键帧' : (coverClip?.coverPhotoPath || coverClip?.coverPhotoUrl) ? '自定义图片封面' : settledOnCover ? `Live 关键帧 ${(coverTimeMs / 1000).toFixed(1)}s` : '预览已暂停'}</div>
-        </div>
+        <div className="live-badge" role="img" aria-label="Live Photo"><LivePhotoIcon /></div>
         {canEditCanvasRatio && <>
           {RATIO_HANDLE_CORNERS.map((corner) => <span
             key={corner}
