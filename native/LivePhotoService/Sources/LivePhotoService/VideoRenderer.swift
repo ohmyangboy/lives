@@ -7,7 +7,7 @@ enum VideoRenderer {
     static func adaptiveBitRate(width: Int, height: Int) -> Int {
         let referencePixels = 1080.0 * 1920.0
         let outputPixels = Double(width * height)
-        return max(4_000_000, min(12_000_000, Int(12_000_000 * outputPixels / referencePixels)))
+        return max(4_000_000, min(48_000_000, Int(12_000_000 * outputPixels / referencePixels)))
     }
 
     static func render(

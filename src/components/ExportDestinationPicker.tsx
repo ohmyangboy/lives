@@ -1,5 +1,5 @@
 import { CloseIcon, FolderIcon, PhotosIcon } from '../icons'
-import { canvasDimensions, type AspectRatioId, type ExportQuality, type SourceQualityAnalysis } from '../domain'
+import { canvasDimensions, type AspectRatioId, type ExportQuality, type CanvasSettings, type SourceQualityAnalysis } from '../domain'
 import { useModalFocus } from './useModalFocus'
 
 export type ExportDestinationChoice = 'photos' | 'folder'
@@ -9,6 +9,7 @@ interface Props {
   customRatio?: { width: number; height: number }
   quality: ExportQuality
   sourceQuality: SourceQualityAnalysis
+  sources: CanvasSettings['sources']
   cropUpscaleRisk: boolean
   destination: ExportDestinationChoice
   onQualityChange: (quality: ExportQuality) => void
@@ -22,9 +23,9 @@ const exportLabels: Record<ExportDestinationChoice, string> = {
   folder: '选择文件夹并导出',
 }
 
-export function ExportDestinationPicker({ aspectRatio, customRatio, quality, sourceQuality, cropUpscaleRisk, destination, onQualityChange, onDestinationChange, onExport, onClose }: Props) {
-  const high = canvasDimensions({ aspectRatio, quality: '1080p', customRatio })
-  const compact = canvasDimensions({ aspectRatio, quality: '720p', customRatio })
+export function ExportDestinationPicker({ aspectRatio, customRatio, quality, sourceQuality, sources, cropUpscaleRisk, destination, onQualityChange, onDestinationChange, onExport, onClose }: Props) {
+  const balanced = canvasDimensions({ aspectRatio, quality: 'balanced', customRatio, sources })
+  const best = canvasDimensions({ aspectRatio, quality: 'best', customRatio, sources })
   const modalRef = useModalFocus(onClose)
 
   return <div ref={modalRef} className="overlay destination-overlay" role="dialog" aria-modal="true" aria-labelledby="export-destination-title">
@@ -34,12 +35,12 @@ export function ExportDestinationPicker({ aspectRatio, customRatio, quality, sou
       <h2 id="export-destination-title">导出 Live Photo</h2>
       <p>确认画质并选择保存位置后才会开始生成。</p>
       <section className="export-quality-picker" aria-label="导出质量">
-        <header><div><strong>导出质量</strong><small>默认采用当前素材可用的最高画质</small></div><span>{sourceQuality.sourceLabel}</span></header>
+        <header><div><strong>导出质量</strong><small>默认均衡，适合分享</small></div><span>{sourceQuality.sourceLabel}</span></header>
         <div className="export-quality-options">
-          <button className={quality === '1080p' ? 'selected' : ''} disabled={!sourceQuality.supports1080p} title={sourceQuality.supports1080p ? '保留高清细节' : `${sourceQuality.limitingSourceName ?? '当前素材'}不足 1080P`} onClick={() => onQualityChange('1080p')}><strong>1080P</strong><small>{high.width} × {high.height}</small><em>{sourceQuality.supports1080p ? sourceQuality.minimumShortEdge >= 2160 ? '应用上限' : '最高画质' : '素材不足'}</em></button>
-          <button className={quality === '720p' ? 'selected' : ''} onClick={() => onQualityChange('720p')}><strong>720P</strong><small>{compact.width} × {compact.height}</small><em>{sourceQuality.recommendedQuality === '720p' ? '最高可用' : '更小文件'}</em></button>
+          <button className={quality === 'balanced' ? 'selected' : ''} onClick={() => onQualityChange('balanced')}><strong>均衡</strong><small>{balanced.width} × {balanced.height}</small><em>分享友好</em></button>
+          <button className={quality === 'best' ? 'selected' : ''} onClick={() => onQualityChange('best')}><strong>最优</strong><small>{best.width} × {best.height}</small><em>更多细节</em></button>
         </div>
-        <small className={cropUpscaleRisk ? 'export-quality-note warning' : 'export-quality-note'}>{cropUpscaleRisk ? '当前分辨率会放大部分素材或裁剪区域，细节可能稍软。' : sourceQuality.minimumShortEdge >= 2160 ? '当前版本最高导出 1080P；4K 素材会高质量缩小输出。' : sourceQuality.supports1080p ? '画质已匹配当前实际使用的素材。' : `受「${sourceQuality.limitingSourceName ?? '最低质量素材'}」限制，未提供 1080P 放大。`}</small>
+        <small className={cropUpscaleRisk ? 'export-quality-note warning' : 'export-quality-note'}>{cropUpscaleRisk ? '部分素材或裁剪区域可能被放大，细节可能稍软。' : quality === 'best' ? '按素材和模板计算尺寸，长边最多 3840 像素；文件可能更大。' : '优先兼顾清晰度与分享体积，素材不足时采用 720 短边。'}</small>
       </section>
       <h3 className="destination-title">导出目标</h3>
       <div className="destination-choices" role="radiogroup" aria-label="导出目标">

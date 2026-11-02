@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreGraphics
 import CoreVideo
+import ImageIO
 import XCTest
 @testable import LivePhotoService
 
@@ -34,7 +35,7 @@ final class TemplateLayoutTests: XCTestCase {
         XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 1440, height: 1080))
         XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 1280, height: 720))
         XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 960, height: 720))
-        XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 640, height: 480))
+        XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 640, height: 480))
     }
 
     func testSupportedCanvasAcceptsCustomRatiosWithinEncoderLimits() {
@@ -44,14 +45,18 @@ final class TemplateLayoutTests: XCTestCase {
         XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 1080, height: 1696))
         XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 2160, height: 720))
         XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 3240, height: 1080))
+        XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 3840, height: 2160))
+        XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 3840, height: 1280))
+        XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 3842, height: 2160))
+        XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 2162, height: 2162))
         // 奇数边（H.264 要求偶数）
         XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 1080, height: 1697))
         // 超出 3:1 长边上限
         XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 1080, height: 4320))
         XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 4320, height: 1080))
         XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 1080, height: 3840))
-        // 短边不符合画质档位
-        XCTAssertFalse(LivePhotoPipeline.supportsCanvas(width: 480, height: 1080))
+        // 最优档可按素材生成非固定短边
+        XCTAssertTrue(LivePhotoPipeline.supportsCanvas(width: 480, height: 1080))
     }
 
     func testCoverContextRectPreservesTopToBottomImageOrientation() {
@@ -61,10 +66,17 @@ final class TemplateLayoutTests: XCTestCase {
         XCTAssertEqual(bottom, CGRect(x: 0, y: 960, width: 1080, height: 960))
     }
 
+    func testCompatibilityTranscodeBudgetFollowsCanvasAndCrop() {
+        XCTAssertEqual(CompatibilityTranscoder.maximumIntermediateEdge(canvasWidth: 1920, canvasHeight: 1080, cropScale: 1), 1920)
+        XCTAssertEqual(CompatibilityTranscoder.maximumIntermediateEdge(canvasWidth: 3840, canvasHeight: 2160, cropScale: 1), 3840)
+        XCTAssertEqual(CompatibilityTranscoder.maximumIntermediateEdge(canvasWidth: 1920, canvasHeight: 1080, cropScale: 2), 3840)
+    }
+
     func testBitRateAdaptsToOutputFrameSize() {
         XCTAssertEqual(VideoRenderer.adaptiveBitRate(width: 1080, height: 1920), 12_000_000)
         XCTAssertEqual(VideoRenderer.adaptiveBitRate(width: 720, height: 1280), 5_333_333)
         XCTAssertEqual(VideoRenderer.adaptiveBitRate(width: 720, height: 720), 4_000_000)
+        XCTAssertEqual(VideoRenderer.adaptiveBitRate(width: 3840, height: 2160), 48_000_000)
     }
 
     func testShortLivePhotoVideoUsesItsContentThenPadsTheRemainder() {
@@ -121,6 +133,31 @@ final class TemplateLayoutTests: XCTestCase {
 
         XCTAssertTrue(result.validated)
         XCTAssertEqual(result.durationMs, 3_000)
+    }
+
+    func testFourKPairExportWhenFixtureIsProvided() async throws {
+        guard let sourcePath = ProcessInfo.processInfo.environment["LIVES_4K_FIXTURE"] else {
+            throw XCTSkip("Set LIVES_4K_FIXTURE to run the 4K export smoke test")
+        }
+        let info = try await MediaInspector.inspect(path: sourcePath, minimumDurationMilliseconds: 1_000)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("Lives4KTest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let project = RenderProject(
+            id: UUID().uuidString, templateId: "single",
+            canvas: .init(width: 3840, height: 2160, fps: 30, durationMs: 3_000),
+            clips: [.init(id: UUID().uuidString, sourcePath: sourcePath, sourceDurationMs: info.durationMs,
+                          startTimeMs: 0, crop: .init(normalizedCenterX: 0.5, normalizedCenterY: 0.5, scale: 1),
+                          targetSlotId: "full", audioEnabled: false, coverTimeMs: 500)], coverTimeMs: 500
+        )
+        let result = try await LivePhotoPipeline.exportToFolder(project: project, directoryPath: directory.path, cancellations: CancellationRegistry()) { _, _ in }
+        let video = try await MediaInspector.inspect(path: result.videoPath, minimumDurationMilliseconds: 1_000)
+        XCTAssertEqual(video.width, 3840)
+        XCTAssertEqual(video.height, 2160)
+        let image = try XCTUnwrap(CGImageSourceCreateWithURL(URL(fileURLWithPath: result.photoPath) as CFURL, nil))
+        let properties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(image, 0, nil) as? [CFString: Any])
+        XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 3840)
+        XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 2160)
     }
 
     func testIncompatibleVideoIsConvertedWhenFixtureIsProvided() async throws {

@@ -103,36 +103,36 @@ describe('render project', () => {
   })
 
   it('applies the selected aspect ratio and export quality to the render canvas', () => {
-    const project = createRenderProject([clip(1)], 'single', undefined, { aspectRatio: '3:4', quality: '720p' })
+    const project = createRenderProject([{ ...clip(1), width: 1280, height: 720 }], 'single', undefined, { aspectRatio: '3:4', quality: 'balanced' })
     expect(project.canvas).toEqual({ width: 720, height: 960, fps: 30, durationMs: 3000 })
   })
 
   it('uses the short edge as the quality tier when exporting landscape', () => {
-    const project = createRenderProject([clip(1)], 'single', undefined, { aspectRatio: '16:9', quality: '1080p' })
+    const project = createRenderProject([clip(1)], 'single', undefined, { aspectRatio: '16:9', quality: 'balanced' })
     expect(project.canvas).toEqual({ width: 1920, height: 1080, fps: 30, durationMs: 3000 })
   })
 
   it('applies a custom ratio to the render canvas', () => {
-    const project = createRenderProject([clip(1)], 'single', undefined, { aspectRatio: 'custom', quality: '720p', customRatio: { width: 5, height: 7 } })
+    const project = createRenderProject([{ ...clip(1), width: 1280, height: 720 }], 'single', undefined, { aspectRatio: 'custom', quality: 'balanced', customRatio: { width: 5, height: 7 } })
     expect(project.canvas).toEqual({ width: 720, height: 1008, fps: 30, durationMs: 3000 })
   })
 
   it('supports landscape custom ratios at the 3:1 bound', () => {
-    expect(canvasDimensions({ aspectRatio: 'custom', quality: '720p', customRatio: { width: 3, height: 1 } })).toEqual({ width: 2160, height: 720 })
+    expect(canvasDimensions({ aspectRatio: 'custom', quality: 'balanced', sources: [{ ...clip(1), width: 1280, height: 720, slot: { id: 'full', label: '', x: 0, y: 0, width: 1, height: 1 } }], customRatio: { width: 3, height: 1 } })).toEqual({ width: 2160, height: 720 })
   })
 
   it('aligns odd custom long edges to even pixels for the video encoder', () => {
-    expect(canvasDimensions({ aspectRatio: 'custom', quality: '1080p', customRatio: { width: 7, height: 11 } })).toEqual({ width: 1080, height: 1696 })
+    expect(canvasDimensions({ aspectRatio: 'custom', quality: 'balanced', customRatio: { width: 7, height: 11 } })).toEqual({ width: 1080, height: 1696 })
   })
 
   it('clamps custom ratios beyond the 1:3 – 3:1 range', () => {
     expect(normalizeCustomRatio({ width: 999, height: 1 })).toEqual({ width: 3, height: 1 })
     expect(normalizeCustomRatio({ width: 1, height: 999 })).toEqual({ width: 1, height: 3 })
-    expect(canvasDimensions({ aspectRatio: 'custom', quality: '720p', customRatio: { width: 1, height: 5 } })).toEqual({ width: 720, height: 2160 })
+    expect(canvasDimensions({ aspectRatio: 'custom', quality: 'balanced', sources: [{ ...clip(1), width: 1280, height: 720, slot: { id: 'full', label: '', x: 0, y: 0, width: 1, height: 1 } }], customRatio: { width: 1, height: 5 } })).toEqual({ width: 720, height: 2160 })
   })
 
   it('falls back to 9:16 when a custom ratio is missing', () => {
-    expect(canvasDimensions({ aspectRatio: 'custom', quality: '1080p' })).toEqual({ width: 1080, height: 1920 })
+    expect(canvasDimensions({ aspectRatio: 'custom', quality: 'balanced' })).toEqual({ width: 1080, height: 1920 })
   })
 
   it('keeps non-positive custom ratio edges at 1', () => {
@@ -149,12 +149,12 @@ describe('render project', () => {
   })
 
   it('uses the chosen Live Photo key frame time', () => {
-    const project = createRenderProject([clip(1)], 'single', undefined, { aspectRatio: '9:16', quality: '1080p' }, 2200)
+    const project = createRenderProject([clip(1)], 'single', undefined, { aspectRatio: '9:16', quality: 'balanced' }, 2200)
     expect(project.coverTimeMs).toBe(2200)
   })
 
   it('keeps the Live Photo key frame inside the three-second clip', () => {
-    const project = createRenderProject([clip(1)], 'single', undefined, { aspectRatio: '9:16', quality: '1080p' }, 4000)
+    const project = createRenderProject([clip(1)], 'single', undefined, { aspectRatio: '9:16', quality: 'balanced' }, 4000)
     expect(project.coverTimeMs).toBe(2900)
   })
 
@@ -203,16 +203,22 @@ describe('render project', () => {
 describe('source-aware export quality', () => {
   it('recommends 1080P when every used source has at least a 1080px short edge', () => {
     const analysis = analyzeSourceQuality([clip(1), { ...clip(2), width: 3840, height: 2160 }])
-    expect(analysis.recommendedQuality).toBe('1080p')
     expect(analysis.supports1080p).toBe(true)
     expect(analysis.sourceLabel).toBe('1080P 素材')
   })
 
   it('uses the lowest-quality source and avoids recommending an upscale', () => {
     const analysis = analyzeSourceQuality([clip(1), { ...clip(2), width: 1280, height: 720 }])
-    expect(analysis.recommendedQuality).toBe('720p')
     expect(analysis.supports1080p).toBe(false)
     expect(analysis.limitingSourceName).toBe('clip-2.mov')
+  })
+
+  it('sizes best output from the used source and template within the 4K budget', () => {
+    const fourK = { ...clip(1), width: 3840, height: 2160 }
+    expect(createRenderProject([fourK], 'single', undefined, { aspectRatio: '16:9', quality: 'best' }).canvas).toMatchObject({ width: 3840, height: 2160 })
+    expect(createRenderProject([fourK], 'single', undefined, { aspectRatio: 'custom', quality: 'best', customRatio: { width: 3, height: 1 } }).canvas).toMatchObject({ width: 3840, height: 1280 })
+    expect(createRenderProject([{ ...fourK, crop: { ...fourK.crop, scale: 2 } }], 'single', undefined, { aspectRatio: '16:9', quality: 'best' }).canvas).toMatchObject({ width: 1920, height: 1080 })
+    expect(createRenderProject([{ ...clip(1), height: 2160 }, { ...clip(2), height: 2160 }], 'side-2', undefined, { aspectRatio: '16:9', quality: 'best' }).canvas).toMatchObject({ width: 3840, height: 2160 })
   })
 
   it('reports the effective detail remaining after a crop zoom', () => {

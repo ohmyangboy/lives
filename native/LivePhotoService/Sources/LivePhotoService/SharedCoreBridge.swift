@@ -56,7 +56,7 @@ enum SharedCoreBridge {
             )
         }
         let shortEdge = min(project.canvas.width, project.canvas.height)
-        let quality: ExportQuality = shortEdge == 720 ? .p720 : .p1080
+        let quality: ExportQuality = shortEdge == 720 ? .p720 : (shortEdge > 1080 || max(project.canvas.width, project.canvas.height) > 3240 ? .p4k : .p1080)
         let document = ProjectDocument(
             id: UUID(uuidString: project.id) ?? UUID(),
             name: "macOS project",

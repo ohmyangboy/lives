@@ -38,6 +38,9 @@ enum CompatibilityTranscoder {
                 startTimeMilliseconds: clip.startTimeMs,
                 durationMilliseconds: segment.contentMilliseconds,
                 includeAudio: clip.audioEnabled,
+                canvasWidth: project.canvas.width,
+                canvasHeight: project.canvas.height,
+                cropScale: clip.crop.scale,
                 jobId: project.id,
                 cancellations: cancellations
             )
@@ -83,12 +86,20 @@ enum CompatibilityTranscoder {
         return !isPlayable || !isDecodable
     }
 
+    static func maximumIntermediateEdge(canvasWidth: Int, canvasHeight: Int, cropScale: Double) -> Int {
+        let scaledEdge = Double(max(canvasWidth, canvasHeight)) * (cropScale.isFinite ? min(3, max(1, cropScale)) : 1)
+        return scaledEdge > 1920 ? 3840 : 1920
+    }
+
     private static func transcode(
         sourceURL: URL,
         outputURL: URL,
         startTimeMilliseconds: Int,
         durationMilliseconds: Int,
         includeAudio: Bool,
+        canvasWidth: Int,
+        canvasHeight: Int,
+        cropScale: Double,
         jobId: String,
         cancellations: CancellationRegistry
     ) async throws {
@@ -113,8 +124,9 @@ enum CompatibilityTranscoder {
         } else {
             arguments += ["-an"]
         }
+        let bound = maximumIntermediateEdge(canvasWidth: canvasWidth, canvasHeight: canvasHeight, cropScale: cropScale)
         arguments += [
-            "-vf", "scale='min(1920,iw)':'min(1920,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,format=yuv422p10le",
+            "-vf", "scale='min(\(bound),iw)':'min(\(bound),ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,format=yuv422p10le",
             "-c:v", "prores_ks",
             "-profile:v", "0",
         ]

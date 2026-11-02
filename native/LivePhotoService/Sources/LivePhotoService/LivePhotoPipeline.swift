@@ -27,15 +27,12 @@ enum LivePhotoPipeline {
     }
 
     static func supportsCanvas(width: Int, height: Int) -> Bool {
-        // 前端按「短边 = 画质（720/1080），长边按比例」生成画布；自定义比例上限 3:1（1080×3240）。
-        // 宽高必须为偶数，H.264 编码要求。
         let shortEdge = min(width, height)
         let longEdge = max(width, height)
-        return (shortEdge == 720 || shortEdge == 1080)
-            && longEdge >= shortEdge
-            && longEdge <= 3240
-            && width % 2 == 0
-            && height % 2 == 0
+        // 偶数对齐允许比例舍入产生最多 2 像素的误差。
+        return shortEdge >= 2 && shortEdge <= 2160 && longEdge <= 3840
+            && longEdge <= shortEdge * 3 + 2
+            && width % 2 == 0 && height % 2 == 0
     }
 
     static func expectedClipCount(for templateId: String) -> Int {

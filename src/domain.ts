@@ -1,15 +1,15 @@
 export type TemplateId = 'single' | 'stack-2' | 'side-2' | 'stack-3' | 'side-3' | 'hero-left' | 'hero-top' | 'weighted-3'
 export type AspectRatioId = '9:16' | '3:4' | '1:1' | '4:3' | '16:9' | 'custom'
-export type ExportQuality = '1080p' | '720p'
+export type ExportQuality = 'balanced' | 'best'
 
 export interface CanvasSettings {
   aspectRatio: AspectRatioId
   quality: ExportQuality
   customRatio?: { width: number; height: number }
+  sources?: Array<{ width: number; height: number; crop: CropPosition; slot: Slot }>
 }
 
 export interface SourceQualityAnalysis {
-  recommendedQuality: ExportQuality
   supports1080p: boolean
   minimumShortEdge: number
   effectiveShortEdge: number
@@ -48,8 +48,8 @@ export const simplifyRatio = ({ width, height }: { width: number; height: number
 
 const evenEdge = (edge: number) => (edge % 2 === 0 ? edge : edge - 1)
 
-export const canvasDimensions = ({ aspectRatio, quality, customRatio }: CanvasSettings) => {
-  const shortEdge = quality === '1080p' ? 1080 : 720
+export const canvasDimensions = ({ aspectRatio, quality, customRatio, sources = [] }: CanvasSettings) => {
+  const shortEdge = quality === 'balanced' && sources.some((source) => Math.min(source.width, source.height) < 1080) ? 720 : 1080
   const ratio = aspectRatio === 'custom'
     ? normalizeCustomRatio(customRatio ?? { width: 9, height: 16 })
     : aspectRatioOptions.find((option) => option.id === aspectRatio)!
@@ -57,9 +57,17 @@ export const canvasDimensions = ({ aspectRatio, quality, customRatio }: CanvasSe
     Math.round(shortEdge * Math.max(ratio.width, ratio.height) / Math.min(ratio.width, ratio.height)),
     shortEdge * 3,
   ))
-  return ratio.width <= ratio.height
+  const reference = ratio.width <= ratio.height
     ? { width: shortEdge, height: longEdge }
     : { width: longEdge, height: shortEdge }
+  if (quality === 'balanced') return reference
+  // 与 LivesCore automatic 一样按最清晰的使用格预算，低清格可能需要插值。
+  const candidates = sources.filter((source) => source.width > 0 && source.height > 0).map((source) => {
+    const zoom = Number.isFinite(source.crop.scale) ? Math.min(3, Math.max(1, source.crop.scale)) : 1
+    return Math.min(source.width / (reference.width * source.slot.width * zoom), source.height / (reference.height * source.slot.height * zoom))
+  })
+  const factor = Math.min(candidates.length ? Math.max(...candidates) : 1, 2160 / Math.min(reference.width, reference.height), 3840 / Math.max(reference.width, reference.height))
+  return { width: Math.max(2, evenEdge(Math.floor(reference.width * factor))), height: Math.max(2, evenEdge(Math.floor(reference.height * factor))) }
 }
 
 export function analyzeSourceQuality(
@@ -67,7 +75,7 @@ export function analyzeSourceQuality(
 ): SourceQualityAnalysis {
   if (!clips.length) {
     return {
-      recommendedQuality: '1080p', supports1080p: true, minimumShortEdge: 1080,
+      supports1080p: true, minimumShortEdge: 1080,
       effectiveShortEdge: 1080, sourceLabel: '等待素材',
     }
   }
@@ -83,7 +91,6 @@ export function analyzeSourceQuality(
   const sourceLabel = minimumShortEdge >= 2160 ? '4K 素材' : minimumShortEdge >= 1080 ? '1080P 素材' : minimumShortEdge >= 720 ? '720P 素材' : '低于 720P'
 
   return {
-    recommendedQuality: supports1080p ? '1080p' : '720p',
     supports1080p,
     minimumShortEdge,
     effectiveShortEdge,
@@ -317,7 +324,7 @@ export function createRenderProject(
   clips: VideoClip[],
   templateId: TemplateId,
   slotClips?: Array<SlotClip | VideoClip | undefined>,
-  canvasSettings: CanvasSettings = { aspectRatio: '9:16', quality: '1080p' },
+  canvasSettings: CanvasSettings = { aspectRatio: '9:16', quality: 'balanced' },
   coverTimeMs = 1500,
   outputDurationMs = OUTPUT_DURATION_MS,
 ): RenderProject {
@@ -325,7 +332,8 @@ export function createRenderProject(
   const renderedClips = slotClips ?? clips.slice(0, template.requiredClipCount)
   if (renderedClips.length !== template.requiredClipCount || renderedClips.some((clip) => !clip)) throw new Error('素材数量不足，无法填满当前模板')
   const filledClips = renderedClips as Array<SlotClip | VideoClip>
-  const dimensions = canvasDimensions(canvasSettings)
+  const sources = filledClips.map((clip, index) => ({ ...clip, slot: template.slots[index] }))
+  const dimensions = canvasDimensions({ ...canvasSettings, sources })
   const durationMs = normalizeOutputDurationMs(outputDurationMs)
   return {
     id: crypto.randomUUID(),

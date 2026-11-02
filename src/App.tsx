@@ -286,7 +286,7 @@ export function App() {
   const [aspectRatio, setAspectRatio] = useState<AspectRatioId>('9:16')
   const [customRatio, setCustomRatio] = useState({ width: 9, height: 16 })
   const [canvasOrientation, setCanvasOrientation] = useState<CanvasOrientation>('portrait')
-  const [exportQuality, setExportQuality] = useState<ExportQuality>('1080p')
+  const [exportQuality, setExportQuality] = useState<ExportQuality>('balanced')
   const [coverTimeMs, setCoverTimeMs] = useState(1500)
   const [outputDurationMs, setOutputDurationMs] = useState(OUTPUT_DURATION_MS)
   const [isTimelineEditing, setIsTimelineEditing] = useState(false)
@@ -353,7 +353,6 @@ export function App() {
   const effectiveOrientation: CanvasOrientation = aspectRatio === 'custom'
     ? (customRatio.width >= customRatio.height ? 'landscape' : 'portrait')
     : canvasOrientation
-  const canvas = canvasDimensions({ aspectRatio, quality: exportQuality, customRatio })
   const slotClips = currentTemplate.slots.map((slot) => slotPlacements[slot.id])
   const selectedSlotClip = selectedSlotId ? slotPlacements[selectedSlotId] : undefined
   const ratioSource = selectedSlotId ? selectedSlotClip : clips.find((clip) => clip.id === selectedMaterialId)
@@ -363,7 +362,9 @@ export function App() {
   }, [ratioSource?.id, ratioSource?.width, ratioSource?.height, aspectRatio])
   const activeClips = slotClips.filter((clip): clip is SlotClip => Boolean(clip))
   const sourceQuality = analyzeSourceQuality(activeClips.length ? activeClips : clips)
-  const cropUpscaleRisk = sourceQuality.effectiveShortEdge < Math.min(canvas.width, canvas.height)
+  const canvasSources = slotClips.flatMap((clip, index) => clip ? [{ ...clip, slot: currentTemplate.slots[index] }] : [])
+  const canvas = canvasDimensions({ aspectRatio, quality: exportQuality, customRatio, sources: canvasSources })
+  const cropUpscaleRisk = canvasSources.some((source) => source.width < canvas.width * source.slot.width * source.crop.scale || source.height < canvas.height * source.slot.height * source.crop.scale)
   const canExport = desktopAvailable() && slotClips.length === currentTemplate.requiredClipCount && slotClips.every((clip): clip is SlotClip => clip !== undefined && clip.durationMs >= (clip.livePhoto ? 1000 : MINIMUM_SOURCE_DURATION_MS))
 
   useEffect(() => {
@@ -504,10 +505,6 @@ export function App() {
     const persistentProjects = mediaProjects.map((project) => ({ ...project, clipIds: project.clipIds.filter((id) => sourceIds.has(id)) }))
     localStorage.setItem(libraryStorageKey, JSON.stringify({ clips: persistentClips, projects: persistentProjects, activeProjectId }))
   }, [activeProjectId, clips, mediaProjects])
-
-  useEffect(() => {
-    if (clips.length && !sourceQuality.supports1080p && exportQuality === '1080p') setExportQuality('720p')
-  }, [clips.length, exportQuality, sourceQuality.supports1080p])
 
   const importPaths = useCallback(async (paths: string[], target: Omit<MediaProject, 'clipIds'> = createDefaultProject(), options: { activate?: boolean; livePhotos?: Map<string, { video: Awaited<ReturnType<typeof nativeService.inspect>>; livePhoto: LivePhotoSource }> } = {}): Promise<{ added: number; failed: number; projectClipIds: string[] }> => {
     const existingByPath = new Map(clipsRef.current.filter((clip) => clip.sourcePath).map((clip) => [clip.sourcePath, clip]))
@@ -1183,7 +1180,7 @@ export function App() {
       setNotice(`请把素材拖入“${currentTemplate.name}”的每个画面格`)
       return
     }
-    setExportQuality(sourceQuality.supports1080p ? '1080p' : '720p')
+    setExportQuality('balanced')
     setPickerDestination('photos')
     setDestinationPickerVisible(true)
   }
@@ -1455,7 +1452,7 @@ export function App() {
         }
         event.target.value = ''
       }} />
-      {destinationPickerVisible && <ExportDestinationPicker aspectRatio={aspectRatio} customRatio={customRatio} quality={exportQuality} sourceQuality={sourceQuality} cropUpscaleRisk={cropUpscaleRisk} destination={pickerDestination} onQualityChange={setExportQuality} onDestinationChange={setPickerDestination} onExport={() => void exportFromPicker()} onClose={() => setDestinationPickerVisible(false)} />}
+      {destinationPickerVisible && <ExportDestinationPicker aspectRatio={aspectRatio} customRatio={customRatio} quality={exportQuality} sourceQuality={sourceQuality} sources={canvasSources} cropUpscaleRisk={cropUpscaleRisk} destination={pickerDestination} onQualityChange={setExportQuality} onDestinationChange={setPickerDestination} onExport={() => void exportFromPicker()} onClose={() => setDestinationPickerVisible(false)} />}
       {exportState.visible && <ExportOverlay {...exportState} destination={exportDestination} photoDenyCount={photoDenyCount} onClose={() => closeExportOverlay(false)} onCancel={() => closeExportOverlay(true)} onRetry={() => void exportProject()} onResetAndRetry={() => void resetAndRetryExport()} onCopyRepairCommands={() => void nativeService.copyRepairCommands().catch(() => undefined)} onOpenPrivacySettings={() => void nativeService.openPhotoPrivacySettings()} onFallbackToFolder={() => void exportToFolderInstead()} onRevealResult={() => exportDestination === 'photos' ? void nativeService.openPhotos() : exportState.outputPath ? void nativeService.revealInFinder(exportState.outputPath) : undefined} />}
       {materialContextMenu && (
         <div
