@@ -286,7 +286,7 @@ export function App() {
   const [aspectRatio, setAspectRatio] = useState<AspectRatioId>('9:16')
   const [customRatio, setCustomRatio] = useState({ width: 9, height: 16 })
   const [canvasOrientation, setCanvasOrientation] = useState<CanvasOrientation>('portrait')
-  const [exportQuality, setExportQuality] = useState<ExportQuality>('balanced')
+  const [exportQuality, setExportQuality] = useState<ExportQuality>('best')
   const [coverTimeMs, setCoverTimeMs] = useState(1500)
   const [outputDurationMs, setOutputDurationMs] = useState(OUTPUT_DURATION_MS)
   const [isTimelineEditing, setIsTimelineEditing] = useState(false)
@@ -1180,7 +1180,7 @@ export function App() {
       setNotice(`请把素材拖入“${currentTemplate.name}”的每个画面格`)
       return
     }
-    setExportQuality('balanced')
+    setExportQuality('best')
     setPickerDestination('photos')
     setDestinationPickerVisible(true)
   }

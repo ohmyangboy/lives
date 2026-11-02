@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent } from 'react'
 import type { SlotClip, VideoClip } from '../domain'
-import { formatDuration, MAXIMUM_OUTPUT_DURATION_MS, MINIMUM_OUTPUT_DURATION_MS, sourceContentDurationMs, sourcePaddingDurationMs } from '../domain'
+import { formatDuration, normalizeOutputDurationMs, MAXIMUM_OUTPUT_DURATION_MS, MINIMUM_OUTPUT_DURATION_MS, sourceContentDurationMs, sourcePaddingDurationMs } from '../domain'
 import { FilmIcon } from '../icons'
 import { aspectFillSourceRect } from '../mediaGeometry'
 import {
@@ -47,6 +47,8 @@ export function TimelineEmpty() {
     </section>
   )
 }
+
+const QUICK_DURATIONS_MS = [1000, 1500, 2000, 3000, 5000, 10_000, 15_000]
 
 const MIN_ZOOM = 1
 const MAX_ZOOM = 6
@@ -362,7 +364,13 @@ export function Timeline({ clip, outputDurationMs, onChange, onEditingChange }: 
       <div className="timeline-workbench">
         {durationNotice && <div className="timeline-duration-toast" role="status">{durationNotice.message}</div>}
         <div className="timeline-toolbar" title="⌘ / Ctrl + 滚轮缩放；拖动选区整体平移，拖动两侧手柄调节所有画格的时长，范围 1–15 秒。">
-          <span>所有画格 · {(outputDurationMs / 1000).toFixed(1)} 秒</span>
+          <label className="timeline-duration-control" title="快捷设置所有画格的 Live 时长；拖动选区手柄可精细调节。">
+            <span>所有画格 ·</span>
+            <select aria-label="所有画格的 Live 时长" value={outputDurationMs} disabled={isDragging} onChange={(event) => onChange(clip.startTimeMs, normalizeOutputDurationMs(Number(event.target.value)), 'trailing')}>
+              {!QUICK_DURATIONS_MS.includes(outputDurationMs) && <option value={outputDurationMs}>{(outputDurationMs / 1000).toFixed(1)} 秒</option>}
+              {QUICK_DURATIONS_MS.map((durationMs) => <option key={durationMs} value={durationMs}>{(durationMs / 1000).toFixed(1)} 秒</option>)}
+            </select>
+          </label>
           <button aria-label="缩小时间线" disabled={isDragging || zoom <= MIN_ZOOM} onClick={() => updateZoom(zoom - .25)}>−</button>
           <output>{Math.round(zoom * 100)}%</output>
           <button aria-label="放大时间线" disabled={isDragging || zoom >= MAX_ZOOM} onClick={() => updateZoom(zoom + .25)}>＋</button>
