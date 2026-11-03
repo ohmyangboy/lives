@@ -549,12 +549,6 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
             <button onClick={() => changeSelectedScale(.1)} disabled={selectedClip.crop.scale >= MAX_SCALE} aria-label="放大画面">＋</button>
             <button className="reset-crop" onClick={() => { onCropChange(selectedClip.targetSlotId, .5, .5); onScaleChange(selectedClip.targetSlotId, 1) }}>居中</button>
           </div>}
-          {selectedClip && <div className="slot-context-actions source-slot-actions" aria-label="当前画格操作">
-            <button className={selectedClip.audioEnabled ? 'slot-audio-button enabled' : 'slot-audio-button'} aria-label={`${selectedClip.audioEnabled ? '关闭' : '开启'}${slotLabel(selectedClip.targetSlotId)}原声`} aria-pressed={selectedClip.audioEnabled === true} title={selectedClip.audioEnabled ? '关闭原声' : '开启原声'} onClick={() => onAudioEnabledChange(selectedClip.targetSlotId, !selectedClip.audioEnabled)}><SoundIcon /></button>
-            <button className={selectedClip.coverPhotoPath ? 'slot-cover-button active' : 'slot-cover-button'} aria-label={selectedClip.coverPhotoPath ? '更换封面图片' : '替换封面'} title={selectedClip.coverPhotoPath ? '更换封面图片' : '替换封面'} onClick={() => onReplaceCoverPhoto?.(selectedClip.targetSlotId)}><ImageIcon /></button>
-            {Boolean(selectedClip.coverPhotoPath) && <button className="slot-cover-revert-button" aria-label="恢复视频关键帧" title="恢复视频关键帧" onClick={() => onClearCoverPhoto?.(selectedClip.targetSlotId)}><RefreshIcon /></button>}
-            <button className="slot-clear-button" aria-label={`清空${slotLabel(selectedClip.targetSlotId)}`} title="清空画面" onClick={() => onClearSlot(selectedClip.targetSlotId)}><CloseIcon /></button>
-          </div>}
           <button className="preview-fullscreen-button" aria-label={isFullscreen ? '退出全屏预览' : '全屏预览'} aria-pressed={isFullscreen} title={isFullscreen ? '退出全屏预览（Esc）' : '全屏预览'} onClick={() => setIsFullscreen((current) => !current)}>{isFullscreen ? <CollapseIcon /> : <ExpandIcon />}</button>
         </div>
       </div>
@@ -669,6 +663,12 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
                   style={photoStyle(clip, index)}
                 />
               )}
+              {slot.id === selectedSlotId && <div className="slot-context-actions" role="group" aria-label="当前画格操作" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+                <button className={clip.audioEnabled ? 'slot-audio-button enabled' : 'slot-audio-button'} aria-label={`${clip.audioEnabled ? '关闭' : '开启'}${slotLabel(slot.id)}原声`} aria-pressed={clip.audioEnabled === true} title={clip.audioEnabled ? '关闭原声' : '开启原声'} onClick={() => onAudioEnabledChange(slot.id, !clip.audioEnabled)}><SoundIcon /></button>
+                <button className={clip.coverPhotoPath ? 'slot-cover-button active' : 'slot-cover-button'} aria-label={clip.coverPhotoPath ? '更换封面图片' : '替换封面'} title={clip.coverPhotoPath ? '更换封面图片' : '替换封面'} onClick={() => onReplaceCoverPhoto?.(slot.id)}><ImageIcon /></button>
+                {Boolean(clip.coverPhotoPath) && <button className="slot-cover-revert-button" aria-label="恢复视频关键帧" title="恢复视频关键帧" onClick={() => onClearCoverPhoto?.(slot.id)}><RefreshIcon /></button>}
+                <button className="slot-clear-button" aria-label={`清空${slotLabel(slot.id)}`} title="清空画面" onClick={() => onClearSlot(slot.id)}><CloseIcon /></button>
+              </div>}
               </>}
               {isPointerTarget && <span className="slot-drop-target-copy">松开 · {clip ? '替换画面' : '放入画面'}</span>}
             </div>
