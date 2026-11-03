@@ -966,6 +966,7 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .preview-fullscreen-button { width: 30px; height: 30px; box-shadow: none; }
 .aspect-settings .setting-row:not(.custom-ratio-row) { grid-template-columns: 28px minmax(0, 1fr); align-items: center; column-gap: 8px; }
 .aspect-settings .setting-row > span strong { font-size: 11px; }
+.aspect-settings .segmented.compact button { padding-inline: 2px; white-space: nowrap; }
 .canvas-hint { margin-top: 4px; font-size: 10px; line-height: 14px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .timeline-heading { justify-content: flex-start; gap: 6px; padding-bottom: 0; }
 .timeline-heading > div { gap: 4px; }
