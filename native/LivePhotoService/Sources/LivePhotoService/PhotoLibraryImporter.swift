@@ -48,8 +48,11 @@ final class LivePhotoLibraryPicker: NSObject, PHPickerViewControllerDelegate, NS
         window.delegate = self
         self.window = window
         window.center()
+        // Authorization can change the active app before the picker is ready.
+        // Activate the worker again when the actual selection window is shown.
+        NSApplication.shared.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
-        PhotoAuthorization.appendDiagnosticsLog("photo-import: picker visible=\(window.isVisible)")
+        PhotoAuthorization.appendDiagnosticsLog("photo-import: picker visible=\(window.isVisible) active=\(NSApplication.shared.isActive)")
         let result = try await withCheckedThrowingContinuation { continuation in
             self.continuation = continuation
         }
