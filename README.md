@@ -67,11 +67,11 @@ iOS 移动端 **Lives Mobile** 现已正式上架 App Store！
 当前 macOS 正式版为 [`0.1.16`](https://github.com/ohmyangboy/lives/releases/tag/v0.1.16)。本版加入胶卷与观片器关键帧控制、1–15 秒时长调节及短素材末帧补齐，Mac 应用与标题栏图标统一为官网黑金版本，在反馈面板加入 Lives Mobile 下载二维码与官网入口。
 
 #### 三步安装
-1. **下载 DMG**：从 [v0.1.22 发布页](https://github.com/ohmyangboy/lives/releases/tag/v0.1.22)下载 Apple Silicon DMG，核对同页的 SHA-256 校验和。
+1. **下载 DMG**：从 [v0.1.23 发布页](https://github.com/ohmyangboy/lives/releases/tag/v0.1.23)下载 Apple Silicon DMG，核对同页的 SHA-256 校验和。
 2. **拖入“应用程序”**：打开 DMG，将 Lives 拖入“应用程序”文件夹。
 3. **运行与授权**：退出旧版，从“应用程序”打开 Lives（不要直接在 DMG 窗口运行）；首次保存到“照片”时，按系统提示允许“仅添加照片”。
 
-详见 [本版更新说明](docs/releases/0.1.22.md)。
+详见 [本版更新说明](docs/releases/0.1.23.md)。
 
 #### 签名、公证与安全
 - 发布版本已配置 **Developer ID Application: Yonghao Yang (LGKLTGNTY2)** 签名，并通过 **Apple 官方公证（Notarized & Stapled）**。

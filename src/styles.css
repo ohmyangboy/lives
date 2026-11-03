@@ -417,6 +417,7 @@ button:not(:disabled):active { transform: scale(.975); transition-duration: 80ms
 .toast > span { width: 22px; height: 22px; display: grid; place-items: center; color: #171108; background: var(--amber); border-radius: 50%; font-weight: 700; }
 .toast button { border: 0; background: none; color: #716e66; cursor: pointer; }
 .toast svg { width: 14px; }
+.toast.folder-sync-toast { top: 64px; bottom: auto; width: max-content; max-width: min(420px, calc(100vw - 32px)); min-width: 0; grid-template-columns: 22px minmax(0, 1fr) 22px; padding: 10px 12px; border-radius: 14px; font-size: 12px; line-height: 1.4; }
 .drag-overlay { position: fixed; inset: 86px 18px 18px; z-index: 40; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 11px; color: var(--ink); background: rgba(244,185,66,.94); border: 2px dashed rgba(17,16,14,.45); border-radius: 18px; backdrop-filter: blur(18px); }
 .drag-overlay svg { width: 50px; height: 50px; }.drag-overlay strong { font-size: 23px; }.drag-overlay span { opacity: .65; font-size: 11px; }
 .app.source-dragging, .app.source-dragging * { cursor: grabbing !important; }

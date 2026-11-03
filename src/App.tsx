@@ -372,6 +372,13 @@ export function App() {
   const canvas = canvasDimensions({ aspectRatio, quality: exportQuality, customRatio, sources: canvasSources })
   const cropUpscaleRisk = canvasSources.some((source) => source.width < canvas.width * source.slot.width * source.crop.scale || source.height < canvas.height * source.slot.height * source.crop.scale)
   const canExport = desktopAvailable() && slotClips.length === currentTemplate.requiredClipCount && slotClips.every((clip): clip is SlotClip => clip !== undefined && clip.durationMs >= (clip.livePhoto ? 1000 : MINIMUM_SOURCE_DURATION_MS))
+  const isFolderSyncFailureNotice = Boolean(notice && /\d+\s*段视频无法读取/.test(notice))
+
+  useEffect(() => {
+    if (!notice || !isFolderSyncFailureNotice) return
+    const timer = window.setTimeout(() => setNotice((current) => current === notice ? undefined : current), 5000)
+    return () => window.clearTimeout(timer)
+  }, [notice, isFolderSyncFailureNotice])
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -1477,7 +1484,7 @@ export function App() {
       </div>}
 
       {photoImportError && <div className="toast photo-import-toast" role="alert"><span>!</span><div>{photoImportError.message}</div>{photoImportError.settings && <button onClick={() => void nativeService.openPhotoPrivacySettings().catch(() => setPhotoImportError({ message: '无法打开系统设置，请手动前往隐私与安全性 → 照片', settings: false }))}>打开隐私设置</button>}<button aria-label="关闭照片导入提示" onClick={() => setPhotoImportError(undefined)}><CloseIcon /></button></div>}
-      {!photoImportError && notice && <div className="toast" role="status"><span>!</span>{notice}<button aria-label="关闭通知" onClick={() => setNotice(undefined)}><CloseIcon /></button></div>}
+      {!photoImportError && notice && <div className={isFolderSyncFailureNotice ? 'toast folder-sync-toast' : 'toast'} role="status"><span>!</span>{notice}<button aria-label="关闭通知" onClick={() => setNotice(undefined)}><CloseIcon /></button></div>}
       {sourceDragFeedback && <div className={sourceDragFeedback.overSlotId ? 'source-drag-ghost over-target' : 'source-drag-ghost'} style={{ left: sourceDragFeedback.x, top: sourceDragFeedback.y }} aria-hidden="true">
         <video src={sourceDragFeedback.previewUrl} muted preload="metadata" />
         <span><strong>{sourceDragFeedback.name}</strong><small>{sourceDragFeedback.overSlotId ? '松开，放入此画面格' : '拖到中间的画面格'}</small></span>
