@@ -359,7 +359,12 @@ export function Timeline({ clip, outputDurationMs, onChange, onEditingChange }: 
     <section className="timeline-panel">
       <div className="timeline-heading">
         <div><span className="eyebrow">当前片段</span><strong title={clip.name}>{clip.name}</strong></div>
-        <span>{selectionDescription}</span>
+        <dl className="timeline-clip-meta">
+          <div><dt>格式</dt><dd>{[clip.name.match(/\.([a-z0-9]{2,5})$/i)?.[1]?.toUpperCase(), clip.codec?.toUpperCase()].filter(Boolean).join(' · ') || '未知'}</dd></div>
+          <div><dt>尺寸</dt><dd>{clip.width} × {clip.height}</dd></div>
+          <div><dt>源时长</dt><dd>{formatDuration(clip.durationMs)}</dd></div>
+        </dl>
+        <span className="timeline-selected-range" title="当前片段起止时间">{selectionDescription}</span>
       </div>
       <div className="timeline-workbench">
         {durationNotice && <div className="timeline-duration-toast" role="status">{durationNotice.message}</div>}

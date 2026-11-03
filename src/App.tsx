@@ -1361,7 +1361,6 @@ export function App() {
           </aside>
 
           <section className="center-panel">
-            <div className="stage-heading"><h2>画布</h2></div>
             <CollagePreview
               clips={slotClips}
               template={currentTemplate}

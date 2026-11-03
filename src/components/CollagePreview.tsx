@@ -543,7 +543,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
       tabIndex={clips.some(Boolean) ? 0 : -1} aria-keyshortcuts="Space"
       onPointerDown={beginPreviewHold} onPointerMove={movePreviewHold} onPointerUp={endPreviewHold} onPointerCancel={endPreviewHold} onLostPointerCapture={endPreviewHold}>
       <div ref={sourceMonitorRef} className="source-monitor-bar">
-        <div className="source-monitor-label">{selectedClip ? `正在调整${slotLabel(selectedClip.targetSlotId)}` : `画格 ${clips.filter(Boolean).length}/${template.slots.length}`}</div>
+        <div className="source-monitor-label"><h2>画布</h2><small>{selectedClip ? `调整${slotLabel(selectedClip.targetSlotId)}` : `画格 ${clips.filter(Boolean).length}/${template.slots.length}`}</small></div>
         <div className="source-monitor-actions">
           {selectedClip && <div className="composition-toolbar" aria-label="当前画面构图工具">
             <button onClick={() => changeSelectedScale(-.1)} disabled={selectedClip.crop.scale <= MIN_SCALE} aria-label="缩小画面">−</button>
