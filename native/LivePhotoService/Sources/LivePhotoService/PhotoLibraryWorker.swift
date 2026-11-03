@@ -50,6 +50,7 @@ enum PhotoLibraryWorker {
             do {
                 try PhotoAuthorization.validateSigningConfiguration()
             } catch {
+                PhotoDiagnostics.record(.authorization, .configurationError)
                 write(PhotoWorkerResponse(authorized: false, identifier: nil, error: PhotoAuthorization.configurationError), to: responseURL)
                 return true
             }
@@ -66,8 +67,10 @@ enum PhotoLibraryWorker {
             let responseURL = URL(fileURLWithPath: arguments[modeIndex + 1])
             let photoURL = URL(fileURLWithPath: arguments[modeIndex + 2])
             let videoURL = URL(fileURLWithPath: arguments[modeIndex + 3])
+            PhotoDiagnostics.record(.save, .started, photoURL: photoURL, videoURL: videoURL)
             do {
                 let identifier = try await savePairDirect(photoURL: photoURL, pairedVideoURL: videoURL)
+                PhotoDiagnostics.record(.save, .succeeded, photoURL: photoURL, videoURL: videoURL)
                 PhotoAuthorization.appendDiagnosticsLog("photo-save: ok")
                 write(PhotoWorkerResponse(authorized: true, identifier: identifier, error: nil), to: responseURL)
             } catch let error as ServiceError {
@@ -118,6 +121,7 @@ enum PhotoLibraryWorker {
         } else {
             PhotoAuthorization.appendDiagnosticsLog("photo-authorize: skipped prompt, status=\(status.rawValue)")
         }
+        PhotoDiagnostics.record(.authorization, status == .authorized ? .succeeded : .failed)
         return AuthorizationOutcome(status: status, promptSuppressed: promptSuppressed)
     }
 
@@ -139,9 +143,11 @@ enum PhotoLibraryWorker {
                 placeholderIdentifier = request.placeholderForCreatedAsset?.localIdentifier
             }
         } catch {
+            PhotoDiagnostics.record(.save, .failed, photoURL: photoURL, videoURL: pairedVideoURL, error: error)
             throw ServiceError(code: "PHOTO_SAVE_FAILED", message: "无法保存到“照片”", recovery: "请检查照片图库状态和磁盘空间后重试")
         }
         guard let placeholderIdentifier else {
+            PhotoDiagnostics.record(.save, .missingIdentifier, photoURL: photoURL, videoURL: pairedVideoURL)
             throw ServiceError(code: "PHOTO_SAVE_FAILED", message: "“照片”没有返回保存结果", recovery: "请重试")
         }
         return placeholderIdentifier

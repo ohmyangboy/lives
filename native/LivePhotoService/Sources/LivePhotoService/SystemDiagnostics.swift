@@ -15,6 +15,7 @@ struct SystemDiagnosticsInfo: Codable {
     let locale: String
     let displayResolution: String?
     let displayScale: Double?
+    let photoDiagnostics: String?
 }
 
 enum SystemDiagnostics {
@@ -36,7 +37,8 @@ enum SystemDiagnostics {
             physicalMemoryBytes: memoryBytes > 0 ? Int(memoryBytes) : nil,
             locale: Locale.current.identifier,
             displayResolution: screen.map { "\(Int($0.frame.width.rounded())) × \(Int($0.frame.height.rounded()))" },
-            displayScale: screen.map { Double($0.backingScaleFactor) }
+            displayScale: screen.map { Double($0.backingScaleFactor) },
+            photoDiagnostics: (try? PhotoDiagnostics.log.feedbackSummary()) ?? "Photos diagnostics unavailable."
         )
     }
 

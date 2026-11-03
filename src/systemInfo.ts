@@ -19,6 +19,7 @@ export interface SystemDiagnosticInfo {
   memoryDescription?: string
   deviceModel?: string
   userAgent?: string
+  photoDiagnostics?: string
 }
 
 export function getSystemDiagnosticInfo(nativeServiceReady = true): SystemDiagnosticInfo {
@@ -58,6 +59,7 @@ function nativeInfoToDiagnostic(native: NativeSystemDiagnostics, nativeServiceRe
     cpuDescription: `${chipText}${architectureSuffix}, ${native.processorCount} 核`,
     memoryDescription: memoryText,
     deviceModel: native.deviceModel,
+    photoDiagnostics: native.photoDiagnostics,
   }
 }
 
@@ -81,6 +83,7 @@ export function formatSystemInfoText(info: SystemDiagnosticInfo): string {
       info.memoryDescription ? `内存: ${info.memoryDescription}` : undefined,
       `主显示器: ${info.screenResolution} (@${info.devicePixelRatio})`,
       `系统语言/区域: ${info.language}`,
+      info.photoDiagnostics ? `\n最近照片保存诊断（不含素材内容、文件名或路径）：\n${info.photoDiagnostics}` : undefined,
     ].filter(Boolean).join('\n')
   }
   return [
@@ -97,4 +100,10 @@ export function formatSystemInfoText(info: SystemDiagnosticInfo): string {
 
 export async function loadSystemDiagnosticText(nativeServiceReady = true): Promise<string> {
   return formatSystemInfoText(await loadSystemDiagnosticInfo(nativeServiceReady))
+}
+
+export async function copySystemDiagnosticText(): Promise<void> {
+  const text = await loadSystemDiagnosticText()
+  if (desktopAvailable()) await nativeService.copyDiagnosticText(text)
+  else await navigator.clipboard.writeText(text)
 }

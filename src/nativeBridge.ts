@@ -52,6 +52,7 @@ export interface NativeSystemDiagnostics {
   locale: string
   displayResolution?: string
   displayScale?: number
+  photoDiagnostics?: string
 }
 
 interface NativeEnvelope {
@@ -163,6 +164,7 @@ class LivePhotoService {
   resetPhotoAuthorization(jobId: string) { return this.request<void>('resetPhotoAuthorization', { jobId }) }
   copyRepairCommands() { return this.request<void>('copyRepairCommands', {}) }
   systemDiagnostics() { return this.request<NativeSystemDiagnostics>('systemDiagnostics', {}) }
+  copyDiagnosticText(text: string) { return this.request<void>('copyDiagnosticText', { text }) }
   revealInFinder(path: string) { return this.request<void>('revealInFinder', { path }) }
   fetchUpdateMetadata(source: 'oneleaf' | 'github', version?: string, signal?: AbortSignal) {
     // The sidecar owns the allowlist and URL construction. The abort signal

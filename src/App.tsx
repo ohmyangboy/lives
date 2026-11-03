@@ -6,10 +6,11 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { CollagePreview } from './components/CollagePreview'
 import { Timeline, TimelineEmpty } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
+import { MaterialImportStatus, type MaterialImportProgress } from './components/MaterialImportStatus'
 import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, clampCoverTimeMs, createRenderProject, formatDuration, imageExtensionPattern, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, nativeAspectRatio, OUTPUT_DURATION_MS, planFolderSync, templates, videoExtensionPattern, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip, type LivePhotoSource } from './domain'
 import type { TimelineDragMode } from './components/timelineGeometry'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
-import { ClearIcon, CloseIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, RefreshIcon, UpdateIcon, ChevronDownIcon, GithubIcon, PhotosIcon } from './icons'
+import { ClearIcon, CloseIcon, CopyIcon, ExportIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, RefreshIcon, UpdateIcon, ChevronDownIcon, GithubIcon, PhotosIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
 import { currentAppVersion, defaultUpdateCoordinator } from './releaseUpdate'
 import { UpdateCapsule } from './components/UpdateCapsule'
@@ -17,7 +18,7 @@ import { AboutModal } from './components/AboutModal'
 import { clearPostUpdateFeedbackFlag, hasPendingPostUpdateFeedback } from './postUpdateFeedback'
 import { prepareFileImport } from './fileImport'
 
-import { loadSystemDiagnosticText } from './systemInfo'
+import { copySystemDiagnosticText, loadSystemDiagnosticText } from './systemInfo'
 import xiaohongshuContactImage from './assets/xiaohongshu-contact.jpg'
 import wechatSponsorImage from './assets/wechat-sponsor.jpg'
 import livesMacIcon from './assets/lives-mac-icon.png'
@@ -295,7 +296,6 @@ export function App() {
   const [sourceDragFeedback, setSourceDragFeedback] = useState<SourceDragFeedback>()
   const [notice, setNotice] = useState<string>()
   const [photoImportError, setPhotoImportError] = useState<{ message: string; settings: boolean }>()
-  const [isImportingFromPhotos, setIsImportingFromPhotos] = useState(false)
   const photoImportBusyRef = useRef(false)
   const [isDragging, setIsDragging] = useState(false)
   const [exportState, setExportState] = useState<ExportState>(initialExport)
@@ -309,12 +309,13 @@ export function App() {
   const photoResetJobIdRef = useRef<string | undefined>(undefined)
   const [slotPlacements, setSlotPlacements] = useState<SlotPlacements>({})
   const [destinationPickerVisible, setDestinationPickerVisible] = useState(false)
-  const [importProgress, setImportProgress] = useState<{ done: number; total: number }>()
+  const [importProgress, setImportProgress] = useState<MaterialImportProgress>()
   const photoImportAbortRef = useRef<AbortController | undefined>(undefined)
   const [startupPhase, setStartupPhase] = useState<'visible' | 'leaving' | 'hidden'>('visible')
   const [firstRunGuideVisible, setFirstRunGuideVisible] = useState(shouldShowFirstRunGuide)
   const [openHelpPopover, setOpenHelpPopover] = useState<'library' | 'templates'>()
   const [feedbackPhase, setFeedbackPhase] = useState<'closed' | 'automatic' | 'manual' | 'leaving'>('closed')
+  const [feedbackLogCopyState, setFeedbackLogCopyState] = useState<'idle' | 'copying' | 'copied' | 'failed'>('idle')
   const feedbackPopoverOpen = feedbackPhase !== 'closed'
   // 只在更新重启后的首次启动展示；标记在面板真正显示后清除。
   const startupFeedbackPendingRef = useRef(hasPendingPostUpdateFeedback())
@@ -498,6 +499,17 @@ export function App() {
     }
   }, [])
 
+  const copyFeedbackLogs = useCallback(async () => {
+    setFeedbackLogCopyState('copying')
+    try {
+      await copySystemDiagnosticText()
+      setFeedbackLogCopyState('copied')
+    } catch {
+      setFeedbackLogCopyState('failed')
+      setNotice('未能复制日志，请重新尝试，或通过邮件反馈')
+    }
+  }, [])
+
   useEffect(() => {
     if (!desktopAvailable()) return
     const persistentClips = clips.filter((clip) => clip.sourcePath).map(({ previewUrl: _previewUrl, ...clip }) => clip)
@@ -532,7 +544,7 @@ export function App() {
     }))
     const accepted = supported.filter((path) => !existingByPath.has(path) || (options.livePhotos?.has(path) && !existingByPath.get(path)?.livePhoto))
     setNotice(undefined)
-    if (accepted.length) setImportProgress({ done: 0, total: accepted.length })
+    if (accepted.length) setImportProgress({ stage: 'importing', done: 0, total: accepted.length })
     const imported = new Array<VideoClip | undefined>(accepted.length)
     let cursor = 0
     let finished = 0
@@ -565,7 +577,7 @@ export function App() {
           failureMessages.push(error instanceof Error ? error.message : '无法读取视频')
         } finally {
           finished += 1
-          setImportProgress({ done: finished, total: accepted.length })
+          setImportProgress({ stage: 'importing', done: finished, total: accepted.length })
         }
       }
     }
@@ -623,7 +635,7 @@ export function App() {
         const folderPath = project.folderPath
         if (!folderPath) continue
         lastFolderSyncAtRef.current.set(project.id, Date.now())
-        setImportProgress({ done: 0, total: 1 })
+        setImportProgress({ stage: 'scanning' })
         let scanPaths: string[]
         try {
           scanPaths = await nativeService.scanFolder(folderPath)
@@ -727,15 +739,13 @@ export function App() {
     photoImportAbortRef.current = controller
     let timedOut = false
     const timeout = window.setTimeout(() => { timedOut = true; controller.abort() }, 120_000)
-    setIsImportingFromPhotos(true)
     setPhotoImportError(undefined)
     setNotice(undefined)
-    setImportProgress({ done: 0, total: 1 })
+    setImportProgress({ stage: 'photos' })
     try {
       const pairs = await nativeService.importLivePhotosFromLibrary(controller.signal)
       window.clearTimeout(timeout)
       photoImportAbortRef.current = undefined
-      setIsImportingFromPhotos(false)
       if (pairs.length) {
         await importPaths(pairs.map((pair) => pair.video.path), createDefaultProject(), { livePhotos: new Map(pairs.map((pair) => [pair.video.path, pair])) })
       }
@@ -753,7 +763,6 @@ export function App() {
       window.clearTimeout(timeout)
       photoImportAbortRef.current = undefined
       photoImportBusyRef.current = false
-      setIsImportingFromPhotos(false)
       setImportProgress(undefined)
     }
   }
@@ -765,7 +774,7 @@ export function App() {
     try {
       const selected = await open({ title: '选择视频或 Live Photo 原始照片及配对 MOV', multiple: true, directory: false, filters: [{ name: '视频和 Live Photo 文件', extensions: ['mov', 'mp4', 'm4v', 'heic', 'heif', 'jpg', 'jpeg'] }] })
       if (!selected) return
-      setImportProgress({ done: 0, total: 1 })
+      setImportProgress({ stage: 'preparing' })
       const prepared = await prepareFileImport(Array.isArray(selected) ? selected : [selected], (paths) => nativeService.pairLivePhotos(paths))
       await importPaths(prepared.paths, createDefaultProject(), { livePhotos: prepared.livePhotos })
     } catch (error) {
@@ -779,7 +788,7 @@ export function App() {
     if (!desktopAvailable()) { setNotice('关联文件夹需要在 Mac App 中使用'); return }
     const selected = await open({ multiple: false, directory: true, title: '选择包含视频的文件夹' })
     if (typeof selected !== 'string') return
-    setImportProgress({ done: 0, total: 1 })
+    setImportProgress({ stage: 'scanning' })
     try {
       const paths = await nativeService.scanFolder(selected)
       if (!paths.length) { setNotice('这个文件夹中没有 MOV、MP4 或 M4V 视频'); setImportProgress(undefined); return }
@@ -1282,6 +1291,7 @@ export function App() {
               <div className="feedback-channel-list">
                 <button className="feedback-email-card" onClick={openFeedback}><FeedbackIcon /><span><strong>发送邮件</strong><small>ohmyangboy@gmail.com</small></span><b>打开 Mail</b></button>
                 <button className="feedback-email-card feedback-issue-card" onClick={openIssueFeedback}><IssueIcon /><span><strong>GitHub Issue</strong><small>Bug 报告与功能建议</small></span><b>公开反馈</b></button>
+                <button className="feedback-email-card" onClick={copyFeedbackLogs} disabled={feedbackLogCopyState === 'copying'}><CopyIcon /><span><strong>复制日志</strong><small>设备信息与最近照片保存诊断</small></span><b aria-live="polite">{feedbackLogCopyState === 'copying' ? '正在复制…' : feedbackLogCopyState === 'copied' ? '已复制' : feedbackLogCopyState === 'failed' ? '重试' : '复制'}</b></button>
               </div>
               <section className="feedback-mobile-card" aria-label="Lives Mobile">
                 <div className="feedback-mobile-code">
@@ -1311,7 +1321,7 @@ export function App() {
                   </section>
                 </div>
               </div>
-              <small className="feedback-privacy-note">发送截图或日志前，请先移除私人素材和个人信息。</small>
+              <small className="feedback-privacy-note">反馈草稿会附带最近照片保存诊断，不含素材内容、文件名或路径。发送前可查看或删除；截图中的私人信息请自行移除。</small>
             </div>}
           </div>
           <button className="clear-project" disabled={!canClearCollage} onClick={clearCollage} title="保留素材，仅清除当前拼贴"><ClearIcon />清除拼贴</button>
@@ -1336,7 +1346,7 @@ export function App() {
                 <button className="media-project-close" aria-label={`关闭项目 ${project.name}`} onClick={() => closeMediaProject(project.id)}><CloseIcon /></button>
               </div>)}
             </div>
-            {importProgress && <div className="material-import-status"><i style={{ width: `${importProgress.total ? importProgress.done / importProgress.total * 100 : 0}%` }} /><span role="status">{isImportingFromPhotos ? '正在等待照片选择或 iCloud 原片下载（最长 2 分钟）' : `正在导入 ${importProgress.done} / ${importProgress.total}`}</span>{isImportingFromPhotos && <button onClick={() => photoImportAbortRef.current?.abort()}>取消</button>}</div>}
+            {importProgress && <MaterialImportStatus progress={importProgress} onCancel={() => photoImportAbortRef.current?.abort()} />}
             <div className="clip-list material-library">
               {activeProjectClips.map((clip, index) => {
                 const materialId = clip.id

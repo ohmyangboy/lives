@@ -212,6 +212,17 @@ final class ServiceRuntime {
             case "systemDiagnostics":
                 // 反馈邮件里的设备信息必须取自本机 API；WebView 的 platform/UA 是假数据。
                 await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: try encodeValue(SystemDiagnostics.collect())))
+            case "copyDiagnosticText":
+                let envelope = try request.payload.decode(DiagnosticTextEnvelope.self)
+                let copied = await MainActor.run {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    return pasteboard.setString(envelope.text, forType: .string)
+                }
+                guard copied else {
+                    throw ServiceError(code: "DIAGNOSTICS_COPY_FAILED", message: "未能复制诊断日志", recovery: "请重新尝试，或通过邮件反馈")
+                }
+                await writer.send(ServiceResponse(requestId: request.requestId, type: "result", payload: .null))
             case "revealInFinder":
                 let envelope = try request.payload.decode(PathEnvelope.self)
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: envelope.path)])

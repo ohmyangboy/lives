@@ -120,6 +120,7 @@ struct RenderProject: Codable {
 struct RenderEnvelope: Codable { let project: RenderProject }
 struct FolderExportEnvelope: Codable { let project: RenderProject; let directoryPath: String }
 struct PathEnvelope: Codable { let path: String }
+struct DiagnosticTextEnvelope: Codable { let text: String }
 struct CancelEnvelope: Codable { let jobId: String }
 struct ResetEnvelope: Codable { let jobId: String }
 struct DownloadUpdateEnvelope: Codable {
