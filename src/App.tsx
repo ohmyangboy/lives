@@ -1287,11 +1287,10 @@ export function App() {
           <div className="feedback-menu-anchor" ref={feedbackPopoverRef}>
             <button className="titlebar-icon-button" onClick={() => { startupFeedbackPendingRef.current = false; clearPostUpdateFeedbackFlag(); setFeedbackPhase((current) => current === 'manual' ? 'closed' : 'manual') }} aria-expanded={feedbackPopoverOpen} aria-controls="feedback-popover" aria-label="反馈与支持" title="反馈与支持"><FeedbackIcon />反馈</button>
             {feedbackPopoverOpen && <div className={`feedback-popover${feedbackPhase === 'leaving' ? ' feedback-popover-leaving' : ''}`} id="feedback-popover" role="dialog" aria-label="反馈与联系" onPointerDown={() => setFeedbackPhase('manual')} onFocusCapture={() => setFeedbackPhase('manual')}>
-              <div className="feedback-popover-heading"><span className="eyebrow">反馈与联系</span><strong>当前版本 {currentAppVersion}，欢迎给我反馈👏</strong></div>
+              <div className="feedback-popover-heading"><div className="feedback-popover-title-row"><span className="eyebrow">反馈与联系</span><button className="feedback-copy-logs" onClick={copyFeedbackLogs} disabled={feedbackLogCopyState === 'copying'} aria-label="复制诊断日志" title="复制设备信息与最近照片保存诊断"><CopyIcon /><span aria-live="polite">{feedbackLogCopyState === 'copying' ? '复制中…' : feedbackLogCopyState === 'copied' ? '已复制' : feedbackLogCopyState === 'failed' ? '重试' : '复制日志'}</span></button></div><strong>当前版本 {currentAppVersion}，欢迎给我反馈👏</strong></div>
               <div className="feedback-channel-list">
                 <button className="feedback-email-card" onClick={openFeedback}><FeedbackIcon /><span><strong>发送邮件</strong><small>ohmyangboy@gmail.com</small></span><b>打开 Mail</b></button>
                 <button className="feedback-email-card feedback-issue-card" onClick={openIssueFeedback}><IssueIcon /><span><strong>GitHub Issue</strong><small>Bug 报告与功能建议</small></span><b>公开反馈</b></button>
-                <button className="feedback-email-card" onClick={copyFeedbackLogs} disabled={feedbackLogCopyState === 'copying'}><CopyIcon /><span><strong>复制日志</strong><small>设备信息与最近照片保存诊断</small></span><b aria-live="polite">{feedbackLogCopyState === 'copying' ? '正在复制…' : feedbackLogCopyState === 'copied' ? '已复制' : feedbackLogCopyState === 'failed' ? '重试' : '复制'}</b></button>
               </div>
               <section className="feedback-mobile-card" aria-label="Lives Mobile">
                 <div className="feedback-mobile-code">
