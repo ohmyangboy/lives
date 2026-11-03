@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CheckIcon, CloseIcon, RestartIcon, UpdateIcon } from '../icons'
-import { UpdateCoordinator, type UpdateState } from '../releaseUpdate'
+import { currentAppVersion, UpdateCoordinator, type UpdateState } from '../releaseUpdate'
 
 interface UpdateCapsuleProps {
   coordinator: UpdateCoordinator
@@ -23,6 +23,8 @@ export function UpdateCapsule({ coordinator }: UpdateCapsuleProps) {
     return () => window.clearTimeout(timer)
   }, [coordinator.lastUpToDateNoticeAt])
 
+  const versionButton = <button className="update-capsule current-version" onClick={() => coordinator.checkForUpdates(true)} title={`Lives v${currentAppVersion}，点击检查更新`} aria-label={`Lives v${currentAppVersion}，检查更新`}>v{currentAppVersion}</button>
+
   switch (state.kind) {
     case 'idle':
     case 'checkingSilently':
@@ -34,7 +36,7 @@ export function UpdateCapsule({ coordinator }: UpdateCapsuleProps) {
           </div>
         )
       }
-      return null
+      return versionButton
 
     case 'checking':
       return (
@@ -53,7 +55,7 @@ export function UpdateCapsule({ coordinator }: UpdateCapsuleProps) {
           </div>
         )
       }
-      return null
+      return versionButton
 
     case 'updateAvailable':
       return (
