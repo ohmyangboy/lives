@@ -61,6 +61,7 @@ struct VideoInfo: Codable {
     let width: Int
     let height: Int
     let codec: String
+    var createdAtMs: Double? = nil
 }
 
 struct PreviewInfo: Codable {

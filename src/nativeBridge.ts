@@ -5,6 +5,7 @@ import { Command, type Child } from '@tauri-apps/plugin-shell'
 import type { LivePhotoSource, RenderProject } from './domain'
 
 export interface VideoInfo {
+  createdAtMs?: number | null
   path: string
   durationMs: number
   width: number
@@ -163,6 +164,7 @@ class LivePhotoService {
   openPhotoPrivacySettings() { return this.request<void>('openPhotoPrivacySettings', {}) }
   resetPhotoAuthorization(jobId: string) { return this.request<void>('resetPhotoAuthorization', { jobId }) }
   copyRepairCommands() { return this.request<void>('copyRepairCommands', {}) }
+  fileCreationTime(path: string) { return this.request<number | null>('fileCreationTime', { path }) }
   systemDiagnostics() { return this.request<NativeSystemDiagnostics>('systemDiagnostics', {}) }
   copyDiagnosticText(text: string) { return this.request<void>('copyDiagnosticText', { text }) }
   revealInFinder(path: string) { return this.request<void>('revealInFinder', { path }) }

@@ -31,3 +31,4 @@ export const RestartIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}>
 export const RefreshIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M3 12a9 9 0 1 0 9-9c-2.52 0-4.93 1-6.74 2.74L3 8" /><path d="M3 3v5h5" /></Icon>
 export const ImageIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></Icon>
 
+export const SortIcon = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M3 5h14M3 11h10M3 17h6M18 10v11m-3-3 3 3 3-3" /></Icon>

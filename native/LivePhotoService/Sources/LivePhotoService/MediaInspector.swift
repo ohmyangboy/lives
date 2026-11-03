@@ -37,8 +37,14 @@ enum MediaInspector {
             durationMs: durationMilliseconds,
             width: Int(abs(transformed.width).rounded()),
             height: Int(abs(transformed.height).rounded()),
-            codec: codec
+            codec: codec,
+            createdAtMs: creationTimeMilliseconds(path: path)
         )
+    }
+
+    static func creationTimeMilliseconds(path: String) -> Double? {
+        guard let date = (try? FileManager.default.attributesOfItem(atPath: path)[.creationDate]) as? Date else { return nil }
+        return date.timeIntervalSince1970 * 1000
     }
 
     private static func fourCC(_ value: FourCharCode) -> String {

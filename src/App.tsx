@@ -8,9 +8,10 @@ import { Timeline, TimelineEmpty } from './components/Timeline'
 import { ExportOverlay } from './components/ExportOverlay'
 import { MaterialImportStatus, type MaterialImportProgress } from './components/MaterialImportStatus'
 import { analyzeSourceQuality, aspectRatioOptions, canvasDimensions, clampCoverTimeMs, createRenderProject, formatDuration, imageExtensionPattern, MINIMUM_SOURCE_DURATION_MS, normalizeCustomRatio, nativeAspectRatio, OUTPUT_DURATION_MS, planFolderSync, templates, videoExtensionPattern, type AspectRatioId, type ExportQuality, type SlotClip, type TemplateId, type VideoClip, type LivePhotoSource } from './domain'
+import { mediaSortOptions, sortMediaClips, type MediaSortKey, type SortDirection } from './mediaSorting'
 import type { TimelineDragMode } from './components/timelineGeometry'
 import { desktopAvailable, nativeService, previewUrlForPath, type NativeStage } from './nativeBridge'
-import { CloseIcon, CopyIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, RefreshIcon, UpdateIcon, ChevronDownIcon, GithubIcon, PhotosIcon } from './icons'
+import { CheckIcon, CloseIcon, CopyIcon, SortIcon, FeedbackIcon, FilmIcon, FolderIcon, InfoIcon, IssueIcon, LiveIcon, PlusIcon, RefreshIcon, UpdateIcon, ChevronDownIcon, GithubIcon, PhotosIcon } from './icons'
 import { ExportDestinationPicker, type ExportDestinationChoice } from './components/ExportDestinationPicker'
 import { currentAppVersion, defaultUpdateCoordinator } from './releaseUpdate'
 import { UpdateCapsule } from './components/UpdateCapsule'
@@ -319,6 +320,9 @@ export function App() {
   const feedbackPopoverOpen = feedbackPhase !== 'closed'
   // 只在更新重启后的首次启动展示；标记在面板真正显示后清除。
   const startupFeedbackPendingRef = useRef(hasPendingPostUpdateFeedback())
+  const [mediaSortKey, setMediaSortKey] = useState<MediaSortKey>('importedAt')
+  const [mediaSortDirection, setMediaSortDirection] = useState<SortDirection>('desc')
+  const [mediaSortOpen, setMediaSortOpen] = useState(false)
   const [appMenuOpen, setAppMenuOpen] = useState(false)
   const [aboutModalOpen, setAboutModalOpen] = useState(false)
 
@@ -339,6 +343,7 @@ export function App() {
   const coverFileSlotTargetRef = useRef<string | undefined>(undefined)
   const firstRunDialogRef = useRef<HTMLDivElement>(null)
   const firstRunPrimaryRef = useRef<HTMLButtonElement>(null)
+  const mediaSortRef = useRef<HTMLDivElement>(null)
   const libraryHelpRef = useRef<HTMLDivElement>(null)
   const templateHelpRef = useRef<HTMLDivElement>(null)
   const feedbackPopoverRef = useRef<HTMLDivElement>(null)
@@ -346,7 +351,7 @@ export function App() {
   const internalDragRef = useRef(false)
   const sourcePointerDragRef = useRef<{ pointerId: number; materialId: string; startX: number; startY: number; active: boolean } | undefined>(undefined)
   const activeMediaProject = mediaProjects.find((project) => project.id === activeProjectId) ?? mediaProjects[0]
-  const activeProjectClips = activeMediaProject.clipIds.map((id) => clips.find((clip) => clip.id === id)).filter((clip): clip is VideoClip => Boolean(clip))
+  const activeProjectClips = sortMediaClips(activeMediaProject.clipIds.map((id) => clips.find((clip) => clip.id === id)).filter((clip): clip is VideoClip => Boolean(clip)), mediaSortKey, mediaSortDirection)
   const currentTemplate = templates.find((template) => template.id === templateId)!
   const visibleAspectRatios = (canvasOrientation === 'portrait' ? ['9:16', '3:4', '1:1'] : ['16:9', '4:3', '1:1'])
     .map((id) => aspectRatioOptions.find((option) => option.id === id as AspectRatioId)!)
@@ -382,6 +387,28 @@ export function App() {
     if (startupPhase !== 'hidden' || !firstRunGuideVisible) return
     firstRunPrimaryRef.current?.focus()
   }, [firstRunGuideVisible, startupPhase])
+
+  useEffect(() => {
+    if (!mediaSortOpen) return
+    const outside = (event: PointerEvent) => { if (!mediaSortRef.current?.contains(event.target as Node)) setMediaSortOpen(false) }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMediaSortOpen(false) }
+    document.addEventListener('pointerdown', outside)
+    window.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('pointerdown', outside); window.removeEventListener('keydown', escape) }
+  }, [mediaSortOpen])
+
+  useEffect(() => {
+    if (mediaSortKey !== 'createdAt' || !desktopAvailable()) return
+    const pending = clips.filter((clip) => clip.createdAtMs === undefined)
+    if (!pending.length) return
+    let active = true
+    void Promise.all(pending.map(async (clip) => [clip.id, await nativeService.fileCreationTime(clip.sourcePath).catch(() => null)] as const)).then((dates) => {
+      if (!active) return
+      const byId = new Map(dates)
+      setClips((current) => current.map((clip) => byId.has(clip.id) && clip.createdAtMs === undefined ? { ...clip, createdAtMs: byId.get(clip.id) ?? null } : clip))
+    })
+    return () => { active = false }
+  }, [clips, mediaSortKey])
 
   useEffect(() => {
     if (!openHelpPopover) return
@@ -545,6 +572,7 @@ export function App() {
     const accepted = supported.filter((path) => !existingByPath.has(path) || (options.livePhotos?.has(path) && !existingByPath.get(path)?.livePhoto))
     setNotice(undefined)
     if (accepted.length) setImportProgress({ stage: 'importing', done: 0, total: accepted.length })
+    const importedAt = Date.now()
     const imported = new Array<VideoClip | undefined>(accepted.length)
     let cursor = 0
     let finished = 0
@@ -565,6 +593,7 @@ export function App() {
           const matchedImage = imageByBaseName.get(base)
           imported[index] = {
             id: existingByPath.get(path)?.id ?? crypto.randomUUID(), sourcePath: path,
+            importedAtMs: importedAt + index, createdAtMs: info.createdAtMs ?? null,
             kind: pair ? 'livePhoto' : 'video', livePhoto: pair?.livePhoto, name: path.split('/').pop() ?? '视频', durationMs: info.durationMs,
             previewPath: preview.transcoded ? preview.path : undefined,
             width: info.width, height: info.height, codec: info.codec, startTimeMs: 0,
@@ -1337,6 +1366,12 @@ export function App() {
               {openHelpPopover === 'library' && <div id="library-help-popover" className="context-help-popover library-help-popover">
                 <div><FilmIcon /><p><strong>拖入画格</strong><span>同一素材可以重复使用，每格分别选段；拖动时间线两侧手柄调节整体时长，最长 15 秒。</span></p></div>
                 <div><FolderIcon /><p><strong>添加素材</strong><span>选择视频，或同时选择 Live Photo 的原始照片和配对 MOV；文件导入只引用原文件。</span></p></div>
+              </div>}
+            </div><div className="context-help-anchor" ref={mediaSortRef}>
+              <button className="context-help-button" aria-label="素材排序" title={`排序：${mediaSortOptions.find((option) => option.key === mediaSortKey)?.label}`} aria-expanded={mediaSortOpen} aria-controls="media-sort-menu" aria-haspopup="menu" onClick={() => setMediaSortOpen((current) => !current)}><SortIcon /></button>
+              {mediaSortOpen && <div id="media-sort-menu" className="context-help-popover media-sort-popover" role="menu" aria-label="素材排序方式">
+                {mediaSortOptions.map((option) => <button key={option.key} role="menuitemradio" aria-checked={mediaSortKey === option.key} onClick={() => { setMediaSortKey(option.key); setMediaSortDirection(option.key === 'name' ? 'asc' : 'desc'); setMediaSortOpen(false) }}>{option.label}{mediaSortKey === option.key && <CheckIcon />}</button>)}
+                <div className="media-sort-direction" role="group" aria-label="排序方向"><button aria-pressed={mediaSortDirection === 'asc'} onClick={() => setMediaSortDirection('asc')}>升序</button><button aria-pressed={mediaSortDirection === 'desc'} onClick={() => setMediaSortDirection('desc')}>降序</button></div>
               </div>}
             </div></div></div></div>
             <div className="media-project-tabs" role="tablist" aria-label="素材项目">

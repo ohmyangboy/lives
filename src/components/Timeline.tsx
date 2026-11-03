@@ -370,7 +370,7 @@ export function Timeline({ clip, outputDurationMs, onChange, onEditingChange }: 
         {durationNotice && <div className="timeline-duration-toast" role="status">{durationNotice.message}</div>}
         <div className="timeline-toolbar" title="⌘ / Ctrl + 滚轮缩放；拖动选区整体平移，拖动两侧手柄调节所有画格的时长，范围 1–15 秒。">
           <label className="timeline-duration-control" title="快捷设置所有画格的 Live 时长；拖动选区手柄可精细调节。">
-            <span>所有画格 ·</span>
+            <span>时长</span>
             <select aria-label="所有画格的 Live 时长" value={outputDurationMs} disabled={isDragging} onChange={(event) => onChange(clip.startTimeMs, normalizeOutputDurationMs(Number(event.target.value)), 'trailing')}>
               {!QUICK_DURATIONS_MS.includes(outputDurationMs) && <option value={outputDurationMs}>{(outputDurationMs / 1000).toFixed(1)} 秒</option>}
               {QUICK_DURATIONS_MS.map((durationMs) => <option key={durationMs} value={durationMs}>{(durationMs / 1000).toFixed(1)} 秒</option>)}

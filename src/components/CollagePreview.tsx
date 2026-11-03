@@ -50,7 +50,6 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
   const stageRef = useRef<HTMLDivElement>(null)
   const sourceMonitorRef = useRef<HTMLDivElement>(null)
   const previewControlsRef = useRef<HTMLDivElement>(null)
-  const canvasHintRef = useRef<HTMLParagraphElement>(null)
   const frameRef = useRef(0)
   const settleFrameRef = useRef(0)
   const settleTimerRef = useRef<number | undefined>(undefined)
@@ -268,7 +267,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
       const reservedHeight = paddingTop + paddingBottom
         + outerHeight(sourceMonitorRef.current)
         + outerHeight(previewControlsRef.current)
-        + outerHeight(canvasHintRef.current)
+        + (Number.parseFloat(style.rowGap) || 0) * 2
       setMaximumCanvasHeight(Math.max(180, Math.floor(stage.clientHeight - reservedHeight)))
     }
     update()
@@ -276,7 +275,6 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
     observer.observe(stage)
     if (sourceMonitorRef.current) observer.observe(sourceMonitorRef.current)
     if (previewControlsRef.current) observer.observe(previewControlsRef.current)
-    if (canvasHintRef.current) observer.observe(canvasHintRef.current)
     return () => observer.disconnect()
   }, [isFullscreen])
 
@@ -543,7 +541,7 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
       tabIndex={clips.some(Boolean) ? 0 : -1} aria-keyshortcuts="Space"
       onPointerDown={beginPreviewHold} onPointerMove={movePreviewHold} onPointerUp={endPreviewHold} onPointerCancel={endPreviewHold} onLostPointerCapture={endPreviewHold}>
       <div ref={sourceMonitorRef} className="source-monitor-bar">
-        <div className="source-monitor-label"><h2>画布</h2><small>{selectedClip ? `调整${slotLabel(selectedClip.targetSlotId)}` : `画格 ${clips.filter(Boolean).length}/${template.slots.length}`}</small></div>
+        <div className="source-monitor-label"><h2>画布</h2><span className="preview-live-indicator" role="img" aria-label="Live Photo"><LivePhotoIcon /></span></div>
         <div className="source-monitor-actions">
           {selectedClip && <div className="composition-toolbar" aria-label="当前画面构图工具">
             <button onClick={() => changeSelectedScale(-.1)} disabled={selectedClip.crop.scale <= MIN_SCALE} aria-label="缩小画面">−</button>
@@ -551,10 +549,16 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
             <button onClick={() => changeSelectedScale(.1)} disabled={selectedClip.crop.scale >= MAX_SCALE} aria-label="放大画面">＋</button>
             <button className="reset-crop" onClick={() => { onCropChange(selectedClip.targetSlotId, .5, .5); onScaleChange(selectedClip.targetSlotId, 1) }}>居中</button>
           </div>}
+          {selectedClip && <div className="slot-context-actions source-slot-actions" aria-label="当前画格操作">
+            <button className={selectedClip.audioEnabled ? 'slot-audio-button enabled' : 'slot-audio-button'} aria-label={`${selectedClip.audioEnabled ? '关闭' : '开启'}${slotLabel(selectedClip.targetSlotId)}原声`} aria-pressed={selectedClip.audioEnabled === true} title={selectedClip.audioEnabled ? '关闭原声' : '开启原声'} onClick={() => onAudioEnabledChange(selectedClip.targetSlotId, !selectedClip.audioEnabled)}><SoundIcon /></button>
+            <button className={selectedClip.coverPhotoPath ? 'slot-cover-button active' : 'slot-cover-button'} aria-label={selectedClip.coverPhotoPath ? '更换封面图片' : '替换封面'} title={selectedClip.coverPhotoPath ? '更换封面图片' : '替换封面'} onClick={() => onReplaceCoverPhoto?.(selectedClip.targetSlotId)}><ImageIcon /></button>
+            {Boolean(selectedClip.coverPhotoPath) && <button className="slot-cover-revert-button" aria-label="恢复视频关键帧" title="恢复视频关键帧" onClick={() => onClearCoverPhoto?.(selectedClip.targetSlotId)}><RefreshIcon /></button>}
+            <button className="slot-clear-button" aria-label={`清空${slotLabel(selectedClip.targetSlotId)}`} title="清空画面" onClick={() => onClearSlot(selectedClip.targetSlotId)}><CloseIcon /></button>
+          </div>}
           <button className="preview-fullscreen-button" aria-label={isFullscreen ? '退出全屏预览' : '全屏预览'} aria-pressed={isFullscreen} title={isFullscreen ? '退出全屏预览（Esc）' : '全屏预览'} onClick={() => setIsFullscreen((current) => !current)}>{isFullscreen ? <CollapseIcon /> : <ExpandIcon />}</button>
         </div>
       </div>
-      <div ref={canvasShellRef} className={`canvas-shell${canEditCanvasRatio ? ' ratio-editable' : ''}${isRatioDragging ? ' ratio-dragging' : ''}`} style={{ aspectRatio: `${canvasWidth} / ${canvasHeight}`, width: `min(88%, ${isFullscreen ? 1100 : 500}px, ${(maximumCanvasHeight * canvasWidth / canvasHeight).toFixed(1)}px)` }}>
+      <div ref={canvasShellRef} className={`canvas-shell${canEditCanvasRatio ? ' ratio-editable' : ''}${isRatioDragging ? ' ratio-dragging' : ''}`} style={{ aspectRatio: `${canvasWidth} / ${canvasHeight}`, width: `min(88%, ${isFullscreen ? 1100 : 640}px, ${(maximumCanvasHeight * canvasWidth / canvasHeight).toFixed(1)}px)` }}>
         <div className="collage-canvas" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={endCropDrag} onPointerCancel={endCropDrag} onLostPointerCapture={endCropDrag} onWheel={handleWheel}>
           {template.slots.map((slot, index) => {
             const clip = clips[index]
@@ -665,19 +669,11 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
                   style={photoStyle(clip, index)}
                 />
               )}
-              <span className="slot-replace-copy">拖入替换</span>
-              {slot.id === selectedSlotId && <div className="slot-context-actions">
-                <button className={clip.audioEnabled ? 'slot-audio-button enabled' : 'slot-audio-button'} aria-label={`${clip.audioEnabled ? '关闭' : '开启'}${slotLabel(slot.id)}原声`} aria-pressed={clip.audioEnabled === true} title={clip.audioEnabled ? '关闭原声' : '开启原声'} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onAudioEnabledChange(slot.id, !clip.audioEnabled) }}><SoundIcon /></button>
-                <button className={clip.coverPhotoPath ? 'slot-cover-button active' : 'slot-cover-button'} aria-label={clip.coverPhotoPath ? '更换封面图片' : '替换封面'} title={clip.coverPhotoPath ? '更换封面图片' : '替换封面'} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onReplaceCoverPhoto?.(slot.id) }}><ImageIcon /></button>
-                {Boolean(clip.coverPhotoPath) && <button className="slot-cover-revert-button" aria-label="恢复视频关键帧" title="恢复视频关键帧" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onClearCoverPhoto?.(slot.id) }}><RefreshIcon /></button>}
-                <button className="slot-clear-button" aria-label={`清空${slotLabel(slot.id)}`} title="清空画面" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onClearSlot(slot.id) }}><CloseIcon /></button>
-              </div>}
               </>}
               {isPointerTarget && <span className="slot-drop-target-copy">松开 · {clip ? '替换画面' : '放入画面'}</span>}
             </div>
           })}
         </div>
-        <div className="live-badge" role="img" aria-label="Live Photo"><LivePhotoIcon /></div>
         {canEditCanvasRatio && <>
           {RATIO_HANDLE_CORNERS.map((corner) => <span
             key={corner}
@@ -699,7 +695,6 @@ export function CollagePreview({ clips, template, canvasWidth, canvasHeight, sel
             playhead={playhead} reducedMotion={prefersReducedMotion} onChange={setCoverFrame} onEditingChange={setIsCoverEditing} />
         </div>
       </div>
-      <p ref={canvasHintRef} className="canvas-hint">{settlingOnCover ? '正在回到关键帧' : isHoldingPreview ? '松手回到关键帧' : playing ? '同步播放中' : !clips.some(Boolean) ? '拖入素材' : !selectedClip ? '点选画格调整' : (coverClip?.coverPhotoPath || coverClip?.coverPhotoUrl) ? '图片封面 · 拖动观片器可恢复视频关键帧' : '拖动画面调整 · 按住空白处预览'}</p>
     </div>
   )
 }

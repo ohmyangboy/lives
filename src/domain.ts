@@ -118,6 +118,8 @@ export const nativeAspectRatio = (source?: { width: number; height: number }) =>
   simplifyRatio(normalizeCustomRatio(source ?? { width: 1, height: 1 }))
 
 export interface VideoClip {
+  importedAtMs?: number
+  createdAtMs?: number | null
   kind?: 'video' | 'livePhoto'
   livePhoto?: LivePhotoSource
   id: string
